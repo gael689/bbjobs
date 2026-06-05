@@ -103,7 +103,12 @@ export default function Home() {
           <h1 className="font-display font-extrabold text-5xl md:text-[64px] text-[#1C2230] leading-[1.1] tracking-tight mb-6">
             El trabajo que buscás<br />
             está en{" "}
-            <span className="text-[#1E8EA3]">Bahía Blanca</span>
+            <span className="text-[#1E8EA3] relative inline-block">
+              Bahía Blanca
+              <svg className="absolute -bottom-2 left-0 w-full" height="6" viewBox="0 0 300 6" fill="none" preserveAspectRatio="none">
+                <path d="M0 5 Q75 0 150 5 Q225 10 300 5" stroke="#D4B7A2" strokeWidth="3" fill="none" strokeLinecap="round"/>
+              </svg>
+            </span>
           </h1>
           <p className="text-xl text-[#64748B] max-w-2xl mx-auto mb-10">
             Reunimos las búsquedas activas de la ciudad en un solo lugar. Empresas verificadas, postulación con un click.
