@@ -1,52 +1,58 @@
-import { BriefcaseIcon } from '@heroicons/react/24/solid';
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-800/50 bg-[#0a0a0c] pt-16 pb-8 mt-auto relative overflow-hidden">
-      {/* Background glow */}
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-[#8a2be2]/10 blur-[100px] pointer-events-none" />
-      
-      <div className="container mx-auto px-6 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-6">
-              <BriefcaseIcon className="h-6 w-6 text-[#8a2be2]" />
-              <span className="text-2xl font-display font-extrabold tracking-tight text-white">
-                BB<span className="text-[#8a2be2]">Jobs</span>
-              </span>
-            </div>
-            <p className="text-gray-400 max-w-sm">
-              Plataforma de reclutamiento ultra-moderna. Conectamos la excelencia técnica con la innovación empresarial.
-            </p>
+    <footer className="bg-white border-t border-[#f0d4e8]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
+        {/* Marca */}
+        <div className="md:col-span-2">
+          <div className="flex items-center gap-2.5 mb-5">
+            <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" />
+            <span className="text-xl font-display font-extrabold tracking-tight">
+              <span className="text-[#e91e8c]">BB</span>
+              <span className="text-[#1a1a2e]">JOBS</span>
+            </span>
           </div>
-          
-          <div>
-            <h4 className="text-white font-display font-semibold mb-6">Plataforma</h4>
-            <ul className="space-y-4">
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Candidatos VIP</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Empresas Elite</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Precios</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-white font-display font-semibold mb-6">Legal</h4>
-            <ul className="space-y-4">
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Términos</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Privacidad</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-[#00f0ff] transition-colors">Cookies</a></li>
-            </ul>
-          </div>
+          <p className="text-sm text-[#6b7280] max-w-xs leading-relaxed mb-5">
+            El portal de empleos de Bahía Blanca y la región. Una iniciativa de{" "}
+            <a href="https://talency.com.ar" target="_blank" rel="noopener noreferrer" className="text-[#e91e8c] font-semibold hover:underline">
+              Talency
+            </a>.
+          </p>
+          <Link
+            href="/register?type=company"
+            className="inline-flex items-center gap-2 bg-[#e91e8c] text-white text-sm font-bold rounded-full px-5 py-2.5 hover:bg-[#c4177a] transition-colors"
+          >
+            Publicar aviso <ArrowRightIcon className="w-4 h-4" />
+          </Link>
         </div>
 
-        <div className="border-t border-gray-800/50 pt-8 flex flex-col md:flex-row items-center justify-between text-gray-500 text-sm">
-          <p>© {new Date().getFullYear()} BBJobs. Neo-Industrial Design.</p>
-          <div className="flex items-center space-x-2 mt-4 md:mt-0">
-            <span>Crafted with</span>
-            <span className="text-[#00f0ff]">♥</span>
-            <span>in Web3 Era</span>
-          </div>
+        {/* Links */}
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-4">Plataforma</h4>
+          <ul className="space-y-3 text-sm">
+            <li><Link href="/" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Ver avisos</Link></li>
+            <li><Link href="/register?type=candidate" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Subir mi CV</Link></li>
+            <li><Link href="/register?type=company" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Publicar búsqueda</Link></li>
+            <li><Link href="/planes" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Planes y precios</Link></li>
+          </ul>
         </div>
+
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-4">Legal</h4>
+          <ul className="space-y-3 text-sm">
+            <li><Link href="/terminos" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Términos de uso</Link></li>
+            <li><Link href="/privacidad" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Privacidad</Link></li>
+            <li><Link href="/nosotros" className="text-[#1a1a2e] hover:text-[#e91e8c] transition-colors font-medium">Quiénes somos</Link></li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="border-t border-[#f0d4e8] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6b7280]">
+        <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
+        <p>Hecho con ♥ para el mercado laboral local</p>
       </div>
     </footer>
   );

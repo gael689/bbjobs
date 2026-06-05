@@ -4,12 +4,13 @@ import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-const outfit = Outfit({ subsets: ["latin"], variable: "--font-display" });
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-display", display: "swap" });
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "BBJobs | Portal de Talento",
-  description: "Encuentra tu próximo desafío profesional con BBJobs. Plataforma de reclutamiento ultra-moderna.",
+  title: "BBJobs — El trabajo que buscás está en Bahía",
+  description: "Portal de empleos local de Bahía Blanca y la región. Empresas verificadas, postulación con un click y matching inteligente.",
+  keywords: "empleo Bahía Blanca, trabajo Bahía Blanca, búsqueda laboral, recursos humanos",
 };
 
 export default function RootLayout({
@@ -18,13 +19,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${outfit.variable} ${dmSans.variable} dark`}>
-      <body className="min-h-screen bg-[#0a0a0c] text-gray-200 font-sans flex flex-col relative antialiased selection:bg-[#00f0ff] selection:text-black">
-        {/* Global Noise Texture Overlay */}
-        <div className="bg-noise mix-blend-overlay fixed inset-0 w-full h-full" />
-        
+    <html lang="es" className={`${outfit.variable} ${dmSans.variable}`}>
+      <body className="min-h-screen bg-[#fdf6fb] text-[#1a1a2e] font-sans flex flex-col antialiased">
         <Header />
-        <main className="flex-1 relative z-10">
+        <main className="flex-1 w-full">
           {children}
         </main>
         <Footer />

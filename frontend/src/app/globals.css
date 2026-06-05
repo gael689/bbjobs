@@ -1,32 +1,62 @@
 @import "tailwindcss";
 
-:root {
 @theme {
-  --color-obsidian: #0a0a0c;
-  --color-obsidian-light: #121215;
-  --color-electric: #00f0ff;
-  --color-neon-purple: #8a2be2;
-  --font-sans: "DM Sans", sans-serif;
+  /* Paleta Talency / BBJobs */
+  --color-brand:        #e91e8c;   /* rosa magenta principal */
+  --color-brand-hover:  #c4177a;   /* hover más oscuro */
+  --color-brand-light:  #fce4f3;   /* fondo rosado muy suave */
+  --color-brand-mid:    #f9c8e9;   /* tono medio para gradientes */
+  --color-surface:      #ffffff;
+  --color-bg:           #fdf6fb;   /* fondo general levemente rosado */
+  --color-text:         #1a1a2e;   /* texto oscuro */
+  --color-text-muted:   #6b7280;
+  --color-border:       #f0d4e8;
+
+  --font-sans:    "DM Sans", sans-serif;
   --font-display: "Outfit", sans-serif;
 }
 
-@layer utilities {
-  .bg-noise {
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-  }
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: var(--color-obsidian);
-  color: #e5e7eb;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background-color: var(--color-electric);
-  color: #000;
+  background-color: var(--color-brand-light);
+  color: var(--color-brand-hover);
+}
+
+/* Utilidades de botón reutilizables */
+.btn-primary {
+  background-color: var(--color-brand);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 9999px;
+  padding: 0.625rem 1.5rem;
+  transition: background-color 0.2s;
+}
+.btn-primary:hover { background-color: var(--color-brand-hover); }
+
+.btn-outline {
+  border: 2px solid var(--color-brand);
+  color: var(--color-brand);
+  font-weight: 700;
+  border-radius: 9999px;
+  padding: 0.625rem 1.5rem;
+  background: transparent;
+  transition: all 0.2s;
+}
+.btn-outline:hover {
+  background-color: var(--color-brand);
+  color: #fff;
 }
