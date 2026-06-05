@@ -84,10 +84,8 @@ export default function Home() {
           <NeuralCanvas className="w-full h-full" />
         </div>
 
-        {/* ── Glow orbs sutiles ── */}
-        <div className="hero-orb hero-orb-1" />
-        <div className="hero-orb hero-orb-2" />
-        <div className="hero-orb hero-orb-3" />
+        {/* ── Aurora Sweeping Glow (Roomix style) ── */}
+        <div className="hero-aurora" />
 
         {/* ── Partículas flotantes ── */}
         {[1,2,3,4,5,6,7,8,9,10].map(n => (
