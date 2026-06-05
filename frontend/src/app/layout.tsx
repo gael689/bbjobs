@@ -4,8 +4,8 @@ import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", display: "swap", weight: ["400","500","600","700","800"] });
-const dmSans  = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", display: "swap", weight: ["400","500","600","700","800","900"] });
+const dmSans  = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap", weight: ["400","500","700"] });
 
 export const metadata: Metadata = {
   title: "BBJobs — El trabajo que buscás está en Bahía",

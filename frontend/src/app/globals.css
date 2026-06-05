@@ -119,22 +119,18 @@ body {
   opacity: 0; animation: scan-line 7s ease-in-out infinite; animation-delay: 3.5s;
 }
 
-/* ─── Aurora / Sweeping Glow (Efecto difuminado estilo Roomix) ─── */
+/* ─── Glow Focal (Roomix style de un solo lado) ─── */
 .hero-aurora {
   position: absolute;
-  top: 40%;
-  left: 50%;
-  width: 140vw;
-  height: 600px;
-  transform: translate(-50%, -50%);
+  top: 10%;
+  right: -10%;
+  width: 800px;
+  height: 800px;
   pointer-events: none;
-  filter: blur(100px);
+  filter: blur(120px);
   z-index: 0;
-  opacity: 0.65;
-  background-image: 
-    radial-gradient(ellipse at 10% 50%, #1E8EA3 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 50%, #D4B7A2 0%, transparent 60%),
-    radial-gradient(ellipse at 50% 50%, #9ED4DF 0%, transparent 60%);
+  opacity: 0.7;
+  background: radial-gradient(circle at center, #1E8EA3 0%, #9ED4DF 40%, transparent 70%);
 }
 
 /* ─── Corner brackets decorativos ─── */

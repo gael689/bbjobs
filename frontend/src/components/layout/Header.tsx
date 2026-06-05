@@ -19,16 +19,15 @@ export default function Header() {
   };
 
   return (
-    <div className="sticky top-4 z-50 w-full px-4 sm:px-6 pointer-events-none">
-      <header className="mx-auto max-w-7xl bg-white/40 backdrop-blur-xl border border-white/60 rounded-2xl shadow-lg shadow-[#1E8EA3]/5 pointer-events-auto">
-        <div className="px-4 sm:px-6 flex h-[72px] items-center justify-between gap-4">
+    <div className="sticky top-6 z-50 w-full px-4 flex justify-center pointer-events-none">
+      <header className="w-full max-w-5xl bg-white/70 backdrop-blur-2xl border border-white/80 rounded-full shadow-xl shadow-[#1C2230]/5 pointer-events-auto">
+        <div className="px-6 flex h-16 items-center justify-between gap-4">
 
         {/* ── Logo ── */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-          <Image src="/logo.png" alt="BBJobs" width={36} height={36} className="object-contain" priority />
-          <span className="font-display font-black italic text-2xl tracking-wider leading-none">
-            <span className="text-[#1E8EA3]">BB</span>
-            <span className="text-[#1C2230]">JOBS</span>
+        <Link href="/" className="flex items-center gap-2 shrink-0 group">
+          <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" priority />
+          <span className="font-display font-black text-[22px] tracking-tight leading-none text-[#1C2230]">
+            <span className="text-[#1E8EA3]">BB</span>JOBS
           </span>
         </Link>
 

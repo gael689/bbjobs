@@ -74,7 +74,7 @@ export default function Home() {
       {/* ══════════════════════════════════
           HERO — Red neuronal + Partículas
       ══════════════════════════════════ */}
-      <section className="relative px-4 pt-24 pb-28 overflow-hidden bg-[#FAFBFD]">
+      <section className="relative px-4 pt-32 pb-28 overflow-hidden">
 
         {/* ── Dot-grid de fondo ── */}
         <div className="hero-dot-grid absolute inset-0 pointer-events-none" />
