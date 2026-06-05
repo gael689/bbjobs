@@ -19,8 +19,9 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-md border-b border-[#DDE3EC] shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex h-[72px] items-center justify-between gap-4">
+    <div className="sticky top-4 z-50 w-full px-4 sm:px-6 pointer-events-none">
+      <header className="mx-auto max-w-7xl bg-white/90 backdrop-blur-md border border-[#DDE3EC] rounded-2xl shadow-md pointer-events-auto">
+        <div className="px-4 sm:px-6 flex h-[72px] items-center justify-between gap-4">
 
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
@@ -114,6 +115,7 @@ export default function Header() {
           </div>
         </div>
       )}
-    </header>
+      </header>
+    </div>
   );
 }

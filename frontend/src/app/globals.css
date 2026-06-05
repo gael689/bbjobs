@@ -119,36 +119,27 @@ body {
   opacity: 0; animation: scan-line 7s ease-in-out infinite; animation-delay: 3.5s;
 }
 
-/* ─── Glow orbs ─── */
-@keyframes orb-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%       { transform: translate(20px, -15px) scale(1.05); }
-  66%       { transform: translate(-10px, 10px) scale(0.97); }
-}
+/* ─── Heavy Glow ambiental ─── */
 .hero-orb {
   position: absolute;
   border-radius: 9999px;
   pointer-events: none;
-  filter: blur(70px);
-  animation: orb-drift 10s ease-in-out infinite;
+  filter: blur(140px);
 }
 .hero-orb-1 {
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, #1E8EA3 0%, transparent 70%);
-  top: -100px; right: -80px; opacity: 0.08;
-  animation-delay: 0s;
+  width: 70vw; height: 500px;
+  background: radial-gradient(ellipse at center, #1E8EA3 0%, transparent 60%);
+  top: -200px; left: 15vw; opacity: 0.15;
 }
 .hero-orb-2 {
-  width: 300px; height: 300px;
-  background: radial-gradient(circle, #9ED4DF 0%, transparent 70%);
-  bottom: -60px; left: -60px; opacity: 0.07;
-  animation-delay: 4s;
+  width: 50vw; height: 400px;
+  background: radial-gradient(ellipse at center, #9ED4DF 0%, transparent 60%);
+  top: -150px; left: 25vw; opacity: 0.12;
 }
 .hero-orb-3 {
-  width: 200px; height: 200px;
-  background: radial-gradient(circle, #D4B7A2 0%, transparent 70%);
-  top: 30%; left: 50%; opacity: 0.06;
-  animation-delay: 7s;
+  width: 40vw; height: 300px;
+  background: radial-gradient(ellipse at center, #D4B7A2 0%, transparent 60%);
+  top: -50px; left: 30vw; opacity: 0.1;
 }
 
 /* ─── Corner brackets decorativos ─── */
