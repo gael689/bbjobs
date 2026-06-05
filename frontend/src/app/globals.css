@@ -117,6 +117,8 @@ body {
   position: absolute; left: 0; width: 60%; height: 1px;
   top: 58%; left: 20%; background: linear-gradient(90deg, transparent, #9ED4DF 30%, #1E8EA3 70%, transparent);
   opacity: 0; animation: scan-line 7s ease-in-out infinite; animation-delay: 3.5s;
+}
+
 /* ─── Glow Focal (Roomix style de un solo lado, solo azul) ─── */
 .hero-aurora {
   position: absolute;
