@@ -27,10 +27,9 @@ export default function LoginPage() {
       const res = await api.post("/auth/login", formData, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
-      const { access_token } = res.data;
-      setAccessToken(access_token);
+      setAccessToken(res.data.access_token);
       const userRes = await api.get("/auth/me");
-      login(userRes.data, access_token);
+      login(userRes.data, res.data.access_token);
       router.push(userRes.data.role === "company" ? "/dashboard/company" : "/dashboard/candidate");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Credenciales incorrectas.");
@@ -40,75 +39,55 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-[#fce4f3] via-[#fdf6fb] to-white">
+    <div className="min-h-[calc(100vh-72px)] flex items-center justify-center px-4 bg-mesh">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-6">
             <Image src="/logo.png" alt="BBJobs" width={40} height={40} className="object-contain" />
-            <span className="text-2xl font-display font-extrabold">
-              <span className="text-[#e91e8c]">BB</span><span className="text-[#1a1a2e]">JOBS</span>
+            <span className="font-display font-bold text-2xl tracking-tight">
+              <span className="text-[#1E8EA3]">BB</span><span className="text-[#1C2230]">JOBS</span>
             </span>
           </div>
-          <h1 className="text-3xl font-display font-bold text-[#1a1a2e] mb-2">Bienvenido de vuelta</h1>
-          <p className="text-[#6b7280]">Ingresá a tu cuenta para continuar</p>
+          <h1 className="font-display font-bold text-3xl text-[#1C2230] mb-2">Bienvenido de vuelta</h1>
+          <p className="text-[#64748B]">Ingresá a tu cuenta para continuar</p>
         </div>
 
-        <div className="bg-white border border-[#f0d4e8] rounded-3xl p-8 shadow-sm">
+        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 shadow-sm">
           {error && (
             <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl mb-6 text-center font-medium">
               {error}
             </div>
           )}
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-bold text-[#1a1a2e] mb-2">Correo electrónico</label>
+              <label className="block text-sm font-bold text-[#1C2230] mb-2">Correo electrónico</label>
               <div className="relative">
-                <EnvelopeIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#e91e8c]" />
-                <input
-                  type="email"
-                  required
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 border border-[#f0d4e8] rounded-xl bg-[#fdf6fb] text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#e91e8c]/20 focus:border-[#e91e8c] transition-all text-sm"
-                />
+                <EnvelopeIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#1E8EA3]" />
+                <input type="email" required placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 border border-[#DDE3EC] rounded-xl bg-[#FAFBFD] text-[#1C2230] focus:outline-none focus:ring-2 focus:ring-[#1E8EA3]/20 focus:border-[#1E8EA3] transition-all text-sm" />
               </div>
             </div>
-
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-bold text-[#1a1a2e]">Contraseña</label>
-                <a href="#" className="text-xs text-[#e91e8c] hover:underline font-medium">¿Olvidaste la contraseña?</a>
+                <label className="text-sm font-bold text-[#1C2230]">Contraseña</label>
+                <a href="#" className="text-xs text-[#1E8EA3] hover:underline font-medium">¿Olvidaste la contraseña?</a>
               </div>
               <div className="relative">
-                <LockClosedIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#e91e8c]" />
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 border border-[#f0d4e8] rounded-xl bg-[#fdf6fb] text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#e91e8c]/20 focus:border-[#e91e8c] transition-all text-sm"
-                />
+                <LockClosedIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#1E8EA3]" />
+                <input type="password" required placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 border border-[#DDE3EC] rounded-xl bg-[#FAFBFD] text-[#1C2230] focus:outline-none focus:ring-2 focus:ring-[#1E8EA3]/20 focus:border-[#1E8EA3] transition-all text-sm" />
               </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#e91e8c] hover:bg-[#c4177a] text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 mt-2"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 mt-2">
               {loading ? "Ingresando..." : "Iniciar sesión"}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-sm text-[#6b7280] mt-6">
+        <p className="text-center text-sm text-[#64748B] mt-6">
           ¿No tenés cuenta?{" "}
-          <Link href="/register?type=candidate" className="text-[#e91e8c] font-bold hover:underline">
-            Registrate gratis
-          </Link>
+          <Link href="/register?type=candidate" className="text-[#1E8EA3] font-bold hover:underline">Registrate gratis</Link>
         </p>
       </div>
     </div>
