@@ -119,27 +119,27 @@ body {
   opacity: 0; animation: scan-line 7s ease-in-out infinite; animation-delay: 3.5s;
 }
 
-/* ─── Heavy Glow ambiental ─── */
+/* ─── Glow concentrado en puntos específicos ─── */
 .hero-orb {
   position: absolute;
   border-radius: 9999px;
   pointer-events: none;
-  filter: blur(140px);
+  filter: blur(80px);
 }
 .hero-orb-1 {
-  width: 70vw; height: 500px;
-  background: radial-gradient(ellipse at center, #1E8EA3 0%, transparent 60%);
-  top: -200px; left: 15vw; opacity: 0.15;
+  width: 450px; height: 450px;
+  background: radial-gradient(circle, #1E8EA3 0%, transparent 65%);
+  top: -100px; left: -100px; opacity: 0.35;
 }
 .hero-orb-2 {
-  width: 50vw; height: 400px;
-  background: radial-gradient(ellipse at center, #9ED4DF 0%, transparent 60%);
-  top: -150px; left: 25vw; opacity: 0.12;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #9ED4DF 0%, transparent 65%);
+  top: 15%; right: -150px; opacity: 0.25;
 }
 .hero-orb-3 {
-  width: 40vw; height: 300px;
-  background: radial-gradient(ellipse at center, #D4B7A2 0%, transparent 60%);
-  top: -50px; left: 30vw; opacity: 0.1;
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, #D4B7A2 0%, transparent 65%);
+  bottom: -50px; left: 30%; opacity: 0.25;
 }
 
 /* ─── Corner brackets decorativos ─── */
