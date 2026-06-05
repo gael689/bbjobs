@@ -20,7 +20,7 @@ export default function Header() {
 
   return (
     <div className="fixed top-6 left-0 right-0 z-50 w-full px-4 flex justify-center pointer-events-none">
-      <header className="w-full max-w-6xl bg-white/60 backdrop-blur-2xl backdrop-saturate-200 border border-white/40 shadow-[0_8px_32px_rgba(30,142,163,0.15)] rounded-full pointer-events-auto">
+      <header className="w-full max-w-6xl bg-gradient-to-b from-white to-[#F1F5F9] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_8px_32px_rgba(30,142,163,0.15)] rounded-full pointer-events-auto">
         <div className="px-8 flex h-[76px] items-center justify-between gap-4">
 
         {/* ── Logo ── */}
