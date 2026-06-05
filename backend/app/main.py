@@ -5,7 +5,7 @@ import uuid
 import time
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.v1 import health
+from app.api.v1 import health, auth
 
 setup_logging()
 logger = structlog.get_logger("app")
@@ -54,3 +54,4 @@ async def logging_middleware(request: Request, call_next):
         structlog.contextvars.clear_contextvars()
 
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
