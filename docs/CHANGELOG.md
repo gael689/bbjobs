@@ -49,3 +49,14 @@ Llevaremos aquí el registro de las funcionalidades entregadas en cada fase.
 - Soporte para creación de Preferencia en checkout con URL redireccionable (`POST /me/company/jobs/{id}/feature`).
 - Endpoint Webhook tolerante a fallos y con procesamiento en Background Task (`POST /webhooks/mercado-pago`).
 - Control de idempotencia y log exhaustivo en `MercadoPagoWebhookEvent`. Activa el `JobFeature` de forma automática tras validación de firma.
+
+## FASE 9 - Backend Notificaciones (Emails)
+- Añadido cliente `resend` en dependencias (Poetry).
+- Creada abstracción `resend_client.py` con logs de previsualización para simular mails en desarrollo.
+- Creado `app/services/email.py` con métodos abstractos (Bienvenida, Reseteo de Password, Postulaciones).
+
+## FASE 10 - Backend Mantenimiento y Rate Limiting
+- Añadido `apscheduler`, `sentry-sdk` y `slowapi` a las dependencias.
+- Configurado CRON Background Job en `startup` event para que cada 1 hora desactive los "destacados" vencidos (`app/core/scheduler.py`).
+- Middleware de SlowAPI integrado a FastAPI para controlar abusos de endpoints.
+- Inicialización condicional de Sentry DSN para trackeo de errores en producción.

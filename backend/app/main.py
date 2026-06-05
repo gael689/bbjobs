@@ -3,17 +3,36 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 import uuid
 import time
+import sentry_sdk
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.api.v1 import health, auth, companies, candidates, skills, jobs, applications, tests, plans, subscriptions, payments, webhooks
+from app.core.scheduler import start_scheduler
 
 setup_logging()
 logger = structlog.get_logger("app")
+
+# Sentry config
+if hasattr(settings, "SENTRY_DSN") and settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
+# SlowAPI config
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="BBJobs API",
     version="0.1.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +41,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    start_scheduler()
 
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
