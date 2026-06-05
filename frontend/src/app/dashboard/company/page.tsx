@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
-import { Building2, Briefcase, Users, Star, Plus } from 'lucide-react';
+import { BuildingOffice2Icon, BriefcaseIcon, UsersIcon, StarIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
 
 export default function CompanyDashboard() {
   const { user, isAuthenticated, isLoading } = useAuthStore();
@@ -34,80 +35,110 @@ export default function CompanyDashboard() {
   }, [isAuthenticated, user]);
 
   if (isLoading || !isAuthenticated || user?.role !== 'company') {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse text-indigo-500 font-medium">Cargando panel empresarial...</div></div>;
+    return <div className="min-h-screen flex items-center justify-center"><div className="text-[#00f0ff] font-display animate-pulse">Accediendo a la terminal corporativa...</div></div>;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <div className="container mx-auto px-6 py-12 max-w-7xl">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6"
+      >
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-indigo-500" />
-            {profile?.legal_name || 'Panel de Empresa'}
+          <h1 className="text-4xl font-display font-extrabold text-white flex items-center gap-4">
+            <div className="p-3 bg-[#00f0ff]/10 rounded-2xl">
+              <BuildingOffice2Icon className="w-8 h-8 text-[#00f0ff]" />
+            </div>
+            {profile?.legal_name || 'Terminal Corporativa'}
           </h1>
-          <p className="text-gray-400 mt-2">Gestiona tus vacantes y el talento de forma eficiente.</p>
+          <p className="text-gray-400 mt-3 font-sans max-w-lg">Despliega nuevas vacantes y filtra al talento mediante inteligencia y precisión.</p>
         </div>
-        <button className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-all shadow-lg shadow-indigo-900/20">
-          <Plus className="w-5 h-5" />
-          Nueva Búsqueda
+        <button className="flex items-center justify-center gap-3 bg-[#00f0ff] hover:bg-[#00f0ff]/80 text-black px-8 py-4 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]">
+          <PlusIcon className="w-5 h-5 stroke-2" />
+          Nueva Directiva
         </button>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         {/* Plan Info */}
-        <div className="bg-gradient-to-br from-indigo-900/40 to-gray-950 border border-indigo-500/20 rounded-2xl p-6 relative overflow-hidden group md:col-span-1">
-          <div className="absolute top-2 right-2 p-1.5 bg-indigo-500/20 rounded-lg">
-            <Star className="w-4 h-4 text-indigo-400" />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-br from-[#121215] to-[#0a0a0c] border border-gray-800 hover:border-[#00f0ff]/30 rounded-3xl p-8 relative overflow-hidden group md:col-span-1"
+        >
+          <div className="absolute top-4 right-4 p-2 bg-gray-900 border border-gray-800 rounded-xl">
+            <StarIcon className="w-5 h-5 text-[#00f0ff]" />
           </div>
-          <h3 className="text-gray-400 text-sm font-medium mb-1">Plan Actual</h3>
-          <p className="text-2xl font-bold text-white mb-4">{subscription?.plan?.name || 'Free'}</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Búsquedas activas</span>
-              <span className="text-white font-medium">0 / {subscription?.plan?.max_active_job_postings || '1'}</span>
+          <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Nivel de Acceso</h3>
+          <p className="text-3xl font-display font-bold text-white mb-6">{subscription?.plan?.name || 'Standard'}</p>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm font-medium">
+              <span className="text-gray-400">Búsquedas</span>
+              <span className="text-white">0 / {subscription?.plan?.max_active_job_postings || '1'}</span>
             </div>
-            <div className="w-full bg-gray-800 rounded-full h-1.5">
-              <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '0%' }}></div>
+            <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
+              <div className="bg-[#00f0ff] h-full rounded-full w-[0%]"></div>
             </div>
           </div>
-          <button className="mt-6 w-full py-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider">
-            Mejorar Plan
+          <button className="mt-8 w-full py-3 bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 hover:border-gray-700 rounded-xl text-sm font-bold transition-all">
+            Escalar Plan
           </button>
-        </div>
+        </motion.div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:col-span-3">
-          <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center">
-            <div className="flex items-center space-x-3 mb-2">
-              <Briefcase className="w-5 h-5 text-gray-500" />
-              <h3 className="text-gray-400 font-medium">Vacantes Activas</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 md:col-span-3">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="bg-[#121215] border border-gray-800 rounded-3xl p-8 flex flex-col justify-center"
+          >
+            <div className="flex items-center space-x-4 mb-4">
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl">
+                <BriefcaseIcon className="w-6 h-6 text-gray-400" />
+              </div>
+              <h3 className="text-gray-500 font-bold uppercase tracking-wider text-xs">Directivas Activas</h3>
             </div>
-            <p className="text-4xl font-bold text-white">0</p>
-          </div>
+            <p className="text-6xl font-display font-extrabold text-white">0</p>
+          </motion.div>
           
-          <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center">
-            <div className="flex items-center space-x-3 mb-2">
-              <Users className="w-5 h-5 text-gray-500" />
-              <h3 className="text-gray-400 font-medium">Nuevos Postulantes</h3>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="bg-[#121215] border border-gray-800 rounded-3xl p-8 flex flex-col justify-center"
+          >
+            <div className="flex items-center space-x-4 mb-4">
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl">
+                <UsersIcon className="w-6 h-6 text-gray-400" />
+              </div>
+              <h3 className="text-gray-500 font-bold uppercase tracking-wider text-xs">Candidatos Recibidos</h3>
             </div>
-            <p className="text-4xl font-bold text-white">0</p>
-          </div>
+            <p className="text-6xl font-display font-extrabold text-white">0</p>
+          </motion.div>
         </div>
       </div>
 
-      <div className="mt-10 bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-white">Búsquedas Recientes</h3>
-          <a href="#" className="text-sm font-medium text-indigo-400 hover:text-indigo-300">Ver todas</a>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="mt-12 bg-[#121215] border border-gray-800 rounded-3xl overflow-hidden"
+      >
+        <div className="px-8 py-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0a0c]">
+          <h3 className="text-xl font-display font-bold text-white">Últimas Publicaciones</h3>
+          <button className="text-sm font-bold text-[#00f0ff] hover:text-white transition-colors">Ver Archivo</button>
         </div>
-        <div className="p-8 text-center flex flex-col items-center">
-          <Briefcase className="w-12 h-12 text-gray-800 mb-4" />
-          <p className="text-gray-400 mb-6">No tienes búsquedas publicadas todavía.</p>
-          <button className="px-4 py-2 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors text-sm">
-            Crear tu primer aviso
+        <div className="p-16 text-center flex flex-col items-center">
+          <BriefcaseIcon className="w-16 h-16 text-gray-800 mb-6" />
+          <p className="text-gray-500 mb-8 font-medium">El registro de directivas está vacío.</p>
+          <button className="px-6 py-3 bg-white hover:bg-gray-200 text-black rounded-xl font-bold transition-colors">
+            Generar primera búsqueda
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
