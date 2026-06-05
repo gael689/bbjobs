@@ -5,7 +5,7 @@ import uuid
 import time
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.v1 import health, auth, companies, candidates, skills, jobs, applications, tests
+from app.api.v1 import health, auth, companies, candidates, skills, jobs, applications, tests, plans, subscriptions, payments, webhooks
 
 setup_logging()
 logger = structlog.get_logger("app")
@@ -61,3 +61,7 @@ app.include_router(skills.router, prefix="/api/v1", tags=["skills"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
 app.include_router(applications.router, prefix="/api/v1", tags=["applications"])
 app.include_router(tests.router, prefix="/api/v1", tags=["tests"])
+app.include_router(plans.router, prefix="/api/v1", tags=["plans"])
+app.include_router(subscriptions.router, prefix="/api/v1", tags=["subscriptions"])
+app.include_router(payments.router, prefix="/api/v1", tags=["payments"])
+app.include_router(webhooks.router, prefix="/api/v1", tags=["webhooks"])

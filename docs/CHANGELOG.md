@@ -39,8 +39,13 @@ Llevaremos aquí el registro de las funcionalidades entregadas en cada fase.
 - Control de Cooldown de 30 Días para repetición (`/tests/{id}/start`).
 - Carga de respuestas e historial de resultados promediados (`/tests/submissions/{sub_id}/complete`, `/me/candidate/tests`).
 
-## FASE 6 - Backend Storage (Cloudflare R2)
-- Implementado conector `boto3` a S3 Compatible de R2 (`r2.py`).
-- Añadido soporte `python-multipart` y endpoint `POST /me/candidate/cv` para candidatos con tope 5MB a formato PDF exclusivo.
-- Añadido endpoint `POST /me/company/logo` para subida de logos (máx 1MB), imágenes.
-- Añadido endpoint `POST /me/company/verification/documents` para documentos pesados empresariales (máx 5MB).
+## FASE 7 - Backend Planes y Suscripciones
+- Creados DTOs en `payment.py` para Manejo de Planes de Empresa.
+- Endpoint administrativo CRUD de Planes (`GET /admin/plans`, `POST /admin/plans`, `PATCH /admin/plans/{id}`).
+- Endpoint particular para listar la suscripción actual de una empresa (`GET /me/company/subscription`).
+
+## FASE 8 - Backend Pagos (MercadoPago)
+- Creada integración modular `mercado_pago.py` para MercadoPago SDK (Sandbox/Prod).
+- Soporte para creación de Preferencia en checkout con URL redireccionable (`POST /me/company/jobs/{id}/feature`).
+- Endpoint Webhook tolerante a fallos y con procesamiento en Background Task (`POST /webhooks/mercado-pago`).
+- Control de idempotencia y log exhaustivo en `MercadoPagoWebhookEvent`. Activa el `JobFeature` de forma automática tras validación de firma.
