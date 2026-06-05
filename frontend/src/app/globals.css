@@ -61,3 +61,107 @@ body {
 /* Línea de typing */
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .cursor-blink { animation: blink 1s step-end infinite; }
+
+/* ─── Hero: dot-grid sutil ─── */
+.hero-dot-grid {
+  background-image: radial-gradient(circle, #1E8EA3 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.07;
+}
+
+/* ─── Partículas flotantes ─── */
+@keyframes float-up {
+  0%   { transform: translateY(0px) translateX(0px); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 0.6; }
+  100% { transform: translateY(-80px) translateX(12px); opacity: 0; }
+}
+@keyframes float-up-b {
+  0%   { transform: translateY(0px) translateX(0px); opacity: 0; }
+  20%  { opacity: 0.8; }
+  80%  { opacity: 0.4; }
+  100% { transform: translateY(-60px) translateX(-10px); opacity: 0; }
+}
+@keyframes float-up-c {
+  0%   { transform: translateY(0px) scale(1); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 0.5; }
+  100% { transform: translateY(-100px) scale(0.6); opacity: 0; }
+}
+
+.particle { position: absolute; border-radius: 9999px; pointer-events: none; }
+.particle-1 { width:4px; height:4px; background:#1E8EA3; left:12%; top:70%; animation: float-up 4.2s ease-in-out infinite; animation-delay:0s; }
+.particle-2 { width:3px; height:3px; background:#9ED4DF; left:22%; top:60%; animation: float-up-b 3.8s ease-in-out infinite; animation-delay:0.6s; }
+.particle-3 { width:5px; height:5px; background:#1E8EA3; left:35%; top:75%; animation: float-up-c 5s ease-in-out infinite; animation-delay:1.1s; }
+.particle-4 { width:3px; height:3px; background:#9ED4DF; left:50%; top:65%; animation: float-up 4.6s ease-in-out infinite; animation-delay:1.8s; }
+.particle-5 { width:4px; height:4px; background:#1C8F9E; left:63%; top:72%; animation: float-up-b 4s ease-in-out infinite; animation-delay:0.3s; }
+.particle-6 { width:3px; height:3px; background:#1E8EA3; left:78%; top:68%; animation: float-up-c 3.5s ease-in-out infinite; animation-delay:2.1s; }
+.particle-7 { width:5px; height:5px; background:#9ED4DF; left:88%; top:74%; animation: float-up 5.2s ease-in-out infinite; animation-delay:0.9s; }
+.particle-8 { width:3px; height:3px; background:#1E8EA3; left:5%;  top:55%; animation: float-up-b 4.4s ease-in-out infinite; animation-delay:1.5s; }
+.particle-9 { width:4px; height:4px; background:#9ED4DF; left:45%; top:80%; animation: float-up 3.9s ease-in-out infinite; animation-delay:2.8s; }
+.particle-10{ width:3px; height:3px; background:#1C8F9E; left:95%; top:60%; animation: float-up-c 4.8s ease-in-out infinite; animation-delay:0.4s; }
+
+/* ─── Líneas de conexión (scan horizontal) ─── */
+@keyframes scan-line {
+  0%   { transform: scaleX(0); opacity: 0; transform-origin: left; }
+  40%  { transform: scaleX(1); opacity: 1; transform-origin: left; }
+  60%  { transform: scaleX(1); opacity: 1; transform-origin: right; }
+  100% { transform: scaleX(0); opacity: 0; transform-origin: right; }
+}
+.scan-line-1 {
+  position: absolute; left: 0; width: 100%; height: 1px;
+  top: 32%; background: linear-gradient(90deg, transparent, #1E8EA3 20%, #9ED4DF 50%, #1E8EA3 80%, transparent);
+  opacity: 0; animation: scan-line 6s ease-in-out infinite; animation-delay: 1s;
+}
+.scan-line-2 {
+  position: absolute; left: 0; width: 60%; height: 1px;
+  top: 58%; left: 20%; background: linear-gradient(90deg, transparent, #9ED4DF 30%, #1E8EA3 70%, transparent);
+  opacity: 0; animation: scan-line 7s ease-in-out infinite; animation-delay: 3.5s;
+}
+
+/* ─── Glow orbs ─── */
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(20px, -15px) scale(1.05); }
+  66%       { transform: translate(-10px, 10px) scale(0.97); }
+}
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(70px);
+  animation: orb-drift 10s ease-in-out infinite;
+}
+.hero-orb-1 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #1E8EA3 0%, transparent 70%);
+  top: -100px; right: -80px; opacity: 0.08;
+  animation-delay: 0s;
+}
+.hero-orb-2 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, #9ED4DF 0%, transparent 70%);
+  bottom: -60px; left: -60px; opacity: 0.07;
+  animation-delay: 4s;
+}
+.hero-orb-3 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, #D4B7A2 0%, transparent 70%);
+  top: 30%; left: 50%; opacity: 0.06;
+  animation-delay: 7s;
+}
+
+/* ─── Corner brackets decorativos ─── */
+.corner-bracket {
+  position: absolute;
+  width: 24px; height: 24px;
+  border-color: #1E8EA3;
+  border-style: solid;
+  opacity: 0.25;
+  pointer-events: none;
+}
+.bracket-tl { top: 24px; left: 24px; border-width: 1.5px 0 0 1.5px; }
+.bracket-tr { top: 24px; right: 24px; border-width: 1.5px 1.5px 0 0; }
+.bracket-bl { bottom: 24px; left: 24px; border-width: 0 0 1.5px 1.5px; }
+.bracket-br { bottom: 24px; right: 24px; border-width: 0 1.5px 1.5px 0; }
+

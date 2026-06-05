@@ -71,16 +71,67 @@ export default function Home() {
   return (
     <>
       {/* ══════════════════════════════════
-          HERO — Gradiente mesh sutil
+          HERO — Partículas IA + Paleta Talency
       ══════════════════════════════════ */}
-      <section className="bg-mesh px-4 pt-20 pb-24 relative overflow-hidden">
-        {/* Círculo decorativo teal en background */}
-        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] bg-[#1E8EA3]/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-16 w-[300px] h-[300px] bg-[#D4B7A2]/10 rounded-full blur-2xl pointer-events-none" />
+      <section className="relative px-4 pt-24 pb-28 overflow-hidden bg-[#FAFBFD]">
 
+        {/* ── Dot-grid de fondo ── */}
+        <div className="hero-dot-grid absolute inset-0 pointer-events-none" />
+
+        {/* ── SVG de líneas geométricas finas ── */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          {/* Líneas diagonales tenues */}
+          <line x1="0" y1="40%" x2="100%" y2="0%" stroke="#1E8EA3" strokeWidth="0.5" opacity="0.06" />
+          <line x1="0" y1="100%" x2="100%" y2="30%" stroke="#9ED4DF" strokeWidth="0.5" opacity="0.05" />
+          <line x1="30%" y1="0" x2="70%" y2="100%" stroke="#1E8EA3" strokeWidth="0.4" opacity="0.04" />
+
+          {/* Círculo trazado — izquierda */}
+          <circle cx="8%" cy="50%" r="120" fill="none" stroke="#1E8EA3" strokeWidth="0.7" opacity="0.08" />
+          <circle cx="8%" cy="50%" r="80" fill="none" stroke="#9ED4DF" strokeWidth="0.5" opacity="0.06" />
+
+          {/* Círculo trazado — derecha */}
+          <circle cx="92%" cy="40%" r="150" fill="none" stroke="#1E8EA3" strokeWidth="0.7" opacity="0.07" />
+          <circle cx="92%" cy="40%" r="100" fill="none" stroke="#9ED4DF" strokeWidth="0.5" opacity="0.05" />
+
+          {/* Cruz pequeña — decorativa */}
+          <line x1="15%" y1="20%" x2="15%" y2="26%" stroke="#1E8EA3" strokeWidth="1" opacity="0.15" />
+          <line x1="12%" y1="23%" x2="18%" y2="23%" stroke="#1E8EA3" strokeWidth="1" opacity="0.15" />
+          <line x1="85%" y1="72%" x2="85%" y2="78%" stroke="#9ED4DF" strokeWidth="1" opacity="0.15" />
+          <line x1="82%" y1="75%" x2="88%" y2="75%" stroke="#9ED4DF" strokeWidth="1" opacity="0.15" />
+
+          {/* Rectángulos outline — esquina */}
+          <rect x="5%" y="8%" width="60" height="40" rx="6" fill="none" stroke="#1E8EA3" strokeWidth="0.6" opacity="0.07" />
+          <rect x="88%" y="78%" width="48" height="32" rx="4" fill="none" stroke="#9ED4DF" strokeWidth="0.6" opacity="0.06" />
+        </svg>
+
+        {/* ── Glow orbs ── */}
+        <div className="hero-orb hero-orb-1" />
+        <div className="hero-orb hero-orb-2" />
+        <div className="hero-orb hero-orb-3" />
+
+        {/* ── Scan lines ── */}
+        <div className="scan-line-1" />
+        <div className="scan-line-2" />
+
+        {/* ── Partículas flotantes ── */}
+        {[1,2,3,4,5,6,7,8,9,10].map(n => (
+          <div key={n} className={`particle particle-${n}`} />
+        ))}
+
+        {/* ── Corner brackets ── */}
+        <div className="corner-bracket bracket-tl" />
+        <div className="corner-bracket bracket-tr" />
+        <div className="corner-bracket bracket-bl" />
+        <div className="corner-bracket bracket-br" />
+
+        {/* ── Contenido ── */}
         <div className="max-w-4xl mx-auto text-center relative z-10">
           {/* Pill IA */}
-          <div className="inline-flex items-center gap-2 bg-[#E6F4F7] text-[#1E8EA3] border border-[#9ED4DF] rounded-full px-4 py-2 text-sm font-bold mb-8">
+          <div className="inline-flex items-center gap-2 bg-[#E6F4F7] text-[#1E8EA3] border border-[#9ED4DF] rounded-full px-4 py-2 text-sm font-bold mb-8 shadow-sm">
             <span className="ai-dot w-2 h-2 rounded-full bg-[#1E8EA3] inline-block" />
             Próximamente: Matching con IA · Potenciado por Gemini
           </div>
@@ -88,9 +139,8 @@ export default function Home() {
           <h1 className="font-display font-extrabold text-5xl md:text-[64px] text-[#1C2230] leading-[1.1] tracking-tight mb-6">
             El trabajo que buscás<br />
             está en{" "}
-            <span className="text-[#1E8EA3] relative">
+            <span className="text-[#1E8EA3] relative inline-block">
               Bahía Blanca
-              {/* Subrayado decorativo */}
               <svg className="absolute -bottom-2 left-0 w-full" height="6" viewBox="0 0 300 6" fill="none" preserveAspectRatio="none">
                 <path d="M0 5 Q75 0 150 5 Q225 10 300 5" stroke="#D4B7A2" strokeWidth="3" fill="none" strokeLinecap="round"/>
               </svg>
@@ -119,7 +169,7 @@ export default function Home() {
 
           {/* CTAs secundarios */}
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-white border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#E6F4F7] transition-colors">
+            <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-white border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#E6F4F7] transition-colors shadow-sm">
               Subir mi CV <ArrowRightIcon className="w-4 h-4" />
             </Link>
             <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#187B8E] transition-colors shadow-sm">
