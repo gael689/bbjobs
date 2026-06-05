@@ -1,0 +1,69 @@
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+import uuid
+from app.models.job import JobPostingModality, JobPostingStatus
+from app.models.candidate import EducationLevel
+
+class JobPostingSkillCreate(BaseModel):
+    skill_id: uuid.UUID
+    is_required: bool = True
+
+class JobPostingSkillResponse(JobPostingSkillCreate):
+    class Config:
+        from_attributes = True
+
+class JobPostingCreate(BaseModel):
+    title: str
+    description: str
+    requirements: str
+    industry_id: uuid.UUID
+    zone_id: uuid.UUID
+    contract_type_id: uuid.UUID
+    modality: JobPostingModality
+    min_experience_years: Optional[int] = None
+    min_education_level: Optional[EducationLevel] = None
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    salary_visible: bool = False
+    benefits: Optional[str] = None
+    skills: List[JobPostingSkillCreate] = []
+
+class JobPostingUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    requirements: Optional[str] = None
+    modality: Optional[JobPostingModality] = None
+    status: Optional[JobPostingStatus] = None
+
+class JobPostingResponse(BaseModel):
+    id: uuid.UUID
+    company_id: Optional[uuid.UUID] = None
+    company_legal_name_snapshot: str
+    title: str
+    description: str
+    requirements: str
+    industry_id: uuid.UUID
+    zone_id: uuid.UUID
+    contract_type_id: uuid.UUID
+    modality: JobPostingModality
+    min_experience_years: Optional[int] = None
+    min_education_level: Optional[EducationLevel] = None
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    salary_visible: bool
+    benefits: Optional[str] = None
+    status: JobPostingStatus
+    is_featured: bool
+    published_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class JobPostingPublicResponse(JobPostingResponse):
+    pass
+    # We could omit fields that are not public if needed

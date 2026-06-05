@@ -5,7 +5,7 @@ import uuid
 import time
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.v1 import health, auth
+from app.api.v1 import health, auth, companies, candidates, skills, jobs, applications
 
 setup_logging()
 logger = structlog.get_logger("app")
@@ -55,3 +55,8 @@ async def logging_middleware(request: Request, call_next):
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(companies.router, prefix="/api/v1", tags=["companies"])
+app.include_router(candidates.router, prefix="/api/v1", tags=["candidates"])
+app.include_router(skills.router, prefix="/api/v1", tags=["skills"])
+app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
+app.include_router(applications.router, prefix="/api/v1", tags=["applications"])
