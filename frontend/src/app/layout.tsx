@@ -16,9 +16,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" className={`${jakarta.variable} ${dmSans.variable}`}>
-      <body className="min-h-screen bg-[#FAFBFD] text-[#1C2230] font-sans flex flex-col antialiased">
+      <body className="min-h-screen bg-[#FAFBFD] text-[#1C2230] font-sans flex flex-col antialiased relative">
+        {/* Glow de fondo superior para que el Navbar haga efecto vidrio 24/7 */}
+        <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[1000px] h-[300px] bg-gradient-to-r from-[#1E8EA3]/30 to-[#9ED4DF]/30 blur-[80px] pointer-events-none z-0 rounded-full" />
+        
         <Header />
-        <main className="flex-1 w-full">{children}</main>
+        <main className="flex-1 w-full relative z-10">{children}</main>
         <Footer />
       </body>
     </html>

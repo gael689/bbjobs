@@ -105,7 +105,7 @@ export default function Home() {
             está en{" "}
             <span className="text-[#1E8EA3] relative inline-block">
               Bahía Blanca
-              <svg className="absolute -bottom-2 left-0 w-full" height="6" viewBox="0 0 300 6" fill="none" preserveAspectRatio="none">
+              <svg className="absolute -bottom-3 left-0 w-full" height="14" viewBox="0 -2 300 14" fill="none" preserveAspectRatio="none">
                 <path d="M0 5 Q75 0 150 5 Q225 10 300 5" stroke="#D4B7A2" strokeWidth="3" fill="none" strokeLinecap="round"/>
               </svg>
             </span>
