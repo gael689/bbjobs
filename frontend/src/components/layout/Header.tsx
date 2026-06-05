@@ -26,7 +26,7 @@ export default function Header() {
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
           <Image src="/logo.png" alt="BBJobs" width={36} height={36} className="object-contain" priority />
-          <span className="font-display font-bold text-[1.3rem] tracking-tight leading-none">
+          <span className="font-display font-extrabold text-[1.4rem] tracking-tighter leading-none">
             <span className="text-[#1E8EA3]">BB</span>
             <span className="text-[#1C2230]">JOBS</span>
           </span>
