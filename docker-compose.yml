@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  backend:
+    build: 
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://bbjobs:bbjobs@postgres:5432/bbjobs
+      - SECRET_KEY=dev-secret-key-replace-me
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bbjobs
+      POSTGRES_PASSWORD: bbjobs
+      POSTGRES_DB: bbjobs
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bbjobs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
