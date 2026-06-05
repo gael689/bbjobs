@@ -32,3 +32,15 @@ Llevaremos aquí el registro de las funcionalidades entregadas en cada fase.
 - Creados Endpoints de Búsquedas Públicas y de la Empresa propietaria (`/jobs`, `/me/company/jobs`).
 - Creados Endpoints del flujo de Postulaciones (`/jobs/{id}/apply`, `/me/candidate/applications`, `/me/company/jobs/{id}/applications`, cambio de estados).
 - Creados Endpoints de Skills (`/skills`, `/skills/suggest`).
+
+## FASE 5 - Backend Tests Psicométricos
+- Creados DTOs de Request y Response para tests y sumisiones.
+- Lógica de Listado de Tests Activos y Detalle completo (`/tests`, `/tests/{id}`).
+- Control de Cooldown de 30 Días para repetición (`/tests/{id}/start`).
+- Carga de respuestas e historial de resultados promediados (`/tests/submissions/{sub_id}/complete`, `/me/candidate/tests`).
+
+## FASE 6 - Backend Storage (Cloudflare R2)
+- Implementado conector `boto3` a S3 Compatible de R2 (`r2.py`).
+- Añadido soporte `python-multipart` y endpoint `POST /me/candidate/cv` para candidatos con tope 5MB a formato PDF exclusivo.
+- Añadido endpoint `POST /me/company/logo` para subida de logos (máx 1MB), imágenes.
+- Añadido endpoint `POST /me/company/verification/documents` para documentos pesados empresariales (máx 5MB).
