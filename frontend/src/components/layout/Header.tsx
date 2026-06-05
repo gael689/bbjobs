@@ -20,8 +20,8 @@ export default function Header() {
 
   return (
     <div className="sticky top-6 z-50 w-full px-4 flex justify-center pointer-events-none">
-      <header className="w-full max-w-5xl bg-white/30 backdrop-blur-xl backdrop-saturate-150 border border-white/60 rounded-full shadow-lg shadow-[#1E8EA3]/10 pointer-events-auto">
-        <div className="px-6 flex h-16 items-center justify-between gap-4">
+      <header className="w-full max-w-6xl bg-gradient-to-b from-white/60 to-white/20 backdrop-blur-3xl backdrop-saturate-200 border border-white/70 border-b-white/30 rounded-full shadow-[0_8px_30px_rgb(30,142,163,0.12)] pointer-events-auto">
+        <div className="px-8 flex h-[76px] items-center justify-between gap-4">
 
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center gap-2 shrink-0 group">
