@@ -13,3 +13,6 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
+# Alias used by scheduler and background tasks
+async_session_maker = AsyncSessionLocal

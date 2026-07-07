@@ -9,7 +9,7 @@ export default function Footer() {
         <div className="md:col-span-2">
           <div className="flex items-center gap-2.5 mb-5">
             <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" />
-            <span className="font-display font-bold text-xl tracking-tight">
+            <span className="font-display font-extrabold italic text-xl tracking-tight">
               <span className="text-[#1E8EA3]">BB</span>
               <span className="text-[#1C2230]">JOBS</span>
             </span>

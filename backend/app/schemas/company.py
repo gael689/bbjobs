@@ -7,8 +7,12 @@ from app.models.company import VerificationStatus
 class CompanyProfileUpdate(BaseModel):
     legal_name: Optional[str] = None
     industry_id: Optional[uuid.UUID] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+    employee_count: Optional[str] = None
     responsible_full_name: Optional[str] = None
     responsible_phone: Optional[str] = None
+    responsible_position: Optional[str] = None
     website: Optional[HttpUrl] = None
     description: Optional[str] = None
 
@@ -17,9 +21,13 @@ class CompanyProfileResponse(BaseModel):
     legal_name: str
     cuit: str
     industry_id: uuid.UUID
+    province: Optional[str] = None
+    city: Optional[str] = None
+    employee_count: Optional[str] = None
     responsible_full_name: str
     responsible_phone: str
     responsible_email: str
+    responsible_position: Optional[str] = None
     website: Optional[str] = None
     description: Optional[str] = None
     logo_url: Optional[str] = None

@@ -1,0 +1,856 @@
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+Added job "check_expired_features" to job store "default"
+Scheduler started
+{"event": "scheduler_started", "level": "info", "logger": "app.core.scheduler", "timestamp": "2026-07-06T21:38:59.821061Z"}
+{"env": "development", "event": "app_started", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:38:59.821255Z"}
+{"status_code": 200, "duration_ms": 1.93, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:39:00.503645Z"}
+INFO:     127.0.0.1:49320 - "GET /api/v1/health HTTP/1.1" 200 OK
+2026-07-06 18:39:13,865 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+select pg_catalog.version()
+2026-07-06 18:39:13,865 INFO sqlalchemy.engine.Engine [raw sql] ()
+[raw sql] ()
+2026-07-06 18:39:14,579 INFO sqlalchemy.engine.Engine select current_schema()
+select current_schema()
+2026-07-06 18:39:14,579 INFO sqlalchemy.engine.Engine [raw sql] ()
+[raw sql] ()
+2026-07-06 18:39:15,491 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+show standard_conforming_strings
+2026-07-06 18:39:15,491 INFO sqlalchemy.engine.Engine [raw sql] ()
+[raw sql] ()
+2026-07-06 18:39:16,177 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 18:39:16,204 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($2::VARCHAR, $3::VARCHAR)) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($2::VARCHAR, $3::VARCHAR)) AS anon_1
+2026-07-06 18:39:16,204 INFO sqlalchemy.engine.Engine [generated in 0.00054s] (<JobPostingStatus.active: 'active'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+[generated in 0.00054s] (<JobPostingStatus.active: 'active'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+2026-07-06 18:39:16,902 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($4::VARCHAR, $5::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($4::VARCHAR, $5::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 18:39:16,922 INFO sqlalchemy.engine.Engine [generated in 0.02033s] (<JobPostingStatus.active: 'active'>, 20, 0, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+[generated in 0.02033s] (<JobPostingStatus.active: 'active'>, 20, 0, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+{"status_code": 200, "duration_ms": 5100.62, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:39:17.382601Z"}
+INFO:     127.0.0.1:49321 - "GET /api/v1/jobs?min_education_level=universitario HTTP/1.1" 200 OK
+2026-07-06 18:39:17,383 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 18:39:18,905 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 18:39:18,906 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR)) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR)) AS anon_1
+2026-07-06 18:39:18,906 INFO sqlalchemy.engine.Engine [cached since 2.702s ago] (<JobPostingStatus.active: 'active'>, <EducationLevel.secundario: 'secundario'>, <EducationLevel.terciario: 'terciario'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+[cached since 2.702s ago] (<JobPostingStatus.active: 'active'>, <EducationLevel.secundario: 'secundario'>, <EducationLevel.terciario: 'terciario'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+2026-07-06 18:39:19,588 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($4::VARCHAR, $5::VARCHAR, $6::VARCHAR, $7::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.min_education_level IN ($4::VARCHAR, $5::VARCHAR, $6::VARCHAR, $7::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 18:39:19,588 INFO sqlalchemy.engine.Engine [generated in 0.00024s] (<JobPostingStatus.active: 'active'>, 20, 0, <EducationLevel.secundario: 'secundario'>, <EducationLevel.terciario: 'terciario'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+[generated in 0.00024s] (<JobPostingStatus.active: 'active'>, 20, 0, <EducationLevel.secundario: 'secundario'>, <EducationLevel.terciario: 'terciario'>, <EducationLevel.universitario: 'universitario'>, <EducationLevel.posgrado: 'posgrado'>)
+{"status_code": 200, "duration_ms": 2642.1, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:39:20.073039Z"}
+INFO:     127.0.0.1:49323 - "GET /api/v1/jobs?min_education_level=secundario HTTP/1.1" 200 OK
+2026-07-06 18:39:20,073 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 18:39:40,274 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 18:39:40,275 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 18:39:40,275 INFO sqlalchemy.engine.Engine [generated in 0.00024s] (<JobPostingStatus.active: 'active'>,)
+[generated in 0.00024s] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 18:39:40,977 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 18:39:40,978 INFO sqlalchemy.engine.Engine [generated in 0.00050s] (<JobPostingStatus.active: 'active'>, 1, 0)
+[generated in 0.00050s] (<JobPostingStatus.active: 'active'>, 1, 0)
+{"status_code": 200, "duration_ms": 1163.02, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:39:41.435104Z"}
+INFO:     127.0.0.1:63764 - "GET /api/v1/jobs?page=1&page_size=1 HTTP/1.1" 200 OK
+2026-07-06 18:39:41,435 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 18:39:41,491 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 18:39:41,492 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 18:39:41,492 INFO sqlalchemy.engine.Engine [cached since 1.217s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 1.217s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 18:39:42,178 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 18:39:42,178 INFO sqlalchemy.engine.Engine [generated in 0.00024s] (<JobPostingStatus.active: 'active'>, 1, 1)
+[generated in 0.00024s] (<JobPostingStatus.active: 'active'>, 1, 1)
+{"status_code": 200, "duration_ms": 1146.59, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:39:42.636570Z"}
+INFO:     127.0.0.1:63765 - "GET /api/v1/jobs?page=2&page_size=1 HTTP/1.1" 200 OK
+2026-07-06 18:39:42,637 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 18:41:32,962 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 18:41:32,968 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 18:41:32,969 INFO sqlalchemy.engine.Engine [cached since 112.7s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 112.7s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 18:41:33,493 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 18:41:33,495 INFO sqlalchemy.engine.Engine [cached since 111.3s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 111.3s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 1077.0, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T21:41:33.999160Z"}
+INFO:     127.0.0.1:63646 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 18:41:34,076 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+Running job "check_expired_features (trigger: interval[1:00:00], next run at: 2026-07-06 20:38:59 -03)" (scheduled at 2026-07-06 19:38:59.817993-03:00)
+{"event": "running_job_check_expired_features", "level": "info", "logger": "app.core.scheduler", "timestamp": "2026-07-06T22:38:59.924210Z"}
+2026-07-06 19:39:00,000 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 19:39:00,067 INFO sqlalchemy.engine.Engine SELECT job_features.job_posting_id, job_features.payment_id, job_features.starts_at, job_features.ends_at, job_features.status, job_features.created_at, job_features.id 
+FROM job_features 
+WHERE job_features.status = $1::VARCHAR AND job_features.ends_at < $2::TIMESTAMP WITH TIME ZONE
+SELECT job_features.job_posting_id, job_features.payment_id, job_features.starts_at, job_features.ends_at, job_features.status, job_features.created_at, job_features.id 
+FROM job_features 
+WHERE job_features.status = $1::VARCHAR AND job_features.ends_at < $2::TIMESTAMP WITH TIME ZONE
+2026-07-06 19:39:00,069 INFO sqlalchemy.engine.Engine [generated in 0.00514s] (<JobFeatureStatus.active: 'active'>, datetime.datetime(2026, 7, 6, 22, 38, 59, 938569, tzinfo=datetime.timezone.utc))
+[generated in 0.00514s] (<JobFeatureStatus.active: 'active'>, datetime.datetime(2026, 7, 6, 22, 38, 59, 938569, tzinfo=datetime.timezone.utc))
+2026-07-06 19:39:00,831 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+Job "check_expired_features (trigger: interval[1:00:00], next run at: 2026-07-06 20:38:59 -03)" executed successfully
+Running job "check_expired_features (trigger: interval[1:00:00], next run at: 2026-07-06 21:38:59 -03)" (scheduled at 2026-07-06 20:38:59.817993-03:00)
+{"event": "running_job_check_expired_features", "level": "info", "logger": "app.core.scheduler", "timestamp": "2026-07-06T23:38:59.868770Z"}
+2026-07-06 20:38:59,895 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:38:59,899 INFO sqlalchemy.engine.Engine SELECT job_features.job_posting_id, job_features.payment_id, job_features.starts_at, job_features.ends_at, job_features.status, job_features.created_at, job_features.id 
+FROM job_features 
+WHERE job_features.status = $1::VARCHAR AND job_features.ends_at < $2::TIMESTAMP WITH TIME ZONE
+SELECT job_features.job_posting_id, job_features.payment_id, job_features.starts_at, job_features.ends_at, job_features.status, job_features.created_at, job_features.id 
+FROM job_features 
+WHERE job_features.status = $1::VARCHAR AND job_features.ends_at < $2::TIMESTAMP WITH TIME ZONE
+2026-07-06 20:38:59,899 INFO sqlalchemy.engine.Engine [cached since 3600s ago] (<JobFeatureStatus.active: 'active'>, datetime.datetime(2026, 7, 6, 23, 38, 59, 875232, tzinfo=datetime.timezone.utc))
+[cached since 3600s ago] (<JobFeatureStatus.active: 'active'>, datetime.datetime(2026, 7, 6, 23, 38, 59, 875232, tzinfo=datetime.timezone.utc))
+2026-07-06 20:39:00,621 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+Job "check_expired_features (trigger: interval[1:00:00], next run at: 2026-07-06 21:38:59 -03)" executed successfully
+2026-07-06 20:49:59,914 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:49:59,924 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:49:59,925 INFO sqlalchemy.engine.Engine [cached since 7820s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 7820s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:50:00,411 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:50:00,412 INFO sqlalchemy.engine.Engine [cached since 7818s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+[cached since 7818s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+{"status_code": 200, "duration_ms": 842.64, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:50:00.665159Z"}
+INFO:     127.0.0.1:52150 - "GET /api/v1/jobs?page=1 HTTP/1.1" 200 OK
+2026-07-06 20:50:00,672 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:51:19,146 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:19,148 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:51:19,148 INFO sqlalchemy.engine.Engine [cached since 7899s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 7899s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:51:19,624 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:51:19,625 INFO sqlalchemy.engine.Engine [cached since 7897s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 7897s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 730.41, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:19.864621Z"}
+INFO:     127.0.0.1:60793 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:51:19,867 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:51:20,911 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:20,934 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:51:20,934 INFO sqlalchemy.engine.Engine [generated in 0.00147s] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[generated in 0.00147s] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:51:21,669 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:51:21,670 INFO sqlalchemy.engine.Engine [generated in 0.00076s] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[generated in 0.00076s] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 1259.74, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:22.141176Z"}
+INFO:     127.0.0.1:60793 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:51:22,142 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:51:22,509 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:22,522 INFO sqlalchemy.engine.Engine SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+2026-07-06 20:51:22,523 INFO sqlalchemy.engine.Engine [generated in 0.00036s] ()
+[generated in 0.00036s] ()
+2026-07-06 20:51:22,527 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:22,528 INFO sqlalchemy.engine.Engine SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+2026-07-06 20:51:22,528 INFO sqlalchemy.engine.Engine [generated in 0.00014s] ()
+[generated in 0.00014s] ()
+{"status_code": 200, "duration_ms": 1043.42, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:23.569021Z"}
+INFO:     127.0.0.1:53593 - "GET /api/v1/catalogs/zones HTTP/1.1" 200 OK
+{"status_code": 200, "duration_ms": 1273.15, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:23.644056Z"}
+INFO:     127.0.0.1:60793 - "GET /api/v1/catalogs/industries HTTP/1.1" 200 OK
+2026-07-06 20:51:23,644 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:51:23,645 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:51:24,640 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:24,641 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:51:24,641 INFO sqlalchemy.engine.Engine [cached since 7904s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 7904s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:51:24,661 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:51:24,662 INFO sqlalchemy.engine.Engine SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+2026-07-06 20:51:24,662 INFO sqlalchemy.engine.Engine [generated in 0.00015s] ()
+[generated in 0.00015s] ()
+2026-07-06 20:51:25,338 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:51:25,338 INFO sqlalchemy.engine.Engine [cached since 7903s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+[cached since 7903s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+{"status_code": 200, "duration_ms": 2680.23, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:25.364709Z"}
+INFO:     127.0.0.1:56650 - "GET /api/v1/catalogs/contract-types HTTP/1.1" 200 OK
+2026-07-06 20:51:25,365 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 2992.81, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:51:25.799651Z"}
+INFO:     127.0.0.1:49372 - "GET /api/v1/jobs?page=1&page_size=20 HTTP/1.1" 200 OK
+2026-07-06 20:51:25,800 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:52:31,880 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:52:31,881 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:52:31,881 INFO sqlalchemy.engine.Engine [cached since 7972s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 7972s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:52:32,435 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:52:32,436 INFO sqlalchemy.engine.Engine [cached since 7970s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 7970s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 820.01, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:52:32.696480Z"}
+INFO:     127.0.0.1:57925 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:52:32,698 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:52:34,159 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:52:34,159 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:52:34,159 INFO sqlalchemy.engine.Engine [cached since 73.23s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 73.23s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:52:34,852 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:52:34,852 INFO sqlalchemy.engine.Engine [cached since 73.18s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 73.18s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 1153.19, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:52:35.311240Z"}
+2026-07-06 20:52:35,311 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:53:11,434 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:53:11,435 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:53:11,435 INFO sqlalchemy.engine.Engine [cached since 8011s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8011s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:53:12,143 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:53:12,143 INFO sqlalchemy.engine.Engine [cached since 8010s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8010s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 1175.23, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:53:12.609068Z"}
+INFO:     127.0.0.1:51657 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:53:12,609 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:53:13,950 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:53:13,950 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:53:13,950 INFO sqlalchemy.engine.Engine [cached since 113s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 113s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:53:14,648 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:53:14,648 INFO sqlalchemy.engine.Engine [cached since 113s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 113s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 1155.7, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:53:15.103821Z"}
+INFO:     127.0.0.1:51657 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:53:15,104 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:53:37,101 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:53:37,101 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:53:37,102 INFO sqlalchemy.engine.Engine [cached since 8037s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8037s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:53:37,563 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:53:37,564 INFO sqlalchemy.engine.Engine [cached since 8035s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8035s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 696.95, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:53:37.796687Z"}
+INFO:     127.0.0.1:56094 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:53:37,797 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:02,043 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:02,043 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:54:02,044 INFO sqlalchemy.engine.Engine [cached since 8062s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8062s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:54:02,518 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:54:02,518 INFO sqlalchemy.engine.Engine [cached since 8060s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8060s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 709.51, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:02.751378Z"}
+INFO:     127.0.0.1:60489 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:54:02,752 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:04,125 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:04,126 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:04,126 INFO sqlalchemy.engine.Engine [cached since 163.2s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 163.2s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:54:04,825 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:04,825 INFO sqlalchemy.engine.Engine [cached since 163.2s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 163.2s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 1165.46, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:05.289215Z"}
+INFO:     127.0.0.1:60489 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:54:05,290 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:30,532 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:30,533 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:54:30,533 INFO sqlalchemy.engine.Engine [cached since 8090s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8090s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:54:31,003 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:54:31,003 INFO sqlalchemy.engine.Engine [cached since 8089s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8089s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 703.75, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:31.234901Z"}
+INFO:     127.0.0.1:59710 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:54:31,236 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:32,570 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:32,571 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:32,571 INFO sqlalchemy.engine.Engine [cached since 191.6s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 191.6s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:54:33,037 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:33,037 INFO sqlalchemy.engine.Engine [cached since 191.4s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 191.4s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 696.5, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:33.264702Z"}
+INFO:     127.0.0.1:59710 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:54:33,265 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:53,104 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:53,105 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:54:53,105 INFO sqlalchemy.engine.Engine [cached since 8113s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8113s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:54:53,568 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:54:53,568 INFO sqlalchemy.engine.Engine [cached since 8111s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8111s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 697.08, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:53.800519Z"}
+INFO:     127.0.0.1:56873 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:54:53,801 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:54:55,238 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:54:55,239 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:55,239 INFO sqlalchemy.engine.Engine [cached since 214.3s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 214.3s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:54:55,721 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:54:55,721 INFO sqlalchemy.engine.Engine [cached since 214.1s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 214.1s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 716.37, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:54:55.954277Z"}
+INFO:     127.0.0.1:56873 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:54:55,954 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:19,745 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:19,745 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:55:19,745 INFO sqlalchemy.engine.Engine [cached since 8139s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8139s ago] (<JobPostingStatus.active: 'active'>,)
+2026-07-06 20:55:20,221 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:55:20,222 INFO sqlalchemy.engine.Engine [cached since 8138s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+[cached since 8138s ago] (<JobPostingStatus.active: 'active'>, 6, 0)
+{"status_code": 200, "duration_ms": 710.3, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:20.454011Z"}
+INFO:     127.0.0.1:61669 - "GET /api/v1/jobs?page=1&page_size=6 HTTP/1.1" 200 OK
+2026-07-06 20:55:20,454 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:21,788 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:21,789 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.title 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.title ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:55:21,789 INFO sqlalchemy.engine.Engine [cached since 240.9s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 240.9s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+2026-07-06 20:55:22,258 INFO sqlalchemy.engine.Engine SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+SELECT DISTINCT job_postings.company_legal_name_snapshot 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND job_postings.company_legal_name_snapshot ILIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2026-07-06 20:55:22,258 INFO sqlalchemy.engine.Engine [cached since 240.6s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+[cached since 240.6s ago] (<JobPostingStatus.active: 'active'>, '%desa%', 8)
+{"status_code": 200, "duration_ms": 698.65, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:22.486229Z"}
+INFO:     127.0.0.1:61669 - "GET /api/v1/jobs/suggest?q=desa HTTP/1.1" 200 OK
+2026-07-06 20:55:22,486 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:23,183 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:23,183 INFO sqlalchemy.engine.Engine SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+2026-07-06 20:55:23,183 INFO sqlalchemy.engine.Engine [cached since 240.7s ago] ()
+[cached since 240.7s ago] ()
+2026-07-06 20:55:23,186 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:23,187 INFO sqlalchemy.engine.Engine SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+2026-07-06 20:55:23,187 INFO sqlalchemy.engine.Engine [cached since 240.7s ago] ()
+[cached since 240.7s ago] ()
+2026-07-06 20:55:23,486 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:23,487 INFO sqlalchemy.engine.Engine SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+2026-07-06 20:55:23,487 INFO sqlalchemy.engine.Engine [cached since 238.8s ago] ()
+[cached since 238.8s ago] ()
+2026-07-06 20:55:23,582 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:23,582 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR) AS anon_1
+2026-07-06 20:55:23,582 INFO sqlalchemy.engine.Engine [cached since 8143s ago] (<JobPostingStatus.active: 'active'>,)
+[cached since 8143s ago] (<JobPostingStatus.active: 'active'>,)
+{"status_code": 200, "duration_ms": 491.93, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:23.661948Z"}
+INFO:     127.0.0.1:61669 - "GET /api/v1/catalogs/industries HTTP/1.1" 200 OK
+2026-07-06 20:55:23,662 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 704.47, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:23.889605Z"}
+INFO:     127.0.0.1:56191 - "GET /api/v1/catalogs/zones HTTP/1.1" 200 OK
+2026-07-06 20:55:23,890 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:24,035 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-06 20:55:24,035 INFO sqlalchemy.engine.Engine [cached since 8142s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+[cached since 8142s ago] (<JobPostingStatus.active: 'active'>, 20, 0)
+{"status_code": 200, "duration_ms": 697.13, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:24.180257Z"}
+2026-07-06 20:55:24,180 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 693.02, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:24.274521Z"}
+2026-07-06 20:55:24,274 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:25,211 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:25,212 INFO sqlalchemy.engine.Engine SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+2026-07-06 20:55:25,212 INFO sqlalchemy.engine.Engine [cached since 242.7s ago] ()
+[cached since 242.7s ago] ()
+2026-07-06 20:55:25,290 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:25,290 INFO sqlalchemy.engine.Engine SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+2026-07-06 20:55:25,290 INFO sqlalchemy.engine.Engine [cached since 242.8s ago] ()
+[cached since 242.8s ago] ()
+{"status_code": 200, "duration_ms": 2228.93, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:25.892895Z"}
+2026-07-06 20:55:25,893 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 2075.78, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:25.967456Z"}
+2026-07-06 20:55:25,967 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:50,005 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:50,005 INFO sqlalchemy.engine.Engine SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+2026-07-06 20:55:50,005 INFO sqlalchemy.engine.Engine [cached since 267.5s ago] ()
+[cached since 267.5s ago] ()
+2026-07-06 20:55:50,006 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:50,006 INFO sqlalchemy.engine.Engine SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+2026-07-06 20:55:50,006 INFO sqlalchemy.engine.Engine [cached since 267.5s ago] ()
+[cached since 267.5s ago] ()
+2026-07-06 20:55:50,008 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:50,008 INFO sqlalchemy.engine.Engine SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+2026-07-06 20:55:50,008 INFO sqlalchemy.engine.Engine [cached since 265.3s ago] ()
+[cached since 265.3s ago] ()
+2026-07-06 20:55:50,256 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:50,272 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND (job_postings.title ILIKE $2::VARCHAR OR job_postings.description ILIKE $3::VARCHAR)) AS anon_1
+SELECT count(*) AS count_1 
+FROM (SELECT job_postings.company_id AS company_id, job_postings.company_legal_name_snapshot AS company_legal_name_snapshot, job_postings.title AS title, job_postings.description AS description, job_postings.requirements AS requirements, job_postings.industry_id AS industry_id, job_postings.zone_id AS zone_id, job_postings.contract_type_id AS contract_type_id, job_postings.modality AS modality, job_postings.min_experience_years AS min_experience_years, job_postings.min_education_level AS min_education_level, job_postings.salary_min AS salary_min, job_postings.salary_max AS salary_max, job_postings.salary_currency AS salary_currency, job_postings.salary_visible AS salary_visible, job_postings.benefits AS benefits, job_postings.status AS status, job_postings.is_featured AS is_featured, job_postings.featured_until AS featured_until, job_postings.published_at AS published_at, job_postings.closed_at AS closed_at, job_postings.created_at AS created_at, job_postings.updated_at AS updated_at, job_postings.deleted_at AS deleted_at, job_postings.id AS id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND (job_postings.title ILIKE $2::VARCHAR OR job_postings.description ILIKE $3::VARCHAR)) AS anon_1
+2026-07-06 20:55:50,272 INFO sqlalchemy.engine.Engine [generated in 0.00031s] (<JobPostingStatus.active: 'active'>, '%Desarrollador Backend Senior%', '%Desarrollador Backend Senior%')
+[generated in 0.00031s] (<JobPostingStatus.active: 'active'>, '%Desarrollador Backend Senior%', '%Desarrollador Backend Senior%')
+{"status_code": 200, "duration_ms": 462.15, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:50.469866Z"}
+INFO:     127.0.0.1:63483 - "GET /api/v1/catalogs/contract-types HTTP/1.1" 200 OK
+2026-07-06 20:55:50,470 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:50,472 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:50,473 INFO sqlalchemy.engine.Engine SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+SELECT contract_types.name, contract_types.id 
+FROM contract_types ORDER BY contract_types.name
+2026-07-06 20:55:50,473 INFO sqlalchemy.engine.Engine [cached since 265.8s ago] ()
+[cached since 265.8s ago] ()
+{"status_code": 200, "duration_ms": 470.63, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:50.476644Z"}
+INFO:     127.0.0.1:52363 - "GET /api/v1/catalogs/zones HTTP/1.1" 200 OK
+{"status_code": 200, "duration_ms": 473.36, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:50.477237Z"}
+INFO:     127.0.0.1:60421 - "GET /api/v1/catalogs/industries HTTP/1.1" 200 OK
+2026-07-06 20:55:50,477 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:50,478 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:50,966 INFO sqlalchemy.engine.Engine SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND (job_postings.title ILIKE $2::VARCHAR OR job_postings.description ILIKE $3::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $4::INTEGER OFFSET $5::INTEGER
+SELECT job_postings.company_id, job_postings.company_legal_name_snapshot, job_postings.title, job_postings.description, job_postings.requirements, job_postings.industry_id, job_postings.zone_id, job_postings.contract_type_id, job_postings.modality, job_postings.min_experience_years, job_postings.min_education_level, job_postings.salary_min, job_postings.salary_max, job_postings.salary_currency, job_postings.salary_visible, job_postings.benefits, job_postings.status, job_postings.is_featured, job_postings.featured_until, job_postings.published_at, job_postings.closed_at, job_postings.created_at, job_postings.updated_at, job_postings.deleted_at, job_postings.id 
+FROM job_postings 
+WHERE job_postings.status = $1::VARCHAR AND (job_postings.title ILIKE $2::VARCHAR OR job_postings.description ILIKE $3::VARCHAR) ORDER BY job_postings.is_featured DESC, job_postings.published_at DESC 
+ LIMIT $4::INTEGER OFFSET $5::INTEGER
+2026-07-06 20:55:50,966 INFO sqlalchemy.engine.Engine [generated in 0.00028s] (<JobPostingStatus.active: 'active'>, '%Desarrollador Backend Senior%', '%Desarrollador Backend Senior%', 20, 0)
+[generated in 0.00028s] (<JobPostingStatus.active: 'active'>, '%Desarrollador Backend Senior%', '%Desarrollador Backend Senior%', 20, 0)
+{"status_code": 200, "duration_ms": 694.86, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:51.166608Z"}
+INFO:     127.0.0.1:58577 - "GET /api/v1/catalogs/contract-types HTTP/1.1" 200 OK
+2026-07-06 20:55:51,177 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 1190.88, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:51.442770Z"}
+INFO:     127.0.0.1:60200 - "GET /api/v1/jobs?q=Desarrollador+Backend+Senior&page=1&page_size=20 HTTP/1.1" 200 OK
+2026-07-06 20:55:51,443 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+2026-07-06 20:55:51,923 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:51,923 INFO sqlalchemy.engine.Engine SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+SELECT industries.name, industries.slug, industries.is_active, industries.id 
+FROM industries 
+WHERE industries.is_active = true ORDER BY industries.name
+2026-07-06 20:55:51,923 INFO sqlalchemy.engine.Engine [cached since 269.4s ago] ()
+[cached since 269.4s ago] ()
+2026-07-06 20:55:51,955 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+BEGIN (implicit)
+2026-07-06 20:55:51,956 INFO sqlalchemy.engine.Engine SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+SELECT zones.name, zones.slug, zones.is_active, zones.id 
+FROM zones 
+WHERE zones.is_active = true ORDER BY zones.name
+2026-07-06 20:55:51,956 INFO sqlalchemy.engine.Engine [cached since 269.4s ago] ()
+[cached since 269.4s ago] ()
+{"status_code": 200, "duration_ms": 2138.55, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:52.619716Z"}
+INFO:     127.0.0.1:52363 - "GET /api/v1/catalogs/industries HTTP/1.1" 200 OK
+2026-07-06 20:55:52,620 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK
+{"status_code": 200, "duration_ms": 2182.44, "event": "request_completed", "level": "info", "logger": "app", "timestamp": "2026-07-06T23:55:52.661065Z"}
+INFO:     127.0.0.1:63483 - "GET /api/v1/catalogs/zones HTTP/1.1" 200 OK
+2026-07-06 20:55:52,662 INFO sqlalchemy.engine.Engine ROLLBACK
+ROLLBACK

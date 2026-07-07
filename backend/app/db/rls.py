@@ -3,15 +3,9 @@ from sqlalchemy import text
 import uuid
 
 async def set_rls_context(session: AsyncSession, user_id: uuid.UUID, role: str) -> None:
-    """
-    Configura el contexto de Row Level Security (RLS) para la sesión y transacción actual.
-    Debe llamarse al inicio de las peticiones autenticadas que acceden a datos protegidos.
-    """
-    await session.execute(
-        text("SET LOCAL app.current_user_id = :uid"), 
-        {"uid": str(user_id)}
-    )
-    await session.execute(
-        text("SET LOCAL app.current_role = :role"), 
-        {"role": role}
-    )
+    # SET LOCAL does not support bind parameters — values must be inlined.
+    # Safe here: user_id is a UUID (no injection risk) and role comes from our enum.
+    uid = str(user_id).replace("'", "")
+    safe_role = role.replace("'", "")
+    await session.execute(text(f"SET LOCAL app.current_user_id = '{uid}'"))
+    await session.execute(text(f"SET LOCAL app.user_role = '{safe_role}'"))

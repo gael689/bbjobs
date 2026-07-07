@@ -1,33 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import NeuralCanvas from "@/components/ui/NeuralCanvas";
 import {
   MagnifyingGlassIcon,
-  MapPinIcon,
   BriefcaseIcon,
   SparklesIcon,
   ShieldCheckIcon,
   ChartBarIcon,
   CursorArrowRaysIcon,
   ArrowRightIcon,
-  FireIcon,
   CheckBadgeIcon,
   ChevronRightIcon,
-  BoltIcon,
   UserGroupIcon,
+  BoltIcon,
 } from "@heroicons/react/24/outline";
 
 interface Job {
   id: string;
   title: string;
-  company_name: string;
-  location?: string;
+  company_legal_name_snapshot: string;
   modality?: string;
   is_featured?: boolean;
-  created_at?: string;
+  published_at?: string;
+}
+
+interface JobSuggestion {
+  label: string;
+  type: "title" | "company";
 }
 
 function timeAgo(dateStr?: string) {
@@ -54,20 +57,69 @@ function AIBadge({ label }: { label: string }) {
    HOMEPAGE
 ───────────────────────────────────── */
 export default function Home() {
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const router = useRouter();
+
+  // Vista previa de "Últimos avisos" — ya no precarga todo, trae una página chica.
+  const [previewJobs, setPreviewJobs] = useState<Job[]>([]);
+  const [totalActive, setTotalActive] = useState(0);
+  const [previewModality, setPreviewModality] = useState("");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [modality, setModality] = useState("");
+
+  // Buscador del hero — ahora real: sugiere contra el backend y navega a /empleos.
+  const [heroQuery, setHeroQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<JobSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroBoxRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    api.get("/jobs").then(r => setJobs(r.data)).catch(console.error).finally(() => setLoading(false));
+    setLoading(true);
+    const params = new URLSearchParams({ page: "1", page_size: "6" });
+    if (previewModality) params.set("modality", previewModality);
+    api.get(`/jobs?${params.toString()}`)
+      .then(r => {
+        setPreviewJobs(r.data.items);
+        setTotalActive(r.data.total);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [previewModality]);
+
+  useEffect(() => {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    if (heroQuery.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    suggestTimer.current = setTimeout(() => {
+      api.get(`/jobs/suggest?q=${encodeURIComponent(heroQuery.trim())}`)
+        .then(r => setSuggestions(r.data))
+        .catch(() => setSuggestions([]));
+    }, 400);
+    return () => {
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    };
+  }, [heroQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (heroBoxRef.current && !heroBoxRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filtered = jobs.filter(j => {
-    const m = !search || j.title.toLowerCase().includes(search.toLowerCase()) || j.company_name.toLowerCase().includes(search.toLowerCase());
-    const mod = !modality || j.modality === modality;
-    return m && mod;
-  });
+  function goToSearch(query: string) {
+    const q = query.trim();
+    router.push(q ? `/empleos?q=${encodeURIComponent(q)}` : "/empleos");
+  }
+
+  function handleHeroSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    goToSearch(heroQuery);
+  }
 
   return (
     <>
@@ -115,21 +167,45 @@ export default function Home() {
           </p>
 
           {/* Buscador hero */}
-          <div className="flex flex-col sm:flex-row gap-2 max-w-2xl mx-auto bg-white/80 backdrop-blur-sm border border-[#DDE3EC] rounded-2xl p-2 shadow-lg mb-8">
-            <div className="relative flex-1">
-              <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#1E8EA3]" />
-              <input
-                type="text"
-                placeholder="Puesto, empresa o palabra clave"
-                className="w-full pl-11 pr-4 py-3 rounded-xl text-[#1C2230] placeholder-[#94A3B8] focus:outline-none text-sm font-medium bg-transparent"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+          <form onSubmit={handleHeroSubmit} className="relative max-w-2xl mx-auto mb-8" ref={heroBoxRef}>
+            <div className="flex flex-col sm:flex-row gap-2 bg-white/80 backdrop-blur-sm border border-[#DDE3EC] rounded-2xl p-2 shadow-lg">
+              <div className="relative flex-1">
+                <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#1E8EA3]" />
+                <input
+                  type="text"
+                  placeholder="Puesto, empresa o palabra clave"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl text-[#1C2230] placeholder-[#94A3B8] focus:outline-none text-sm font-medium bg-transparent"
+                  value={heroQuery}
+                  onChange={e => { setHeroQuery(e.target.value); setShowSuggestions(true); }}
+                  onFocus={() => setShowSuggestions(true)}
+                />
+              </div>
+              <button type="submit" className="bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-3 text-sm transition-colors shrink-0">
+                Buscar empleos
+              </button>
             </div>
-            <a href="#avisos" className="bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-3 text-sm transition-colors shrink-0">
-              Buscar empleos
-            </a>
-          </div>
+
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 mt-2 bg-white border border-[#DDE3EC] rounded-2xl shadow-lg overflow-hidden text-left z-20">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={`${s.type}-${s.label}-${i}`}
+                    type="button"
+                    onClick={() => { setShowSuggestions(false); goToSearch(s.label); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-[#FAFBFD] transition-colors text-left"
+                  >
+                    {s.type === "company" ? (
+                      <BriefcaseIcon className="w-4 h-4 text-[#64748B] shrink-0" />
+                    ) : (
+                      <MagnifyingGlassIcon className="w-4 h-4 text-[#1E8EA3] shrink-0" />
+                    )}
+                    <span className="text-[#1C2230] font-medium truncate">{s.label}</span>
+                    {s.type === "company" && <span className="text-xs text-[#94A3B8] ml-auto shrink-0">empresa</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </form>
 
           {/* CTAs secundarios */}
           <div className="flex flex-wrap justify-center gap-4">
@@ -150,7 +226,7 @@ export default function Home() {
       <div className="bg-white border-y border-[#DDE3EC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap justify-center gap-10">
           {[
-            { icon: BriefcaseIcon, value: `${jobs.length}+`, label: "búsquedas activas" },
+            { icon: BriefcaseIcon, value: `${totalActive}+`, label: "búsquedas activas" },
             { icon: ShieldCheckIcon, value: "100%", label: "empresas verificadas" },
             { icon: UserGroupIcon, value: "Local", label: "Bahía Blanca y región" },
             { icon: SparklesIcon, value: "IA", label: "matching próximamente" },
@@ -181,24 +257,20 @@ export default function Home() {
                 <h2 className="font-display font-bold text-2xl text-[#1C2230]">Últimos avisos</h2>
                 <div className="flex items-center gap-4 mt-1 text-sm text-[#64748B] font-medium">
                   <span className="flex items-center gap-1">
-                    <FireIcon className="w-4 h-4 text-[#D4B7A2]" />
-                    {filtered.filter(j => { const d = new Date(j.created_at || ""); return !isNaN(d.getTime()) && Date.now() - d.getTime() < 259200000; }).length} recientes
-                  </span>
-                  <span className="flex items-center gap-1">
                     <CheckBadgeIcon className="w-4 h-4 text-[#1E8EA3]" />
-                    {filtered.length} activos
+                    {totalActive} activos
                   </span>
                 </div>
               </div>
               <select
                 className="text-sm font-semibold bg-white border border-[#DDE3EC] rounded-lg px-3 py-2 text-[#1C2230] focus:outline-none focus:ring-2 focus:ring-[#1E8EA3]/20"
-                value={modality}
-                onChange={e => setModality(e.target.value)}
+                value={previewModality}
+                onChange={e => setPreviewModality(e.target.value)}
               >
                 <option value="">Todas las modalidades</option>
-                <option value="Remoto">Remoto</option>
-                <option value="Híbrido">Híbrido</option>
-                <option value="Presencial">Presencial</option>
+                <option value="remoto">Remoto</option>
+                <option value="híbrido">Híbrido</option>
+                <option value="presencial">Presencial</option>
               </select>
             </div>
 
@@ -206,32 +278,27 @@ export default function Home() {
               <div className="space-y-4">
                 {[1,2,3].map(i => <div key={i} className="animate-pulse h-28 bg-white rounded-2xl border border-[#DDE3EC]" />)}
               </div>
-            ) : filtered.length === 0 ? (
+            ) : previewJobs.length === 0 ? (
               <div className="bg-white border border-[#DDE3EC] rounded-2xl p-16 text-center">
                 <BriefcaseIcon className="w-12 h-12 text-[#DDE3EC] mx-auto mb-4" />
                 <p className="font-semibold text-[#1C2230] mb-1">Sin resultados</p>
-                <p className="text-sm text-[#64748B]">Probá con otro término de búsqueda.</p>
+                <p className="text-sm text-[#64748B]">Probá con otra modalidad.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filtered.map(job => (
+                {previewJobs.map(job => (
                   <div key={job.id} className="group bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4">
                     {/* Avatar empresa */}
                     <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 font-display font-extrabold text-[#1E8EA3] text-lg border border-[#9ED4DF]">
-                      {job.company_name?.[0] || "?"}
+                      {job.company_legal_name_snapshot?.[0] || "?"}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <Link href={`/jobs/${job.id}`} className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
+                      <Link href={`/empleos/${job.id}`} className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
                         {job.title}
                       </Link>
-                      <p className="text-sm text-[#64748B] font-medium mt-0.5">{job.company_name}</p>
+                      <p className="text-sm text-[#64748B] font-medium mt-0.5">{job.company_legal_name_snapshot}</p>
                       <div className="flex flex-wrap gap-2 mt-2.5">
-                        {job.location && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
-                            <MapPinIcon className="w-3.5 h-3.5" />{job.location}
-                          </span>
-                        )}
                         {job.modality && (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
                             <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
@@ -246,8 +313,8 @@ export default function Home() {
                     </div>
 
                     <div className="flex flex-col items-end gap-3 shrink-0">
-                      {job.created_at && <span className="text-xs text-[#94A3B8] font-medium">{timeAgo(job.created_at)}</span>}
-                      <Link href={`/jobs/${job.id}`} className="inline-flex items-center gap-1 text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] transition-colors">
+                      {job.published_at && <span className="text-xs text-[#94A3B8] font-medium">{timeAgo(job.published_at)}</span>}
+                      <Link href={`/empleos/${job.id}`} className="inline-flex items-center gap-1 text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] transition-colors">
                         Ver aviso <ChevronRightIcon className="w-4 h-4" />
                       </Link>
                     </div>
@@ -255,25 +322,19 @@ export default function Home() {
                 ))}
               </div>
             )}
+
+            {totalActive > previewJobs.length && (
+              <Link
+                href="/empleos"
+                className="mt-6 flex items-center justify-center gap-1.5 w-full bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 text-[#1E8EA3] font-bold text-sm rounded-2xl py-3 transition-colors"
+              >
+                Ver todos los avisos <ArrowRightIcon className="w-4 h-4" />
+              </Link>
+            )}
           </div>
 
           {/* Sidebar */}
           <aside className="w-full lg:w-[280px] shrink-0 space-y-5">
-            {/* Search sidebar */}
-            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-3">Buscar</p>
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1E8EA3]" />
-                <input
-                  type="text"
-                  placeholder="Puesto o empresa"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#DDE3EC] rounded-xl text-sm text-[#1C2230] bg-[#FAFBFD] focus:outline-none focus:ring-2 focus:ring-[#1E8EA3]/20 focus:border-[#1E8EA3]"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
             {/* IA CTA */}
             <div className="bg-gradient-to-br from-[#E6F4F7] to-[#FAFBFD] border border-[#9ED4DF] rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute -top-4 -right-4 w-20 h-20 bg-[#1E8EA3]/10 rounded-full blur-xl" />

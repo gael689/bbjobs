@@ -3,20 +3,30 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { useAuthStore } from "@/store/auth";
-import { api, setAccessToken } from "@/lib/api";
+import { usePathname, useRouter } from "next/navigation";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { UserIcon, ArrowRightOnRectangleIcon, Bars3Icon, XMarkIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function Header() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { isSignedIn } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
 
   const handleLogout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
-    setAccessToken(null);
-    logout();
-    window.location.href = "/";
+    await signOut({ redirectUrl: "/" });
   };
+
+  // Los paneles (admin/empresa/candidato) y las pantallas de login/registro/onboarding
+  // tienen su propia barra simplificada (volver al inicio, sin menú público)
+  const hideNavbar =
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/login") ||
+    pathname?.startsWith("/register") ||
+    pathname?.startsWith("/onboarding");
+  if (hideNavbar) return null;
 
   return (
     <div className="fixed top-6 left-0 right-0 z-50 w-full px-4 flex justify-center pointer-events-none">
@@ -26,14 +36,14 @@ export default function Header() {
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center gap-2 shrink-0 group">
           <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" priority />
-          <span className="font-display font-extrabold text-[22px] tracking-tight leading-none text-[#1C2230]">
+          <span className="font-display font-extrabold italic text-[24px] tracking-tight leading-none text-[#1C2230]">
             <span className="text-[#1E8EA3]">BB</span>JOBS
           </span>
         </Link>
 
         {/* ── Nav links desktop ── */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#64748B]">
-          <Link href="/" className="hover:text-[#1E8EA3] transition-colors">Avisos</Link>
+          <Link href="/empleos" className="hover:text-[#1E8EA3] transition-colors">Empleos</Link>
           <Link href="/empresas" className="hover:text-[#1E8EA3] transition-colors">Empresas</Link>
           <Link href="/planes" className="hover:text-[#1E8EA3] transition-colors">Planes</Link>
           {/* Badge IA */}
@@ -48,15 +58,15 @@ export default function Header() {
 
         {/* ── CTAs desktop ── */}
         <div className="hidden md:flex items-center gap-2">
-          {isAuthenticated ? (
+          {isSignedIn ? (
             <>
-              <Link
-                href={user?.role === "company" ? "/dashboard/company" : "/dashboard/candidate"}
+              <button
+                onClick={() => router.push("/post-login")}
                 className="flex items-center gap-1.5 text-sm font-semibold text-[#1C2230] hover:text-[#1E8EA3] transition-colors px-3 py-2"
               >
                 <UserIcon className="w-4 h-4" />
                 Mi Panel
-              </Link>
+              </button>
               <button
                 onClick={handleLogout}
                 className="p-2 text-[#64748B] hover:text-red-500 transition-colors"
@@ -89,6 +99,9 @@ export default function Header() {
           )}
         </div>
 
+        {/* ── Notification bell (visible at all breakpoints when authenticated) ── */}
+        {isSignedIn && <NotificationBell />}
+
         {/* ── Mobile hamburger ── */}
         <button className="md:hidden p-2 text-[#1C2230]" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
@@ -99,7 +112,7 @@ export default function Header() {
       {mobileOpen && (
         <div className="md:hidden bg-white border-t border-[#DDE3EC] px-4 pb-6 pt-3 space-y-1">
           {[
-            { href: "/", label: "Avisos" },
+            { href: "/empleos", label: "Empleos" },
             { href: "/empresas", label: "Empresas" },
             { href: "/planes", label: "Planes" },
           ].map(({ href, label }) => (
@@ -109,8 +122,16 @@ export default function Header() {
             <SparklesIcon className="w-4 h-4" /> IA Matching
           </Link>
           <div className="pt-4 flex flex-col gap-3">
-            <Link href="/login" className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
-            <Link href="/register?type=company" className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar aviso</Link>
+            {isSignedIn ? (
+              <button onClick={handleLogout} className="text-center font-bold border-2 border-red-200 text-red-500 rounded-lg py-2.5 hover:bg-red-50">
+                Salir
+              </button>
+            ) : (
+              <>
+                <Link href="/login" className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
+                <Link href="/register?type=company" className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar aviso</Link>
+              </>
+            )}
           </div>
         </div>
       )}

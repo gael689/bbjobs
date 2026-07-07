@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional, List
 from datetime import datetime
 import uuid
@@ -65,5 +65,24 @@ class JobPostingResponse(BaseModel):
         from_attributes = True
 
 class JobPostingPublicResponse(JobPostingResponse):
-    pass
-    # We could omit fields that are not public if needed
+    @model_validator(mode="after")
+    def _mask_hidden_salary(self):
+        # Filtrar por rango de salario no es lo mismo que mostrarlo — se puede buscar
+        # por rango aunque la empresa haya elegido no mostrar el número (salary_visible=False).
+        if not self.salary_visible:
+            self.salary_min = None
+            self.salary_max = None
+            self.salary_currency = None
+        return self
+
+
+class PaginatedJobsResponse(BaseModel):
+    items: List[JobPostingPublicResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class JobSuggestion(BaseModel):
+    label: str
+    type: str  # "title" | "company"

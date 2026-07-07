@@ -11,18 +11,24 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_TTL_MINUTES: int = 30
     REFRESH_TOKEN_TTL_DAYS: int = 30
-    
+
     ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+    # Clerk (auth provider — ver docs/planning/backend/09-migracion-clerk-auth.md)
+    CLERK_SECRET_KEY: str = ""
+    CLERK_WEBHOOK_SECRET: str = ""
+    CLERK_AUTHORIZED_PARTIES: str = "http://localhost:3000"
     
     SENTRY_DSN: str | None = None
-    
+
     RESEND_API_KEY: str | None = None
+    EMAIL_FROM: str = "BBJobs <noreply@bbjobs.com.ar>"
+
+    FEATURE_DURATION_DAYS: int = 7
     
-    R2_ACCOUNT_ID: str | None = None
-    R2_ACCESS_KEY_ID: str | None = None
-    R2_SECRET_ACCESS_KEY: str | None = None
-    R2_BUCKET_NAME: str | None = None
-    R2_PUBLIC_URL: str | None = None
+    CLOUDINARY_CLOUD_NAME: str | None = None
+    CLOUDINARY_API_KEY: str | None = None
+    CLOUDINARY_API_SECRET: str | None = None
     
     MP_ACCESS_TOKEN: str | None = None
     MP_PUBLIC_KEY: str | None = None
@@ -33,5 +39,9 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+
+    @property
+    def clerk_authorized_parties(self) -> List[str]:
+        return [party.strip() for party in self.CLERK_AUTHORIZED_PARTIES.split(",")]
 
 settings = Settings()

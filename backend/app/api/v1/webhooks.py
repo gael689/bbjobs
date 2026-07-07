@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from svix.webhooks import Webhook, WebhookVerificationError
 from app.api.deps import get_db
+from app.core.config import settings
+from app.models.core import User
 from app.models.payment import MercadoPagoWebhookEvent, Payment, JobFeature, JobFeatureStatus
 from app.models.job import JobPosting
 from app.integrations.mercado_pago import verify_signature, get_mp_client
@@ -104,5 +107,51 @@ async def mp_webhook(
     await db.refresh(event)
     
     background_tasks.add_task(process_mp_payment, str(event.id), db)
-    
+
+    return {"status": "ok"}
+
+
+@router.post("/webhooks/clerk")
+async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Red de seguridad ante cambios hechos directamente en el dashboard de Clerk (fuera de
+    nuestra app). La provisión real del User local es JIT en onboarding; este webhook sólo
+    reconcilia `user.deleted` / `user.updated`. Idempotente por clerk_user_id (no requiere
+    tabla de eventos: desactivar dos veces o sincronizar el mismo email es un no-op).
+    """
+    body = await request.body()
+    try:
+        event = Webhook(settings.CLERK_WEBHOOK_SECRET).verify(body, dict(request.headers))
+    except WebhookVerificationError:
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    event_type = event.get("type")
+    data = event.get("data", {})
+    clerk_user_id = data.get("id")
+    if not clerk_user_id:
+        return {"status": "ignored"}
+
+    result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
+    user = result.scalar_one_or_none()
+
+    if event_type == "user.deleted":
+        if user and user.is_active:
+            user.is_active = False
+            user.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+            await db.commit()
+            logger.info("clerk_user_deleted_webhook", clerk_user_id=clerk_user_id)
+
+    elif event_type == "user.updated":
+        if user:
+            email_addresses = data.get("email_addresses", [])
+            primary_id = data.get("primary_email_address_id")
+            primary_email = next(
+                (e.get("email_address") for e in email_addresses if e.get("id") == primary_id),
+                None,
+            )
+            if primary_email and primary_email != user.email:
+                user.email = primary_email
+                await db.commit()
+                logger.info("clerk_user_email_synced", clerk_user_id=clerk_user_id)
+
     return {"status": "ok"}

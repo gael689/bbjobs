@@ -24,6 +24,11 @@ class CompanyProfile(UUIDMixin, Base):
     responsible_phone: Mapped[str] = mapped_column(String(50), nullable=False)
     responsible_email: Mapped[str] = mapped_column(String(255), nullable=False)
     
+    province: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    employee_count: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    responsible_position: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)

@@ -1,35 +1,45 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-import structlog
+from contextlib import asynccontextmanager
 import uuid
 import time
+
+import structlog
 import sentry_sdk
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.v1 import health, auth, companies, candidates, skills, jobs, applications, tests, plans, subscriptions, payments, webhooks
 from app.core.scheduler import start_scheduler
+from app.api.v1 import (
+    health, companies, candidates, skills, catalogs,
+    jobs, applications, tests, plans, subscriptions, payments, webhooks,
+    admin, notifications, account, me, onboarding,
+)
 
 setup_logging()
 logger = structlog.get_logger("app")
 
-# Sentry config
-if hasattr(settings, "SENTRY_DSN") and settings.SENTRY_DSN:
+if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         traces_sample_rate=1.0,
-        profiles_sample_rate=1.0,
     )
 
-# SlowAPI config
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(
-    title="BBJobs API",
-    version="0.1.0",
-)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    logger.info("app_started", env=settings.ENV)
+    yield
+    logger.info("app_shutdown")
+
+
+app = FastAPI(title="BBJobs API", version="0.1.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -42,9 +52,6 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    start_scheduler()
 
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
@@ -54,30 +61,23 @@ async def logging_middleware(request: Request, call_next):
         method=request.method,
         path=request.url.path,
     )
-    
-    start_time = time.time()
+    start = time.time()
     try:
         response = await call_next(request)
-        duration_ms = (time.time() - start_time) * 1000
         logger.info(
             "request_completed",
             status_code=response.status_code,
-            duration_ms=round(duration_ms, 2)
+            duration_ms=round((time.time() - start) * 1000, 2),
         )
         return response
-    except Exception as e:
-        duration_ms = (time.time() - start_time) * 1000
-        logger.error(
-            "request_failed",
-            error=str(e),
-            duration_ms=round(duration_ms, 2)
-        )
-        raise e
+    except Exception as exc:
+        logger.error("request_failed", error=str(exc), duration_ms=round((time.time() - start) * 1000, 2))
+        raise
     finally:
         structlog.contextvars.clear_contextvars()
 
+
 app.include_router(health.router, prefix="/api/v1")
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(companies.router, prefix="/api/v1", tags=["companies"])
 app.include_router(candidates.router, prefix="/api/v1", tags=["candidates"])
 app.include_router(skills.router, prefix="/api/v1", tags=["skills"])
@@ -88,3 +88,9 @@ app.include_router(plans.router, prefix="/api/v1", tags=["plans"])
 app.include_router(subscriptions.router, prefix="/api/v1", tags=["subscriptions"])
 app.include_router(payments.router, prefix="/api/v1", tags=["payments"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["webhooks"])
+app.include_router(catalogs.router, prefix="/api/v1", tags=["catalogs"])
+app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
+app.include_router(notifications.router, prefix="/api/v1", tags=["notifications"])
+app.include_router(account.router, prefix="/api/v1", tags=["account"])
+app.include_router(me.router, prefix="/api/v1", tags=["me"])
+app.include_router(onboarding.router, prefix="/api/v1", tags=["onboarding"])

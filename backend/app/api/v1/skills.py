@@ -6,6 +6,7 @@ from app.api.deps import get_db, require_role, get_current_user
 from app.models.catalogs import Skill, SkillStatus
 from app.schemas.skill import SkillResponse, SkillSuggest
 from app.models.core import User
+from app.services.notifications import notify_all_admins
 
 router = APIRouter()
 
@@ -26,6 +27,15 @@ async def suggest_skill(
         created_by_user_id=current_user.id
     )
     db.add(skill)
+
+    await notify_all_admins(
+        db,
+        type="admin_skill_suggested",
+        title="Nueva habilidad sugerida",
+        body=f"Se sugirió la habilidad '{skill.name}', esperando aprobación.",
+        link="/dashboard/admin/skills",
+    )
+
     await db.commit()
     await db.refresh(skill)
     return skill

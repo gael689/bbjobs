@@ -91,3 +91,52 @@ class LanguageResponse(LanguageCreate):
 
     class Config:
         from_attributes = True
+
+# ── Vista completa para empresas (solo candidatos que se postularon) ──────────
+
+class ExperienceForCompany(BaseModel):
+    company_name: str
+    role_title: str
+    start_date: date
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class EducationForCompany(BaseModel):
+    institution: str
+    degree: str
+    level: str
+    start_date: date
+    end_date: Optional[date] = None
+    in_progress: bool
+
+    class Config:
+        from_attributes = True
+
+class SkillForCompany(BaseModel):
+    skill_name: str
+    level: str
+
+class LanguageForCompany(BaseModel):
+    language_name: str
+    level: str
+
+    class Config:
+        from_attributes = True
+
+class CandidateFullProfile(BaseModel):
+    id: uuid.UUID
+    first_name: str
+    last_name: str
+    phone: str
+    summary: Optional[str] = None
+    cv_file_url: Optional[str] = None
+    accepts_remote: bool
+    accepts_hybrid: bool
+    accepts_onsite: bool
+    experience: List[ExperienceForCompany]
+    education: List[EducationForCompany]
+    skills: List[SkillForCompany]
+    languages: List[LanguageForCompany]

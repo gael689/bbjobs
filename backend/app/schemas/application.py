@@ -17,6 +17,7 @@ class ApplicationResponse(BaseModel):
     cover_letter: Optional[str] = None
     status: ApplicationStatus
     seen_at: Optional[datetime] = None
+    status_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
