@@ -9,11 +9,13 @@ from app.api.deps import get_db, require_role, require_verified_company
 from app.models.core import UserRole
 from app.models.company import CompanyProfile
 from app.models.candidate import EducationLevel
-from app.models.job import JobPosting, JobPostingStatus, JobPostingSkill
+from app.models.job import JobPosting, JobPostingStatus, JobPostingSkill, JobModerationStatus
 from app.schemas.job import (
-    JobPostingResponse, JobPostingCreate, JobPostingUpdate, JobPostingPublicResponse,
-    PaginatedJobsResponse, JobSuggestion,
+    JobPostingResponse, JobPostingCompanyResponse, JobPostingCreate, JobPostingUpdate,
+    JobPostingPublicResponse, PaginatedJobsResponse, JobSuggestion,
 )
+from app.services.notifications import notify_all_admins
+from app.services.job_features import end_active_feature_for_job
 
 router = APIRouter()
 
@@ -26,7 +28,7 @@ _EDUCATION_RANK = {
     EducationLevel.posgrado: 3,
 }
 
-@router.post("/me/company/jobs", response_model=JobPostingResponse)
+@router.post("/me/company/jobs", response_model=JobPostingCompanyResponse)
 async def create_job_posting(
     payload: JobPostingCreate,
     company: CompanyProfile = Depends(require_verified_company),
@@ -50,8 +52,13 @@ async def create_job_posting(
         salary_visible=payload.salary_visible,
         benefits=payload.benefits,
         status=JobPostingStatus.active,
-        published_at=datetime.datetime.now(datetime.timezone.utc)
+        published_at=datetime.datetime.now(datetime.timezone.utc),
+        duration_days=payload.duration_days,
+        # Barrera dura: toda búsqueda nueva nace pendiente y no es visible en el portal
+        # público hasta que un admin la apruebe (ver list_public_jobs/get_public_job/suggest_jobs).
+        moderation_status=JobModerationStatus.pending_review,
     )
+    job.expires_at = job.published_at + datetime.timedelta(days=job.duration_days)
     db.add(job)
     await db.flush()
 
@@ -60,11 +67,19 @@ async def create_job_posting(
         js = JobPostingSkill(job_posting_id=job.id, skill_id=skill.skill_id, is_required=skill.is_required)
         db.add(js)
 
+    await notify_all_admins(
+        db,
+        type="job_pending_review",
+        title="Nueva búsqueda para revisar",
+        body=f"'{job.title}' de {job.company_legal_name_snapshot} está esperando aprobación.",
+        link="/dashboard/admin/busquedas",
+    )
+
     await db.commit()
     await db.refresh(job)
     return job
 
-@router.get("/me/company/jobs", response_model=List[JobPostingResponse])
+@router.get("/me/company/jobs", response_model=List[JobPostingCompanyResponse])
 async def list_my_job_postings(
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
@@ -72,7 +87,7 @@ async def list_my_job_postings(
     result = await db.execute(select(JobPosting).where(JobPosting.company_id == company.id))
     return result.scalars().all()
 
-@router.patch("/me/company/jobs/{id}", response_model=JobPostingResponse)
+@router.patch("/me/company/jobs/{id}", response_model=JobPostingCompanyResponse)
 async def update_job_posting(
     id: uuid.UUID,
     payload: JobPostingUpdate,
@@ -91,9 +106,9 @@ async def update_job_posting(
         current_status = job.status
         new_status = payload.status
 
-        # closed is terminal
-        if str(current_status) == JobPostingStatus.closed:
-            raise HTTPException(status_code=400, detail="Job posting is closed and cannot be changed")
+        # closed/expired son terminales
+        if str(current_status) in (str(JobPostingStatus.closed), str(JobPostingStatus.expired)):
+            raise HTTPException(status_code=400, detail="Job posting is closed or expired and cannot be changed")
 
         allowed_transitions = {
             JobPostingStatus.active: [JobPostingStatus.paused, JobPostingStatus.closed],
@@ -116,12 +131,19 @@ async def update_job_posting(
         job.status = new_status
         if str(new_status) == str(JobPostingStatus.closed):
             job.closed_at = datetime.datetime.now(datetime.timezone.utc)
+            if job.is_featured:
+                await end_active_feature_for_job(db, job)
 
     # Update basic fields
     update_data = payload.model_dump(exclude_unset=True, exclude={"status"})
     for key, value in update_data.items():
         if hasattr(job, key):
             setattr(job, key, value)
+
+    # La empresa puede achicar (o volver a ampliar, dentro del máximo) el plazo de vencimiento —
+    # se recalcula expires_at contra la fecha real de publicación, no contra "hoy".
+    if "duration_days" in update_data and job.published_at:
+        job.expires_at = job.published_at + datetime.timedelta(days=job.duration_days)
 
     await db.commit()
     await db.refresh(job)
@@ -133,6 +155,7 @@ async def list_public_jobs(
     zone_id: Optional[uuid.UUID] = Query(None),
     modality: Optional[str] = Query(None),
     contract_type_id: Optional[uuid.UUID] = Query(None),
+    company_id: Optional[uuid.UUID] = Query(None, description="Búsquedas activas de una empresa (perfil público)"),
     min_education_level: Optional[EducationLevel] = Query(None),
     salary_min: Optional[float] = Query(None),
     salary_max: Optional[float] = Query(None),
@@ -141,7 +164,10 @@ async def list_public_jobs(
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(JobPosting).where(JobPosting.status == JobPostingStatus.active)
+    query = select(JobPosting).where(
+        JobPosting.status == JobPostingStatus.active,
+        JobPosting.moderation_status == JobModerationStatus.approved,
+    )
 
     if industry_id:
         query = query.where(JobPosting.industry_id == industry_id)
@@ -151,6 +177,8 @@ async def list_public_jobs(
         query = query.where(JobPosting.modality == modality)
     if contract_type_id:
         query = query.where(JobPosting.contract_type_id == contract_type_id)
+    if company_id:
+        query = query.where(JobPosting.company_id == company_id)
     if q:
         search_term = f"%{q}%"
         query = query.where(
@@ -188,6 +216,17 @@ async def list_public_jobs(
 
     result = await db.execute(query)
     items = result.scalars().all()
+
+    company_ids = {item.company_id for item in items if item.company_id}
+    logo_map = {}
+    if company_ids:
+        logo_result = await db.execute(
+            select(CompanyProfile.id, CompanyProfile.logo_url).where(CompanyProfile.id.in_(company_ids))
+        )
+        logo_map = dict(logo_result.all())
+    for item in items:
+        item.logo_url = logo_map.get(item.company_id)
+
     return PaginatedJobsResponse(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -201,7 +240,11 @@ async def suggest_jobs(
 
     title_result = await db.execute(
         select(JobPosting.title)
-        .where(JobPosting.status == JobPostingStatus.active, JobPosting.title.ilike(search_term))
+        .where(
+            JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.title.ilike(search_term),
+        )
         .distinct()
         .limit(limit)
     )
@@ -209,6 +252,7 @@ async def suggest_jobs(
         select(JobPosting.company_legal_name_snapshot)
         .where(
             JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
             JobPosting.company_legal_name_snapshot.ilike(search_term),
         )
         .distinct()
@@ -223,9 +267,21 @@ async def suggest_jobs(
 @router.get("/jobs/{id}", response_model=JobPostingPublicResponse)
 async def get_public_job(id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(JobPosting).where(JobPosting.id == id, JobPosting.status == JobPostingStatus.active)
+        select(JobPosting).where(
+            JobPosting.id == id,
+            JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+        )
     )
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job posting not found")
+
+    job.logo_url = None
+    if job.company_id:
+        logo_result = await db.execute(
+            select(CompanyProfile.logo_url).where(CompanyProfile.id == job.company_id)
+        )
+        job.logo_url = logo_result.scalar_one_or_none()
+
     return job

@@ -11,13 +11,38 @@ export default function CompanyPerfilPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
 
+  const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState("");
+  const [savingPublicProfile, setSavingPublicProfile] = useState(false);
+
   useEffect(() => {
-    api.get("/me/company/profile").then(r => setProfile(r.data)).catch(() => {});
+    api.get("/me/company/profile").then(r => {
+      setProfile(r.data);
+      setDescription(r.data.description || "");
+      setWebsite(r.data.website || "");
+    }).catch(() => {});
   }, []);
 
   function toast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
+  }
+
+  async function handleSavePublicProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingPublicProfile(true);
+    try {
+      const r = await api.patch("/me/company/profile", {
+        description: description || undefined,
+        website: website || undefined,
+      });
+      setProfile(r.data);
+      toast("Perfil público actualizado");
+    } catch {
+      toast("Error al guardar el perfil público");
+    } finally {
+      setSavingPublicProfile(false);
+    }
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -71,7 +96,7 @@ export default function CompanyPerfilPage() {
             title="Cambiar logo"
           >
             {profile?.logo_url ? (
-              <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" />
+              <img src={profile.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
             ) : (
               <BuildingOffice2Icon className="w-8 h-8 text-[#9ED4DF]" />
             )}
@@ -90,6 +115,7 @@ export default function CompanyPerfilPage() {
             <p className="text-[#1E8EA3] font-bold text-sm uppercase tracking-wider mb-1">Perfil de empresa</p>
             <h1 className="text-2xl font-display font-bold text-[#1C2230]">{profile?.legal_name || "Mi empresa"}</h1>
             <p className="text-[#64748B] text-sm mt-0.5">CUIT: {profile?.cuit}</p>
+            <p className="text-[#64748B] text-xs mt-1">Logo: PNG o JPG, fondo transparente recomendado, mín. 400×400px, máx. 2MB</p>
           </div>
         </div>
       </div>
@@ -160,6 +186,56 @@ export default function CompanyPerfilPage() {
             </div>
           </dl>
         </div>
+
+        <form onSubmit={handleSavePublicProfile} className="bg-white border border-[#DDE3EC] rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-display font-bold text-[#1C2230]">Perfil público</h3>
+              <p className="text-sm text-[#64748B] mt-0.5">
+                Lo que ven los candidatos cuando entran al perfil de tu empresa desde un aviso.
+              </p>
+            </div>
+            {isVerified && profile && (
+              <a
+                href={`/empresas/${profile.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-sm font-bold text-[#1E8EA3] hover:underline whitespace-nowrap"
+              >
+                Ver perfil público
+              </a>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Descripción — ¿qué hace tu empresa?</label>
+            <textarea
+              rows={5}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Contales a los candidatos a qué se dedica tu empresa, tu cultura de trabajo, etc."
+              className="w-full border border-[#DDE3EC] rounded-xl px-4 py-2.5 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Sitio web (opcional)</label>
+            <input
+              value={website}
+              onChange={e => setWebsite(e.target.value)}
+              placeholder="https://tuempresa.com.ar"
+              className="w-full border border-[#DDE3EC] rounded-xl px-4 py-2.5 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingPublicProfile}
+            className="bg-[#1E8EA3] hover:bg-[#187B8E] disabled:opacity-60 text-white font-bold rounded-xl px-6 py-2.5 text-sm transition-colors"
+          >
+            {savingPublicProfile ? "Guardando..." : "Guardar perfil público"}
+          </button>
+        </form>
       </div>
     </div>
   );

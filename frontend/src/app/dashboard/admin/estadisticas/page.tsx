@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
   BuildingOffice2Icon, UsersIcon, BriefcaseIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon,
+  ChatBubbleLeftRightIcon, CreditCardIcon,
 } from "@heroicons/react/24/outline";
 import type { Metrics } from "../types";
 
@@ -27,7 +28,10 @@ export default function AdminEstadisticasPage() {
             { label: "Verificadas", value: metrics.verified_companies, icon: CheckCircleIcon, color: "text-green-600", bg: "bg-green-50" },
             { label: "Candidatos", value: metrics.total_candidates, icon: UsersIcon, color: "text-[#1E8EA3]", bg: "bg-[#E6F4F7]" },
             { label: "Búsquedas", value: metrics.total_jobs, icon: BriefcaseIcon, color: "text-[#1E8EA3]", bg: "bg-[#E6F4F7]" },
+            { label: "Búsquedas por revisar", value: metrics.pending_jobs, icon: ClockIcon, color: "text-amber-600", bg: "bg-amber-50" },
             { label: "Postulaciones", value: metrics.total_applications, icon: DocumentTextIcon, color: "text-[#1E8EA3]", bg: "bg-[#E6F4F7]" },
+            { label: "Mensajes pendientes", value: metrics.pending_contact_messages, icon: ChatBubbleLeftRightIcon, color: "text-amber-600", bg: "bg-amber-50" },
+            { label: "Ingresos por destacados", value: `$${metrics.total_revenue_featured.toLocaleString("es-AR")}`, icon: CreditCardIcon, color: "text-green-600", bg: "bg-green-50" },
           ].map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm">
               <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center mb-3`}>

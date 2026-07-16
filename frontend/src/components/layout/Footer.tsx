@@ -1,8 +1,22 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 export default function Footer() {
+  const pathname = usePathname();
+
+  // Mismo criterio que Header.tsx: los paneles y las pantallas de auth tienen su propia
+  // barra simplificada, no el footer institucional de las páginas públicas.
+  const hideFooter =
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/login") ||
+    pathname?.startsWith("/register") ||
+    pathname?.startsWith("/onboarding");
+  if (hideFooter) return null;
+
   return (
     <footer className="bg-white border-t border-[#DDE3EC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
@@ -46,6 +60,7 @@ export default function Footer() {
               { href: "/terminos", label: "Términos de uso" },
               { href: "/privacidad", label: "Política de privacidad" },
               { href: "/nosotros", label: "Quiénes somos" },
+              { href: "/contacto", label: "Contacto" },
             ].map(({ href, label }) => (
               <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { SignUp } from "@clerk/nextjs";
 import { UserIcon, BuildingOfficeIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
@@ -8,12 +8,35 @@ import Image from "next/image";
 import Link from "next/link";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
+// Respaldo de la intención de rol elegida en el toggle. Necesario porque `unsafeMetadata`
+// pasado como prop a <SignUp> sólo viaja de forma confiable en el flujo de email/contraseña:
+// con OAuth (Google) hay un redirect de página completa a Google y de vuelta, y el botón de
+// Google del widget de Clerk no siempre reenvía esa metadata en ese viaje. localStorage sí
+// sobrevive el redirect — /onboarding lo usa como respaldo si unsafeMetadata.role no llegó.
+const SIGNUP_ROLE_KEY = "bbjobs_signup_role";
+
 function RegisterForm() {
   const searchParams = useSearchParams();
-  const [role, setRole] = useState<"candidate" | "company">(() => {
+  const [role, setRoleState] = useState<"candidate" | "company">(() => {
     const t = searchParams.get("type");
     return t === "company" ? "company" : "candidate";
   });
+
+  function setRole(r: "candidate" | "company") {
+    setRoleState(r);
+    localStorage.setItem(SIGNUP_ROLE_KEY, r);
+  }
+
+  useEffect(() => {
+    localStorage.setItem(SIGNUP_ROLE_KEY, role);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // `next` (no `redirect_url`) a propósito — ver comentario en /login/[[...rest]]/page.tsx:
+  // un alta nueva siempre pasa por /onboarding primero, recién ahí volvemos al destino real.
+  const next = searchParams.get("next");
+  const fallbackRedirectUrl = next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding";
+  const signInUrl = next ? `/login?redirect_url=${encodeURIComponent(next)}` : "/login";
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative">
@@ -67,8 +90,8 @@ function RegisterForm() {
             key={role}
             routing="path"
             path="/register"
-            signInUrl="/login"
-            fallbackRedirectUrl="/onboarding"
+            signInUrl={signInUrl}
+            fallbackRedirectUrl={fallbackRedirectUrl}
             unsafeMetadata={{ role }}
             appearance={clerkAppearance}
           />

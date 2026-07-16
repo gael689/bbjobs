@@ -7,7 +7,16 @@ import { useNotifications } from "@/hooks/useNotifications";
 import NotificationItem from "./NotificationItem";
 import type { NotificationItemData } from "@/hooks/useNotifications";
 
-export default function NotificationBell() {
+export default function NotificationBell({
+  align = "right",
+  openUpward = false,
+}: {
+  /** Desde qué borde cuelga el menú — "left" cuando el botón está pegado al borde
+   * izquierdo de la pantalla (sidebar de los paneles), si no se corta. */
+  align?: "left" | "right";
+  /** Abrir hacia arriba — el botón de los paneles está al pie del sidebar. */
+  openUpward?: boolean;
+}) {
   const router = useRouter();
   const { items, unreadCount, loading, open, toggleOpen, close, markRead, markAllRead } =
     useNotifications();
@@ -46,7 +55,11 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-3 w-[360px] max-w-[90vw] bg-gradient-to-b from-white to-[#F8FAFC] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_16px_40px_rgba(30,142,163,0.18)] rounded-2xl overflow-hidden z-50">
+        <div
+          className={`absolute w-[360px] max-w-[90vw] bg-gradient-to-b from-white to-[#F8FAFC] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_16px_40px_rgba(30,142,163,0.18)] rounded-2xl overflow-hidden z-50 ${
+            align === "left" ? "left-0" : "right-0"
+          } ${openUpward ? "bottom-full mb-3" : "top-full mt-3"}`}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#EEF2F7]">
             <span className="font-display font-bold text-[#1C2230]">Notificaciones</span>
             {unreadCount > 0 && (

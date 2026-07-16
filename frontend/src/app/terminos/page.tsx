@@ -1,6 +1,6 @@
 export default function TerminosPage() {
   return (
-    <div className="bg-[#FAFBFD] min-h-screen pt-[108px] pb-20">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
 
         <div className="mb-10">
@@ -13,7 +13,7 @@ export default function TerminosPage() {
 
           <Section title="1. Aceptación de los términos">
             <p>
-              Al acceder o utilizar BBJobs (en adelante, "la plataforma"), el usuario acepta quedar vinculado
+              Al acceder o utilizar BBJobs (en adelante, &quot;la plataforma&quot;), el usuario acepta quedar vinculado
               por los presentes Términos y Condiciones. Si no está de acuerdo con alguno de estos términos,
               debe abstenerse de utilizar la plataforma.
             </p>

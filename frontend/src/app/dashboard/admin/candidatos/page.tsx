@@ -2,47 +2,367 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { UsersIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import type { Candidate } from "../types";
+import {
+  DocumentTextIcon, FunnelIcon, XMarkIcon, UserCircleIcon,
+  BriefcaseIcon, AcademicCapIcon, WrenchScrewdriverIcon, LanguageIcon, ArrowDownTrayIcon,
+  ClockIcon,
+} from "@heroicons/react/24/outline";
+import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import {
+  CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL, EDUCATION_LEVEL_LABEL,
+  EMPTY_CANDIDATE_FILTERS,
+  type Candidate, type CandidateFilters, type CandidateFullProfile, type CandidateActivityItem,
+} from "../types";
+
+interface Zone {
+  id: string;
+  name: string;
+}
 
 export default function AdminCandidatosPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [filters, setFilters] = useState<CandidateFilters>(EMPTY_CANDIDATE_FILTERS);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<CandidateFullProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [activity, setActivity] = useState<CandidateActivityItem[]>([]);
 
   useEffect(() => {
-    api.get("/admin/candidates").then(r => setCandidates(r.data)).catch(() => {});
-  }, []);
+    api.get("/catalogs/zones").then(r => setZones(r.data)).catch(() => {});
+    loadCandidates(EMPTY_CANDIDATE_FILTERS);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function buildParams(f: CandidateFilters) {
+    const params: Record<string, string | boolean> = {};
+    if (f.q) params.q = f.q;
+    if (f.age_min) params.age_min = f.age_min;
+    if (f.age_max) params.age_max = f.age_max;
+    if (f.gender) params.gender = f.gender;
+    if (f.has_own_transport) params.has_own_transport = f.has_own_transport === "true";
+    if (f.availability) params.availability = f.availability;
+    if (f.immediate_availability) params.immediate_availability = true;
+    if (f.zone_id) params.zone_id = f.zone_id;
+    if (f.has_cv) params.has_cv = f.has_cv === "true";
+    if (f.education_level) params.education_level = f.education_level;
+    return params;
+  }
+
+  function loadCandidates(f: CandidateFilters) {
+    setLoading(true);
+    api.get("/admin/candidates", { params: buildParams(f) })
+      .then(r => setCandidates(r.data))
+      .catch(() => setCandidates([]))
+      .finally(() => setLoading(false));
+  }
+
+  function applyFilters(e: React.FormEvent) {
+    e.preventDefault();
+    loadCandidates(filters);
+  }
+
+  function clearFilters() {
+    setFilters(EMPTY_CANDIDATE_FILTERS);
+    loadCandidates(EMPTY_CANDIDATE_FILTERS);
+  }
+
+  const hasActiveFilters = Object.entries(filters).some(([k, v]) => v !== EMPTY_CANDIDATE_FILTERS[k as keyof CandidateFilters]);
+
+  async function openProfile(id: string) {
+    setLoadingProfile(true);
+    setProfile(null);
+    setActivity([]);
+    try {
+      const r = await api.get(`/admin/candidates/${id}`);
+      setProfile(r.data);
+    } catch {
+      setProfile(null);
+    } finally {
+      setLoadingProfile(false);
+    }
+    api.get(`/admin/candidates/${id}/activity`).then(r => setActivity(r.data)).catch(() => {});
+  }
 
   return (
     <div className="px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Candidatos</h1>
       <p className="text-[#64748B] text-sm mb-6">Candidatos registrados en la plataforma.</p>
 
+      <form onSubmit={applyFilters} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 mb-5">
+        <div className="flex items-center gap-2 mb-3">
+          <FunnelIcon className="w-4 h-4 text-[#1E8EA3]" />
+          <span className="text-sm font-bold text-[#1C2230]">Filtrar candidatos</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <input
+            placeholder="Nombre..."
+            value={filters.q}
+            onChange={e => setFilters(f => ({ ...f, q: e.target.value }))}
+            className="col-span-2 border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+          />
+          <input
+            type="number" min={0} placeholder="Edad mín."
+            value={filters.age_min}
+            onChange={e => setFilters(f => ({ ...f, age_min: e.target.value }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+          />
+          <input
+            type="number" min={0} placeholder="Edad máx."
+            value={filters.age_max}
+            onChange={e => setFilters(f => ({ ...f, age_max: e.target.value }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+          />
+          <select
+            value={filters.gender}
+            onChange={e => setFilters(f => ({ ...f, gender: e.target.value as CandidateFilters["gender"] }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Sexo (todos)</option>
+            {Object.entries(CANDIDATE_GENDER_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select
+            value={filters.has_own_transport}
+            onChange={e => setFilters(f => ({ ...f, has_own_transport: e.target.value as CandidateFilters["has_own_transport"] }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Movilidad (todas)</option>
+            <option value="true">Con movilidad</option>
+            <option value="false">Sin movilidad</option>
+          </select>
+          <select
+            value={filters.availability}
+            onChange={e => setFilters(f => ({ ...f, availability: e.target.value as CandidateFilters["availability"] }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Disponibilidad (todas)</option>
+            {Object.entries(CANDIDATE_AVAILABILITY_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select
+            value={filters.zone_id}
+            onChange={e => setFilters(f => ({ ...f, zone_id: e.target.value }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Zona (todas)</option>
+            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
+          <select
+            value={filters.education_level}
+            onChange={e => setFilters(f => ({ ...f, education_level: e.target.value }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Título (todos)</option>
+            {Object.entries(EDUCATION_LEVEL_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select
+            value={filters.has_cv}
+            onChange={e => setFilters(f => ({ ...f, has_cv: e.target.value as CandidateFilters["has_cv"] }))}
+            className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">CV (todos)</option>
+            <option value="true">Con CV</option>
+            <option value="false">Sin CV</option>
+          </select>
+          <label className="flex items-center gap-1.5 text-xs text-[#64748B] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={filters.immediate_availability}
+              onChange={e => setFilters(f => ({ ...f, immediate_availability: e.target.checked }))}
+              className="w-3.5 h-3.5 accent-[#1E8EA3]"
+            />
+            Disp. inmediata
+          </label>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button type="submit" className="text-xs font-bold bg-[#1E8EA3] text-white rounded-lg px-3 py-1.5 hover:bg-[#187B8E] transition-colors">
+            Filtrar
+          </button>
+          {hasActiveFilters && (
+            <button type="button" onClick={clearFilters} className="text-xs font-bold text-[#64748B] border border-[#DDE3EC] rounded-lg px-3 py-1.5 hover:bg-[#FAFBFD] transition-colors">
+              Limpiar
+            </button>
+          )}
+        </div>
+      </form>
+
       <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden shadow-sm divide-y divide-[#DDE3EC]/60">
-        {candidates.length === 0 ? (
-          <div className="p-12 text-center text-[#64748B]">Sin candidatos registrados.</div>
+        {loading ? (
+          <div className="py-12 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="p-12 text-center text-[#64748B]">Sin candidatos que coincidan con los filtros.</div>
         ) : (
           candidates.map(c => (
-            <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-[#FAFBFD] transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#E6F4F7] rounded-xl flex items-center justify-center shrink-0">
-                  <UsersIcon className="w-5 h-5 text-[#1E8EA3]" />
-                </div>
-                <div>
-                  <p className="font-bold text-[#1C2230]">{c.first_name} {c.last_name}</p>
+            <div key={c.id} className="px-6 py-4 flex items-center justify-between gap-3 hover:bg-[#FAFBFD] transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <ProfileCompletionRing percent={c.completion_percent} size={36} strokeWidth={4} />
+                <div className="min-w-0">
+                  <p className="font-bold text-[#1C2230] truncate">{c.first_name} {c.last_name}</p>
                   <p className="text-sm text-[#64748B]">{c.phone}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {c.age != null && <span className="text-[10px] font-medium bg-[#FAFBFD] text-[#64748B] border border-[#DDE3EC] px-1.5 py-0.5 rounded-full">{c.age} años</span>}
+                    {c.gender && <span className="text-[10px] font-medium bg-[#FAFBFD] text-[#64748B] border border-[#DDE3EC] px-1.5 py-0.5 rounded-full">{CANDIDATE_GENDER_LABEL[c.gender]}</span>}
+                    {c.highest_education_level && <span className="text-[10px] font-medium bg-[#FAFBFD] text-[#64748B] border border-[#DDE3EC] px-1.5 py-0.5 rounded-full">{EDUCATION_LEVEL_LABEL[c.highest_education_level] || c.highest_education_level}</span>}
+                    {c.has_own_transport != null && <span className="text-[10px] font-medium bg-[#FAFBFD] text-[#64748B] border border-[#DDE3EC] px-1.5 py-0.5 rounded-full">{c.has_own_transport ? "Con movilidad" : "Sin movilidad"}</span>}
+                    {c.immediate_availability && <span className="text-[10px] font-bold bg-[#D4B7A2]/25 text-[#1C2230] border border-[#D4B7A2] px-1.5 py-0.5 rounded-full">Disp. inmediata</span>}
+                  </div>
                 </div>
               </div>
-              {c.cv_file_url && (
-                <a href={c.cv_file_url} target="_blank" rel="noreferrer"
-                  className="text-xs font-bold text-[#1E8EA3] hover:underline flex items-center gap-1">
-                  <DocumentTextIcon className="w-3.5 h-3.5" />
-                  Ver CV
-                </a>
-              )}
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => openProfile(c.id)}
+                  className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#E6F4F7] transition-colors"
+                >
+                  <UserCircleIcon className="w-3.5 h-3.5" />
+                  Ver perfil
+                </button>
+                {c.cv_file_url && (
+                  <a href={c.cv_file_url} target="_blank" rel="noreferrer"
+                    className="text-xs font-bold text-[#1E8EA3] hover:underline flex items-center gap-1">
+                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                    Ver CV
+                  </a>
+                )}
+              </div>
             </div>
           ))
         )}
       </div>
+
+      {(profile || loadingProfile) && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-end p-4" onClick={() => setProfile(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-[#DDE3EC] px-6 py-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-display font-bold text-[#1C2230]">Perfil del candidato</h2>
+              <button onClick={() => setProfile(null)} className="text-[#64748B] hover:text-[#1C2230] transition-colors">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingProfile ? (
+              <div className="py-20 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : profile && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-start gap-4">
+                  <ProfileCompletionRing percent={profile.completion_percent} size={56} strokeWidth={5} />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xl font-display font-bold text-[#1C2230]">{profile.first_name} {profile.last_name}</h3>
+                    <p className="text-sm text-[#64748B] mt-0.5">{profile.phone}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {profile.accepts_onsite && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Presencial</span>}
+                      {profile.accepts_remote && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Remoto</span>}
+                      {profile.accepts_hybrid && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Híbrido</span>}
+                    </div>
+                  </div>
+                  {profile.cv_file_url && (
+                    <a href={profile.cv_file_url} target="_blank" rel="noreferrer"
+                      className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-3 py-2 rounded-lg transition-colors">
+                      <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                      Descargar CV
+                    </a>
+                  )}
+                </div>
+
+                {profile.summary && (
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Sobre el candidato</p>
+                    <p className="text-sm text-[#1C2230] leading-relaxed bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">{profile.summary}</p>
+                  </div>
+                )}
+
+                {profile.experience.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <BriefcaseIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Experiencia</p>
+                    </div>
+                    <div className="space-y-3">
+                      {profile.experience.map((exp, i) => (
+                        <div key={i} className="border border-[#DDE3EC] rounded-xl p-4">
+                          <p className="font-bold text-sm text-[#1C2230]">{exp.role_title}</p>
+                          <p className="text-sm text-[#1E8EA3] font-medium">{exp.company_name}</p>
+                          {exp.description && <p className="text-xs text-[#64748B] mt-2 leading-relaxed">{exp.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {profile.education.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <AcademicCapIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Educación</p>
+                    </div>
+                    <div className="space-y-3">
+                      {profile.education.map((edu, i) => (
+                        <div key={i} className="border border-[#DDE3EC] rounded-xl p-4">
+                          <p className="font-bold text-sm text-[#1C2230]">{edu.degree}</p>
+                          <p className="text-sm text-[#1E8EA3] font-medium">{edu.institution}</p>
+                          <p className="text-xs text-[#64748B] mt-0.5 capitalize">{edu.level}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {profile.skills.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <WrenchScrewdriverIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Habilidades</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skills.map((sk, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#E6F4F7] text-[#1C2230] border border-[#9ED4DF] px-3 py-1.5 rounded-full">
+                          {sk.skill_name}<span className="text-[#64748B] font-normal">· {sk.level}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {profile.languages.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <LanguageIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Idiomas</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.languages.map((lang, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#FAFBFD] text-[#1C2230] border border-[#DDE3EC] px-3 py-1.5 rounded-full">
+                          {lang.language_name}<span className="text-[#64748B] font-normal">· {lang.level}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activity.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <ClockIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Actividad reciente</p>
+                    </div>
+                    <div className="space-y-2">
+                      {activity.map(item => (
+                        <div key={item.id} className="flex items-start gap-2 text-xs">
+                          <span className="text-[#94A3B8] shrink-0 mt-0.5">
+                            {new Date(item.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                          </span>
+                          <span className="text-[#1C2230]">{item.summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

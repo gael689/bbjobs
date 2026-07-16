@@ -1,9 +1,12 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from datetime import datetime
 import uuid
-from app.models.job import JobPostingModality, JobPostingStatus
+from app.models.job import JobPostingModality, JobPostingStatus, JobModerationStatus
 from app.models.candidate import EducationLevel
+
+# Límite de producto: toda búsqueda vence a los 20 días como máximo (se puede reducir, no ampliar).
+MAX_JOB_DURATION_DAYS = 20
 
 class JobPostingSkillCreate(BaseModel):
     skill_id: uuid.UUID
@@ -28,6 +31,7 @@ class JobPostingCreate(BaseModel):
     salary_currency: Optional[str] = None
     salary_visible: bool = False
     benefits: Optional[str] = None
+    duration_days: int = Field(default=MAX_JOB_DURATION_DAYS, ge=1, le=MAX_JOB_DURATION_DAYS)
     skills: List[JobPostingSkillCreate] = []
 
 class JobPostingUpdate(BaseModel):
@@ -36,11 +40,13 @@ class JobPostingUpdate(BaseModel):
     requirements: Optional[str] = None
     modality: Optional[JobPostingModality] = None
     status: Optional[JobPostingStatus] = None
+    duration_days: Optional[int] = Field(default=None, ge=1, le=MAX_JOB_DURATION_DAYS)
 
 class JobPostingResponse(BaseModel):
     id: uuid.UUID
     company_id: Optional[uuid.UUID] = None
     company_legal_name_snapshot: str
+    logo_url: Optional[str] = None
     title: str
     description: str
     requirements: str
@@ -58,11 +64,21 @@ class JobPostingResponse(BaseModel):
     status: JobPostingStatus
     is_featured: bool
     published_at: Optional[datetime] = None
+    duration_days: int
+    expires_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+class JobPostingCompanyResponse(JobPostingResponse):
+    """Igual a JobPostingResponse + estado de moderación — sólo para los endpoints
+    /me/company/jobs (la empresa necesita ver si está pendiente/rechazada). No se usa en el
+    listado público: moderation_notes puede contener el motivo de un rechazo, información
+    interna que no corresponde exponer fuera de la empresa dueña de la búsqueda."""
+    moderation_status: JobModerationStatus
+    moderation_notes: Optional[str] = None
 
 class JobPostingPublicResponse(JobPostingResponse):
     @model_validator(mode="after")

@@ -15,7 +15,7 @@ export default function CandidateEmpleosPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get("/jobs").then(r => setJobs(r.data)).catch(() => {});
+    api.get("/jobs?page_size=100").then(r => setJobs(r.data.items)).catch(() => {});
     api.get("/me/candidate/applications").then(r => setApplications(r.data)).catch(() => {});
     api.get("/me/candidate/profile").then(r => setProfile(r.data)).catch(() => {});
   }, []);

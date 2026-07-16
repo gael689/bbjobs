@@ -13,6 +13,19 @@ export default function LoginPage() {
     return new URLSearchParams(window.location.search).get("reason") === "email_collision";
   });
 
+  // Si venimos de un flujo como "postularme sin sesión" (?redirect_url=/empleos/...), Clerk
+  // ya reconoce ese query param por su cuenta, pero lo pasamos también explícito acá para
+  // no depender de ese comportamiento implícito.
+  const [redirectUrl] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("redirect_url");
+  });
+  // A /register lo mandamos con `next` (no `redirect_url`) a propósito: un usuario nuevo
+  // SIEMPRE tiene que pasar por /onboarding antes de poder postularse (ahí se crea su User
+  // local — ver onboarding.py). Si usáramos `redirect_url` ahí, Clerk saltaría directo al
+  // destino después del alta y se saltearía el onboarding.
+  const signUpUrl = redirectUrl ? `/register?next=${encodeURIComponent(redirectUrl)}` : "/register";
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative">
       <Link
@@ -46,8 +59,8 @@ export default function LoginPage() {
           <SignIn
             routing="path"
             path="/login"
-            signUpUrl="/register"
-            fallbackRedirectUrl="/post-login"
+            signUpUrl={signUpUrl}
+            fallbackRedirectUrl={redirectUrl || "/post-login"}
             appearance={clerkAppearance}
           />
         </div>

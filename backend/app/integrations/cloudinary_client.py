@@ -46,9 +46,15 @@ def upload_pdf(file_bytes: bytes, folder: str, public_id: str, content_type: str
     if content_type not in ALLOWED_PDF_TYPES:
         raise ValueError(f"Solo se permiten archivos PDF")
 
+    # Cloudinary sirve `resource_type="raw"` tal cual el public_id, sin inferir formato:
+    # sin ".pdf" en el nombre, la URL no tiene extensión y el navegador descarga el
+    # archivo como binario genérico (icono de "ejecutable" en vez de ícono de PDF).
+    if not public_id.endswith(".pdf"):
+        public_id = f"{public_id}.pdf"
+
     if not _configured():
         logger.warning("cloudinary_not_configured", folder=folder, public_id=public_id)
-        return f"https://res.cloudinary.com/mock/{folder}/{public_id}.pdf"
+        return f"https://res.cloudinary.com/mock/{folder}/{public_id}"
 
     _configure()
     result = cloudinary.uploader.upload(

@@ -3,17 +3,35 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
-import { APP_STATUS, type Application, type Job } from "../types";
+import { PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { APP_STATUS, type Application, type ApplicationHistoryItem, type Job } from "../types";
 
 export default function CandidatePostulacionesPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, ApplicationHistoryItem[]>>({});
+  const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
 
   useEffect(() => {
     api.get("/me/candidate/applications").then(r => setApplications(r.data)).catch(() => {});
-    api.get("/jobs").then(r => setJobs(r.data)).catch(() => {});
+    api.get("/jobs?page_size=100").then(r => setJobs(r.data.items)).catch(() => {});
   }, []);
+
+  function toggleHistory(appId: string) {
+    if (expanded === appId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(appId);
+    if (!history[appId]) {
+      setLoadingHistory(appId);
+      api.get(`/me/candidate/applications/${appId}/history`)
+        .then(r => setHistory(prev => ({ ...prev, [appId]: r.data })))
+        .catch(() => setHistory(prev => ({ ...prev, [appId]: [] })))
+        .finally(() => setLoadingHistory(null));
+    }
+  }
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-4xl">
@@ -37,15 +55,49 @@ export default function CandidatePostulacionesPage() {
             {applications.map(app => {
               const job = jobs.find(j => j.id === app.job_posting_id);
               const st = APP_STATUS[app.status] || { label: app.status, cls: "bg-gray-100 text-gray-600" };
+              const isExpanded = expanded === app.id;
               return (
-                <div key={app.id} className="px-6 py-4 flex items-center justify-between hover:bg-[#FAFBFD] transition-colors">
-                  <div>
-                    <p className="font-bold text-[#1C2230]">{job?.title || "Búsqueda"}</p>
-                    <p className="text-sm text-[#64748B]">
-                      {job?.company_legal_name_snapshot} · {new Date(app.created_at).toLocaleDateString("es-AR")}
-                    </p>
-                  </div>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${st.cls}`}>{st.label}</span>
+                <div key={app.id}>
+                  <button
+                    onClick={() => toggleHistory(app.id)}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#FAFBFD] transition-colors text-left"
+                  >
+                    <div>
+                      <p className="font-bold text-[#1C2230]">{job?.title || "Búsqueda"}</p>
+                      <p className="text-sm text-[#64748B]">
+                        {job?.company_legal_name_snapshot} · {new Date(app.created_at).toLocaleDateString("es-AR")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${st.cls}`}>{st.label}</span>
+                      {isExpanded ? <ChevronUpIcon className="w-4 h-4 text-[#64748B]" /> : <ChevronDownIcon className="w-4 h-4 text-[#64748B]" />}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="px-6 pb-4 bg-[#FAFBFD]">
+                      {loadingHistory === app.id ? (
+                        <div className="py-4 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : (history[app.id] || []).length === 0 ? (
+                        <p className="text-xs text-[#64748B] py-2">Sin historial disponible.</p>
+                      ) : (
+                        <div className="pt-2 space-y-2">
+                          {(history[app.id] || []).map(h => {
+                            const label = APP_STATUS[h.to_status]?.label || h.to_status;
+                            return (
+                              <div key={h.id} className="flex items-center gap-2 text-xs text-[#64748B]">
+                                <ClockIcon className="w-3.5 h-3.5 text-[#9ED4DF] shrink-0" />
+                                <span className="font-semibold text-[#1C2230]">{label}</span>
+                                <span>· {new Date(h.created_at).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

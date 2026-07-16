@@ -9,15 +9,39 @@ import uuid
 from app.api.deps import get_db, require_role
 from app.models.core import User, UserRole, AdminProfile
 from app.models.company import CompanyProfile, VerificationStatus
-from app.models.candidate import CandidateProfile
-from app.models.job import JobPosting, Application, JobPostingStatus
+from app.models.candidate import CandidateProfile, Education, Gender, Availability
+from app.models.job import JobPosting, Application, JobPostingStatus, JobModerationStatus
 from app.models.alerts import AuditLog
 from app.models.catalogs import Skill, SkillStatus
+from app.models.contact import ContactMessage
+from app.models.history import ApplicationStatusHistory, CandidateActivityLog
+from app.models.payment import Payment, PaymentType, JobFeature
 from app.services.notifications import create_notification
+from app.services.profile_completion import compute_profile_completion_for_candidate
+from app.services.applicant_stats import get_highest_education_level
+from app.services.job_features import end_active_feature_for_job
 from app.integrations.clerk_client import create_clerk_user
+from app.schemas.candidate import calculate_age, CandidateFullProfile
+from app.schemas.contact import ContactMessageResponse
+from app.schemas.history import ApplicationStatusHistoryResponse, CandidateActivityLogResponse
+from app.schemas.payment import FeatureHistoryItem
+from app.api.v1.applications import (
+    ApplicationWithCandidateResponse, CandidateSummary, build_candidate_full_profile,
+)
 from pydantic import BaseModel
 
 router = APIRouter()
+
+
+def _birth_date_cutoff(years_ago: int):
+    """Igual criterio que app/api/v1/applications.py::_birth_date_cutoff — se duplica (no se
+    importa entre routers) para no acoplar admin/applications sólo por este helper."""
+    import datetime
+    today = datetime.date.today()
+    try:
+        return today.replace(year=today.year - years_ago)
+    except ValueError:
+        return today.replace(month=2, day=28, year=today.year - years_ago)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -56,6 +80,13 @@ class CandidateAdminResponse(BaseModel):
     phone: str
     cv_file_url: Optional[str] = None
     cv_uploaded_at: Optional[datetime] = None
+    age: Optional[int] = None
+    gender: Optional[Gender] = None
+    has_own_transport: Optional[bool] = None
+    availability: Optional[Availability] = None
+    immediate_availability: Optional[bool] = None
+    highest_education_level: Optional[str] = None
+    completion_percent: int = 0
 
     class Config:
         from_attributes = True
@@ -67,9 +98,18 @@ class JobAdminResponse(BaseModel):
     status: JobPostingStatus
     company_legal_name_snapshot: str
     published_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    moderation_status: JobModerationStatus
+    moderation_notes: Optional[str] = None
+    is_featured: bool = False
 
     class Config:
         from_attributes = True
+
+
+class ModerateJobPayload(BaseModel):
+    action: str  # "approve" | "reject"
+    notes: Optional[str] = None
 
 
 class DashboardMetrics(BaseModel):
@@ -78,7 +118,10 @@ class DashboardMetrics(BaseModel):
     verified_companies: int
     total_candidates: int
     total_jobs: int
+    pending_jobs: int
     total_applications: int
+    pending_contact_messages: int
+    total_revenue_featured: float
 
 
 class SkillAdminResponse(BaseModel):
@@ -119,7 +162,18 @@ async def get_dashboard_metrics(
     )).scalar()
     total_candidates = (await db.execute(select(func.count()).select_from(CandidateProfile))).scalar()
     total_jobs = (await db.execute(select(func.count()).select_from(JobPosting))).scalar()
+    pending_jobs = (await db.execute(
+        select(func.count()).select_from(JobPosting)
+        .where(JobPosting.moderation_status == JobModerationStatus.pending_review)
+    )).scalar()
     total_applications = (await db.execute(select(func.count()).select_from(Application))).scalar()
+    pending_contact_messages = (await db.execute(
+        select(func.count()).select_from(ContactMessage).where(ContactMessage.resolved == False)
+    )).scalar()
+    total_revenue_featured = (await db.execute(
+        select(func.coalesce(func.sum(Payment.amount), 0))
+        .where(Payment.type == PaymentType.job_feature, Payment.mp_status == "approved")
+    )).scalar()
 
     return DashboardMetrics(
         total_companies=total_companies or 0,
@@ -127,7 +181,10 @@ async def get_dashboard_metrics(
         verified_companies=verified_companies or 0,
         total_candidates=total_candidates or 0,
         total_jobs=total_jobs or 0,
+        pending_jobs=pending_jobs or 0,
         total_applications=total_applications or 0,
+        pending_contact_messages=pending_contact_messages or 0,
+        total_revenue_featured=float(total_revenue_featured or 0),
     )
 
 
@@ -310,6 +367,8 @@ async def takedown_job(
 
     job.status = JobPostingStatus.closed
     job.closed_at = datetime.now(timezone.utc)
+    if job.is_featured:
+        await end_active_feature_for_job(db, job)
 
     # Notify the company's user — need to get user_id via company
     company_result = await db.execute(
@@ -343,25 +402,286 @@ async def takedown_job(
 
 @router.get("/admin/candidates", response_model=List[CandidateAdminResponse])
 async def list_candidates(
+    q: Optional[str] = Query(None, description="Buscar por nombre o apellido"),
+    age_min: Optional[int] = Query(None, ge=0),
+    age_max: Optional[int] = Query(None, ge=0),
+    gender: Optional[Gender] = Query(None),
+    has_own_transport: Optional[bool] = Query(None),
+    availability: Optional[Availability] = Query(None),
+    immediate_availability: Optional[bool] = Query(None),
+    zone_id: Optional[uuid.UUID] = Query(None),
+    has_cv: Optional[bool] = Query(None),
+    education_level: Optional[str] = Query(None, description="Título alcanzado (derivado de educations)"),
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(CandidateProfile))
-    return result.scalars().all()
+    query = select(CandidateProfile)
+    if q:
+        search_term = f"%{q}%"
+        query = query.where(
+            (CandidateProfile.first_name.ilike(search_term)) | (CandidateProfile.last_name.ilike(search_term))
+        )
+    if gender is not None:
+        query = query.where(CandidateProfile.gender == gender)
+    if has_own_transport is not None:
+        query = query.where(CandidateProfile.has_own_transport == has_own_transport)
+    if availability is not None:
+        query = query.where(CandidateProfile.availability == availability)
+    if immediate_availability is not None:
+        query = query.where(CandidateProfile.immediate_availability == immediate_availability)
+    if zone_id is not None:
+        query = query.where(CandidateProfile.location_zone_id == zone_id)
+    if has_cv is not None:
+        query = query.where(CandidateProfile.cv_file_url.is_not(None) if has_cv else CandidateProfile.cv_file_url.is_(None))
+    if age_min is not None:
+        query = query.where(CandidateProfile.birth_date <= _birth_date_cutoff(age_min))
+    if age_max is not None:
+        query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
+
+    profiles = (await db.execute(query)).scalars().all()
+
+    enriched = []
+    for profile in profiles:
+        educations = (
+            await db.execute(select(Education).where(Education.candidate_id == profile.id))
+        ).scalars().all()
+        level = get_highest_education_level(educations)
+
+        # education_level es derivado (no está en la tabla) — se filtra después de calcularlo.
+        if education_level is not None and level != education_level:
+            continue
+
+        completion = await compute_profile_completion_for_candidate(db, profile)
+        enriched.append(
+            CandidateAdminResponse(
+                id=profile.id,
+                user_id=profile.user_id,
+                first_name=profile.first_name,
+                last_name=profile.last_name,
+                phone=profile.phone,
+                cv_file_url=profile.cv_file_url,
+                cv_uploaded_at=profile.cv_uploaded_at,
+                age=calculate_age(profile.birth_date),
+                gender=profile.gender,
+                has_own_transport=profile.has_own_transport,
+                availability=profile.availability,
+                immediate_availability=profile.immediate_availability,
+                highest_education_level=level,
+                completion_percent=completion.percent,
+            )
+        )
+
+    return enriched
 
 
 @router.get("/admin/jobs", response_model=List[JobAdminResponse])
 async def list_jobs(
     status: Optional[JobPostingStatus] = Query(None),
+    moderation_status: Optional[JobModerationStatus] = Query(None),
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(JobPosting)
     if status:
         q = q.where(JobPosting.status == status)
-    q = q.order_by(desc(JobPosting.published_at))
+    if moderation_status:
+        q = q.where(JobPosting.moderation_status == moderation_status)
+    # Prioridad: las búsquedas con destacado pago (is_featured) se revisan primero — protegen
+    # los días de exposición que la empresa ya compró, ya que expires_at corre desde que se
+    # publica, no desde que se aprueba. Entre el resto, orden justo: las más viejas primero.
+    q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc())
     result = await db.execute(q)
     return result.scalars().all()
+
+
+# ── Drill-down: empresa → búsquedas → postulaciones, y candidato → perfil completo ────────────
+
+@router.get("/admin/companies/{company_id}/jobs", response_model=List[JobAdminResponse])
+async def list_company_jobs(
+    company_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(JobPosting).where(JobPosting.company_id == company_id).order_by(desc(JobPosting.published_at))
+    )
+    return result.scalars().all()
+
+
+@router.get("/admin/jobs/{job_id}/applications", response_model=List[ApplicationWithCandidateResponse])
+async def list_job_applications_admin(
+    job_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Application, CandidateProfile)
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
+        .where(Application.job_posting_id == job_id)
+    )
+    enriched = []
+    for app, candidate in result.all():
+        completion_percent = (await compute_profile_completion_for_candidate(db, candidate)).percent
+        enriched.append(
+            ApplicationWithCandidateResponse(
+                id=app.id,
+                candidate_id=app.candidate_id,
+                job_posting_id=app.job_posting_id,
+                cover_letter=app.cover_letter,
+                status=app.status,
+                seen_at=app.seen_at,
+                created_at=app.created_at,
+                updated_at=app.updated_at,
+                candidate=CandidateSummary(
+                    id=candidate.id,
+                    first_name=candidate.first_name,
+                    last_name=candidate.last_name,
+                    cv_file_url=candidate.cv_file_url,
+                    completion_percent=completion_percent,
+                    age=calculate_age(candidate.birth_date),
+                    gender=candidate.gender,
+                    has_own_transport=candidate.has_own_transport,
+                    availability=candidate.availability,
+                    immediate_availability=candidate.immediate_availability,
+                ),
+            )
+        )
+    return enriched
+
+
+@router.get("/admin/candidates/{candidate_id}", response_model=CandidateFullProfile)
+async def get_candidate_full_profile_admin(
+    candidate_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """A diferencia de /me/company/candidates/{id}, el admin ve el perfil completo de
+    cualquier candidato sin necesidad de que se haya postulado a nada."""
+    return await build_candidate_full_profile(db, candidate_id)
+
+
+@router.get("/admin/candidates/{candidate_id}/activity", response_model=List[CandidateActivityLogResponse])
+async def get_candidate_activity_admin(
+    candidate_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CandidateActivityLog)
+        .where(CandidateActivityLog.candidate_id == candidate_id)
+        .order_by(desc(CandidateActivityLog.created_at))
+    )
+    return result.scalars().all()
+
+
+@router.get("/admin/applications/{application_id}/history", response_model=List[ApplicationStatusHistoryResponse])
+async def get_application_history_admin(
+    application_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ApplicationStatusHistory)
+        .where(ApplicationStatusHistory.application_id == application_id)
+        .order_by(ApplicationStatusHistory.created_at)
+    )
+    return result.scalars().all()
+
+
+@router.get("/admin/features", response_model=List[FeatureHistoryItem])
+async def list_all_feature_history(
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Igual que GET /me/company/features pero sin scope de empresa — todo lo que se cobró en
+    la plataforma, con el nombre de la empresa en cada fila."""
+    result = await db.execute(
+        select(Payment, JobFeature, JobPosting.title, CompanyProfile.legal_name)
+        .join(JobFeature, JobFeature.payment_id == Payment.id)
+        .join(JobPosting, JobPosting.id == JobFeature.job_posting_id)
+        .join(CompanyProfile, CompanyProfile.id == Payment.company_id)
+        .where(Payment.type == PaymentType.job_feature)
+        .order_by(Payment.created_at.desc())
+    )
+    return [
+        FeatureHistoryItem(
+            payment_id=payment.id,
+            job_posting_id=feature.job_posting_id,
+            job_title=job_title,
+            company_name=company_name,
+            amount=payment.amount,
+            currency=payment.currency,
+            payment_status=payment.mp_status,
+            feature_status=feature.status,
+            purchased_at=payment.created_at,
+            starts_at=feature.starts_at,
+            ends_at=feature.ends_at,
+        )
+        for payment, feature, job_title, company_name in result.all()
+    ]
+
+
+@router.patch("/admin/jobs/{job_id}/moderate")
+async def moderate_job(
+    job_id: uuid.UUID,
+    payload: ModerateJobPayload,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="action debe ser 'approve' o 'reject'")
+
+    result = await db.execute(select(JobPosting).where(JobPosting.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
+
+    if str(job.moderation_status) != str(JobModerationStatus.pending_review):
+        raise HTTPException(status_code=400, detail="La búsqueda ya fue revisada")
+
+    if payload.action == "approve":
+        job.moderation_status = JobModerationStatus.approved
+        notif_type, notif_title, notif_body = (
+            "job_approved",
+            "¡Tu búsqueda ya está publicada!",
+            f"'{job.title}' fue aprobada por el equipo de BBJobs y ya es visible en el portal.",
+        )
+    else:
+        job.moderation_status = JobModerationStatus.rejected
+        notif_type, notif_title, notif_body = (
+            "job_rejected",
+            "Tu búsqueda no fue aprobada",
+            f"'{job.title}' no fue aprobada. "
+            f"{('Motivo: ' + payload.notes) if payload.notes else 'Contactá al administrador para más información.'}",
+        )
+
+    job.moderation_notes = payload.notes
+    job.moderated_by_admin_id = admin.id
+    job.moderated_at = datetime.now(timezone.utc)
+
+    company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.id == job.company_id))
+    company = company_result.scalar_one_or_none()
+    if company:
+        await create_notification(
+            db,
+            user_id=company.user_id,
+            type=notif_type,
+            title=notif_title,
+            body=notif_body,
+            link="/dashboard/company/estadisticas",
+        )
+
+    audit = AuditLog(
+        admin_user_id=admin.id,
+        action=f"job_{payload.action}",
+        target_entity="job_postings",
+        target_id=job.id,
+        notes=payload.notes,
+    )
+    db.add(audit)
+
+    await db.commit()
+    return {"status": "ok", "moderation_status": job.moderation_status}
 
 
 @router.get("/admin/skills/pending", response_model=List[SkillAdminResponse])
@@ -472,3 +792,31 @@ async def create_admin_user(
     await db.refresh(new_user)
 
     return {"status": "ok", "user_id": new_user.id, "email": new_user.email}
+
+
+@router.get("/admin/contact-messages", response_model=List[ContactMessageResponse])
+async def list_contact_messages(
+    resolved: Optional[bool] = Query(None),
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(ContactMessage).order_by(ContactMessage.created_at.desc())
+    if resolved is not None:
+        query = query.where(ContactMessage.resolved == resolved)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.patch("/admin/contact-messages/{message_id}/resolve")
+async def resolve_contact_message(
+    message_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(ContactMessage).where(ContactMessage.id == message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    msg.resolved = True
+    await db.commit()
+    return {"status": "ok"}

@@ -3,7 +3,7 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 export default function NosotrosPage() {
   return (
-    <div className="bg-[#FAFBFD] min-h-screen pt-[108px] pb-20">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
 
         {/* Hero */}

@@ -43,7 +43,7 @@ def create_preference(title: str, price: float, external_reference: str, success
         logger.error("mp_preference_error", error=str(e))
         raise e
 
-def verify_signature(x_signature: str, x_request_id: str, data_id: str, ts: str) -> bool:
+def verify_signature(x_signature: str, x_request_id: str, data_id: str) -> bool:
     """
     Verifica la firma HMAC de los webhooks de MP.
     El header x-signature tiene formato: ts=16...33,v1=9c...a3

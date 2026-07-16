@@ -17,11 +17,19 @@ class JobPostingStatus(str, enum.Enum):
     active = "active"
     paused = "paused"
     closed = "closed"
+    expired = "expired"
+
+class JobModerationStatus(str, enum.Enum):
+    pending_review = "pending_review"
+    approved = "approved"
+    rejected = "rejected"
 
 class JobPosting(UUIDMixin, Base):
     __tablename__ = "job_postings"
 
-    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_profiles.id", ondelete="SET NULL"), nullable=True)
+    # CASCADE (no SET NULL): si se borra la empresa, sus búsquedas se borran con ella —
+    # decisión de producto explícita, no dejar avisos huérfanos dando vueltas.
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_profiles.id", ondelete="CASCADE"), nullable=True)
     company_legal_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -51,7 +59,26 @@ class JobPosting(UUIDMixin, Base):
     
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+
+    # Vencimiento — 20 días por defecto desde que se publica, la empresa puede reducirlo
+    # (nunca ampliarlo más allá del máximo de producto). Se recalcula a partir de published_at
+    # cada vez que se cambia duration_days (ver JobPostingUpdate).
+    duration_days: Mapped[int] = mapped_column(default=20, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Throttle del aviso "vence en 3 días" — evita mandarlo de nuevo en cada corrida horaria del
+    # scheduler una vez que ya se avisó (ver core/scheduler.py::notify_expiring_soon).
+    expiring_soon_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Moderación de Talency — ortogonal a `status` (ciclo de vida propio de la empresa).
+    # Una búsqueda sólo es visible en el portal público si moderation_status == approved,
+    # sin importar que status == active (barrera dura, ver jobs.py list_public_jobs).
+    moderation_status: Mapped[JobModerationStatus] = mapped_column(
+        String(50), default=JobModerationStatus.pending_review, nullable=False
+    )
+    moderation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    moderated_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

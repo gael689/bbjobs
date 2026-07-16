@@ -69,3 +69,7 @@ coverage/
 
 # OS
 Thumbs.db
+
+# Credenciales reales, nunca commitear
+ADMIN-CREDENTIALS.md
+REUNION-EUGENIA-FASE1.md

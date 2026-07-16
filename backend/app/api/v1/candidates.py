@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
+from pydantic import BaseModel
 from app.api.deps import get_db, require_role
 from app.models.core import User, UserRole
 from app.models.candidate import (
-    CandidateProfile, Experience, Education, CandidateSkill, Language
+    CandidateProfile, Experience, Education, CandidateSkill, Language, SkillLevel
 )
+from app.models.catalogs import Skill
 from app.schemas.candidate import (
     CandidateProfileResponse, CandidateProfileUpdate,
     ExperienceCreate, ExperienceResponse,
@@ -15,6 +17,8 @@ from app.schemas.candidate import (
     LanguageCreate, LanguageResponse,
 )
 from app.integrations.cloudinary_client import upload_pdf
+from app.services.profile_completion import compute_profile_completion_for_candidate
+from app.services.history import log_candidate_activity
 import uuid
 import datetime
 
@@ -32,12 +36,22 @@ async def _get_candidate_profile(user_id: uuid.UUID, db: AsyncSession) -> Candid
 
 # ── Profile ───────────────────────────────────────────────────────────────────
 
+async def _build_profile_response(profile: CandidateProfile, db: AsyncSession) -> CandidateProfileResponse:
+    completion = await compute_profile_completion_for_candidate(db, profile)
+    response = CandidateProfileResponse.model_validate(profile)
+    return response.model_copy(update={
+        "completion_percent": completion.percent,
+        "missing_fields": completion.missing,
+    })
+
+
 @router.get("/me/candidate/profile", response_model=CandidateProfileResponse)
 async def get_my_candidate_profile(
     current_user: User = Depends(require_role([UserRole.candidate])),
     db: AsyncSession = Depends(get_db)
 ):
-    return await _get_candidate_profile(current_user.id, db)
+    profile = await _get_candidate_profile(current_user.id, db)
+    return await _build_profile_response(profile, db)
 
 @router.patch("/me/candidate/profile", response_model=CandidateProfileResponse)
 async def update_my_candidate_profile(
@@ -52,9 +66,15 @@ async def update_my_candidate_profile(
         if hasattr(profile, key):
             setattr(profile, key, value)
 
+    if update_data:
+        await log_candidate_activity(
+            db, candidate_id=profile.id, event_type="profile_update",
+            summary="Actualizó sus datos personales",
+        )
+
     await db.commit()
     await db.refresh(profile)
-    return profile
+    return await _build_profile_response(profile, db)
 
 @router.post("/me/candidate/cv", response_model=CandidateProfileResponse)
 async def upload_cv(
@@ -84,9 +104,13 @@ async def upload_cv(
     profile.cv_file_url = url
     profile.cv_uploaded_at = datetime.datetime.now(datetime.timezone.utc)
 
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="cv_upload", summary="Subió/actualizó su CV",
+    )
+
     await db.commit()
     await db.refresh(profile)
-    return profile
+    return await _build_profile_response(profile, db)
 
 
 # ── Experience ────────────────────────────────────────────────────────────────
@@ -117,6 +141,10 @@ async def add_experience(
         description=payload.description,
     )
     db.add(exp)
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="experience_add",
+        summary=f"Agregó experiencia: {payload.role_title} en {payload.company_name}",
+    )
     await db.commit()
     await db.refresh(exp)
     return exp
@@ -169,6 +197,10 @@ async def add_education(
         in_progress=payload.in_progress,
     )
     db.add(edu)
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="education_add",
+        summary=f"Agregó educación: {payload.degree} en {payload.institution}",
+    )
     await db.commit()
     await db.refresh(edu)
     return edu
@@ -194,6 +226,32 @@ async def delete_education(
 
 # ── Skills ────────────────────────────────────────────────────────────────────
 
+class CandidateSkillWithName(BaseModel):
+    skill_id: uuid.UUID
+    skill_name: str
+    level: SkillLevel
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/me/candidate/skills", response_model=List[CandidateSkillWithName])
+async def list_my_skills(
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db)
+):
+    profile = await _get_candidate_profile(current_user.id, db)
+    result = await db.execute(
+        select(CandidateSkill, Skill.name)
+        .join(Skill, CandidateSkill.skill_id == Skill.id)
+        .where(CandidateSkill.candidate_id == profile.id)
+    )
+    return [
+        CandidateSkillWithName(skill_id=cs.skill_id, skill_name=name, level=cs.level)
+        for cs, name in result.all()
+    ]
+
+
 @router.post("/me/candidate/skills", response_model=CandidateSkillResponse)
 async def add_skill(
     payload: CandidateSkillCreate,
@@ -218,6 +276,14 @@ async def add_skill(
         level=payload.level,
     )
     db.add(cs)
+
+    skill_result = await db.execute(select(Skill.name).where(Skill.id == payload.skill_id))
+    skill_name = skill_result.scalar_one_or_none() or "una habilidad"
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="skill_add",
+        summary=f"Agregó la habilidad '{skill_name}' a su perfil",
+    )
+
     await db.commit()
     await db.refresh(cs)
     return cs
@@ -269,6 +335,10 @@ async def add_language(
         level=payload.level,
     )
     db.add(lang)
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="language_add",
+        summary=f"Agregó idioma: {payload.language_name} ({payload.level})",
+    )
     await db.commit()
     await db.refresh(lang)
     return lang

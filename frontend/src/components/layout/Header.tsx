@@ -45,7 +45,7 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#64748B]">
           <Link href="/empleos" className="hover:text-[#1E8EA3] transition-colors">Empleos</Link>
           <Link href="/empresas" className="hover:text-[#1E8EA3] transition-colors">Empresas</Link>
-          <Link href="/planes" className="hover:text-[#1E8EA3] transition-colors">Planes</Link>
+          <Link href="/contacto" className="hover:text-[#1E8EA3] transition-colors">Contacto</Link>
           {/* Badge IA */}
           <Link
             href="/ia"
@@ -114,7 +114,7 @@ export default function Header() {
           {[
             { href: "/empleos", label: "Empleos" },
             { href: "/empresas", label: "Empresas" },
-            { href: "/planes", label: "Planes" },
+            { href: "/contacto", label: "Contacto" },
           ].map(({ href, label }) => (
             <Link key={href} href={href} className="block py-2.5 font-semibold text-[#1C2230] hover:text-[#1E8EA3] transition-colors" onClick={() => setMobileOpen(false)}>{label}</Link>
           ))}

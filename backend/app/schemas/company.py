@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import Optional
 from datetime import datetime
 import uuid
@@ -15,6 +15,15 @@ class CompanyProfileUpdate(BaseModel):
     responsible_position: Optional[str] = None
     website: Optional[HttpUrl] = None
     description: Optional[str] = None
+
+    @field_validator("website", mode="before")
+    @classmethod
+    def _add_scheme(cls, v):
+        # La gente escribe "tuempresa.com.ar" sin protocolo — HttpUrl lo rechaza (422)
+        # si no arranca con http(s)://. Se lo agregamos antes de validar.
+        if isinstance(v, str) and v and not v.startswith(("http://", "https://")):
+            return f"https://{v}"
+        return v
 
 class CompanyProfileResponse(BaseModel):
     id: uuid.UUID

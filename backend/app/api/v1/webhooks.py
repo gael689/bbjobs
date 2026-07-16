@@ -4,10 +4,13 @@ from sqlalchemy.future import select
 from svix.webhooks import Webhook, WebhookVerificationError
 from app.api.deps import get_db
 from app.core.config import settings
+from app.db.session import async_session_maker
 from app.models.core import User
+from app.models.company import CompanyProfile
 from app.models.payment import MercadoPagoWebhookEvent, Payment, JobFeature, JobFeatureStatus
-from app.models.job import JobPosting
+from app.models.job import JobPosting, JobModerationStatus
 from app.integrations.mercado_pago import verify_signature, get_mp_client
+from app.services.notifications import create_notification, notify_all_admins
 import uuid
 import datetime
 import structlog
@@ -15,62 +18,110 @@ import structlog
 logger = structlog.get_logger("app.api.webhooks")
 router = APIRouter()
 
-async def process_mp_payment(event_id: str, db: AsyncSession):
-    # Retrieve the event
-    result = await db.execute(select(MercadoPagoWebhookEvent).where(MercadoPagoWebhookEvent.id == uuid.UUID(event_id)))
-    event = result.scalar_one_or_none()
-    if not event:
-        return
-        
-    sdk = get_mp_client()
-    if not sdk:
-        logger.warning("MP SDK not configured for webhook processing")
-        return
-        
-    try:
-        # Fetch payment status from MP API using data.id
-        data_id = event.raw_payload.get("data", {}).get("id")
-        if not data_id:
-            raise Exception("No data.id found in payload")
-            
-        payment_info = sdk.payment().get(data_id)
-        if payment_info["status"] != 200:
-            raise Exception("Could not retrieve payment info from MP")
-            
-        payment_data = payment_info["response"]
-        mp_status = payment_data.get("status")
-        external_reference = payment_data.get("external_reference")
-        
-        if mp_status == "approved" and external_reference:
-            # Find the internal payment
-            res_pay = await db.execute(select(Payment).where(Payment.id == uuid.UUID(external_reference)))
-            payment = res_pay.scalar_one_or_none()
-            if payment:
-                payment.mp_payment_id = str(data_id)
-                payment.mp_status = mp_status
-                payment.paid_at = datetime.datetime.now(datetime.timezone.utc)
-                
-                # Check if it relates to a JobFeature
-                res_feat = await db.execute(select(JobFeature).where(JobFeature.payment_id == payment.id))
-                feature = res_feat.scalar_one_or_none()
-                if feature and feature.status != JobFeatureStatus.active:
-                    feature.status = JobFeatureStatus.active
-                    feature.starts_at = datetime.datetime.now(datetime.timezone.utc)
-                    feature.ends_at = feature.starts_at + datetime.timedelta(days=7) # N days = 7
-                    
-                    # Update JobPosting
-                    res_job = await db.execute(select(JobPosting).where(JobPosting.id == feature.job_posting_id))
-                    job = res_job.scalar_one_or_none()
-                    if job:
-                        job.is_featured = True
-                        job.featured_until = feature.ends_at
-                        
-        event.processed_at = datetime.datetime.now(datetime.timezone.utc)
-        await db.commit()
-    except Exception as e:
-        event.processing_error = str(e)
-        await db.commit()
-        logger.error("mp_webhook_processing_failed", error=str(e), event_id=event_id)
+async def process_mp_payment(event_id: str):
+    # Sesión propia — no se reusa la del request que disparó el BackgroundTasks, que puede
+    # estar cerrada/devuelta al pool para cuando esta tarea corre.
+    async with async_session_maker() as db:
+        result = await db.execute(select(MercadoPagoWebhookEvent).where(MercadoPagoWebhookEvent.id == uuid.UUID(event_id)))
+        event = result.scalar_one_or_none()
+        if not event:
+            return
+
+        sdk = get_mp_client()
+        if not sdk:
+            logger.warning("MP SDK not configured for webhook processing")
+            return
+
+        try:
+            # Fetch payment status from MP API using data.id — nunca se confía en el status/monto
+            # que venga en el payload del webhook, sólo en lo que MP confirme por su propia API.
+            data_id = event.raw_payload.get("data", {}).get("id")
+            if not data_id:
+                raise Exception("No data.id found in payload")
+
+            payment_info = sdk.payment().get(data_id)
+            if payment_info["status"] != 200:
+                raise Exception("Could not retrieve payment info from MP")
+
+            payment_data = payment_info["response"]
+            mp_status = payment_data.get("status")
+            external_reference = payment_data.get("external_reference")
+
+            if external_reference:
+                res_pay = await db.execute(select(Payment).where(Payment.id == uuid.UUID(external_reference)))
+                payment = res_pay.scalar_one_or_none()
+
+                if payment:
+                    payment.mp_payment_id = str(data_id)
+                    payment.mp_status = mp_status
+
+                    res_feat = await db.execute(select(JobFeature).where(JobFeature.payment_id == payment.id))
+                    feature = res_feat.scalar_one_or_none()
+                    res_job = (
+                        await db.execute(select(JobPosting).where(JobPosting.id == feature.job_posting_id))
+                    ).scalar_one_or_none() if feature else None
+
+                    if mp_status == "approved" and feature and feature.status != JobFeatureStatus.active:
+                        payment.paid_at = datetime.datetime.now(datetime.timezone.utc)
+                        feature.status = JobFeatureStatus.active
+                        feature.starts_at = payment.paid_at
+                        # La duración del destacado NO es un timer propio — dura exactamente lo
+                        # que dure la búsqueda (se copia expires_at, no now + N días fijos).
+                        feature.ends_at = res_job.expires_at if res_job else None
+
+                        if res_job:
+                            res_job.is_featured = True
+                            res_job.featured_until = feature.ends_at
+
+                            res_company = await db.execute(
+                                select(CompanyProfile).where(CompanyProfile.id == res_job.company_id)
+                            )
+                            company = res_company.scalar_one_or_none()
+                            if company:
+                                already_public = res_job.moderation_status == JobModerationStatus.approved
+                                body = (
+                                    f"¡'{res_job.title}' ya está destacada en el portal!"
+                                    if already_public else
+                                    f"Se acreditó el pago para destacar '{res_job.title}'. Se va a "
+                                    "mostrar destacada apenas Talency apruebe la búsqueda — mientras "
+                                    "tanto, tiene prioridad de revisión."
+                                )
+                                await create_notification(
+                                    db, user_id=company.user_id, type="job_feature_active",
+                                    title="Destacado activado", body=body,
+                                    link="/dashboard/company/pagos",
+                                )
+
+                            await notify_all_admins(
+                                db, type="admin_payment_received",
+                                title="Nuevo pago recibido",
+                                body=f"Se acreditaron ${payment.amount:.0f} {payment.currency} por destacar '{res_job.title}'.",
+                                link="/dashboard/admin/pagos",
+                            )
+
+                    elif mp_status in ("rejected", "cancelled") and feature and feature.status == JobFeatureStatus.pending_payment:
+                        feature.status = JobFeatureStatus.canceled
+                        if res_job:
+                            res_company = await db.execute(
+                                select(CompanyProfile).where(CompanyProfile.id == res_job.company_id)
+                            )
+                            company = res_company.scalar_one_or_none()
+                            if company:
+                                await create_notification(
+                                    db, user_id=company.user_id, type="job_feature_rejected",
+                                    title="El pago no se acreditó",
+                                    body=f"Tu pago para destacar '{res_job.title}' fue rechazado o cancelado. Podés volver a intentarlo desde tu panel.",
+                                    link="/dashboard/company/estadisticas",
+                                )
+                    # pending/in_process: sólo se guardó mp_status más arriba, sin notificar — MP
+                    # suele reintentar la notificación varias veces mientras procesa.
+
+            event.processed_at = datetime.datetime.now(datetime.timezone.utc)
+            await db.commit()
+        except Exception as e:
+            event.processing_error = str(e)
+            await db.commit()
+            logger.error("mp_webhook_processing_failed", error=str(e), event_id=event_id)
 
 @router.post("/webhooks/mercado-pago")
 async def mp_webhook(
@@ -80,13 +131,12 @@ async def mp_webhook(
 ):
     x_signature = request.headers.get("x-signature")
     x_request_id = request.headers.get("x-request-id")
-    
+
     payload = await request.json()
     data_id = str(payload.get("data", {}).get("id", ""))
-    
-    # Very basic validation structure
+
     if x_signature and x_request_id:
-        if not verify_signature(x_signature, x_request_id, data_id, x_signature): # Simplification for parsing ts from x_signature
+        if not verify_signature(x_signature, x_request_id, data_id):
             raise HTTPException(status_code=401, detail="Invalid signature")
 
     mp_event_id = str(payload.get("id"))
@@ -96,7 +146,7 @@ async def mp_webhook(
     result = await db.execute(select(MercadoPagoWebhookEvent).where(MercadoPagoWebhookEvent.mp_event_id == mp_event_id))
     if result.scalar_one_or_none():
         return {"status": "already processed"}
-        
+
     event = MercadoPagoWebhookEvent(
         mp_event_id=mp_event_id,
         topic=topic,
@@ -105,8 +155,9 @@ async def mp_webhook(
     db.add(event)
     await db.commit()
     await db.refresh(event)
-    
-    background_tasks.add_task(process_mp_payment, str(event.id), db)
+
+    # Sin pasar `db`: process_mp_payment abre su propia sesión (ver arriba).
+    background_tasks.add_task(process_mp_payment, str(event.id))
 
     return {"status": "ok"}
 

@@ -7,6 +7,8 @@ import {
   StarIcon,
   BellAlertIcon,
   BellIcon,
+  UserCircleIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import type { ComponentType, SVGProps } from "react";
 
@@ -40,6 +42,12 @@ const SECONDARY: NotificationTypeConfig = {
   iconColor: "text-[#B9825F]",
 };
 
+const WARNING: NotificationTypeConfig = {
+  icon: ClockIcon,
+  iconBg: "bg-amber-50",
+  iconColor: "text-amber-600",
+};
+
 export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   // Postulación (positivo)
   application_new: TEAL,
@@ -63,10 +71,19 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   job_feature_rejected: SECONDARY,
   job_feature_expired: SECONDARY,
   admin_payment_received: SECONDARY,
+  // Vencimiento de búsqueda
+  job_expiring_soon: WARNING,
+  job_expired: MUTED,
+  // Moderación de búsquedas (positivo/negativo para la empresa)
+  job_approved: { ...TEAL, icon: CheckBadgeIcon },
+  job_rejected: DESTRUCTIVE,
   // Admin — moderación
   admin_company_pending: { ...TEAL, icon: BellAlertIcon },
   admin_company_reapplied: { ...TEAL, icon: BellAlertIcon },
   admin_skill_suggested: { ...TEAL, icon: BellAlertIcon },
+  job_pending_review: { ...TEAL, icon: BellAlertIcon },
+  // Perfil del candidato
+  profile_incomplete: { ...TEAL, icon: UserCircleIcon },
 };
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationTypeConfig = {

@@ -6,16 +6,19 @@ import { api } from "@/lib/api";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import {
-  BriefcaseIcon, MapPinIcon, BuildingOffice2Icon,
+  BriefcaseIcon, BuildingOffice2Icon,
   CalendarIcon, CurrencyDollarIcon, ArrowLeftIcon,
-  CheckCircleIcon, XMarkIcon, PaperAirplaneIcon,
+  CheckCircleIcon, XMarkIcon, PaperAirplaneIcon, BoltIcon,
 } from "@heroicons/react/24/outline";
+import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobApply";
+import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 
 interface Job {
   id: string;
   title: string;
   description: string;
   requirements: string;
+  company_id?: string;
   company_legal_name_snapshot: string;
   modality: string;
   zone_id?: string;
@@ -25,6 +28,7 @@ interface Job {
   salary_visible?: boolean;
   salary_currency?: string;
   benefits?: string;
+  is_featured?: boolean;
 }
 
 const MODALITY_LABEL: Record<string, string> = {
@@ -60,9 +64,13 @@ export default function JobDetailPage() {
     setTimeout(() => setToast(null), 3500);
   }
 
+  function goToLogin() {
+    router.push(loginUrlWithReturn(`/empleos/${id}`));
+  }
+
   async function handleApply() {
     if (!isSignedIn) {
-      router.push(`/login?redirect=/empleos/${id}`);
+      goToLogin();
       return;
     }
     if (user?.publicMetadata?.role !== "candidate") {
@@ -71,12 +79,12 @@ export default function JobDetailPage() {
     }
     setApplying(true);
     try {
-      await api.post(`/jobs/${id}/apply`, { cover_letter: coverLetter || undefined });
+      await applyToJob(id, coverLetter);
       setApplied(true);
       setShowApplyModal(false);
       showToast("Postulación enviada correctamente");
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || "Error al postularse");
+    } catch (err: unknown) {
+      showToast(getApplyErrorMessage(err));
     } finally {
       setApplying(false);
     }
@@ -84,7 +92,7 @@ export default function JobDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAFBFD] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAFBFD] pt-[140px] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -92,7 +100,7 @@ export default function JobDetailPage() {
 
   if (notFound || !job) {
     return (
-      <div className="min-h-screen bg-[#FAFBFD] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAFBFD] pt-[140px] flex items-center justify-center">
         <div className="text-center">
           <BriefcaseIcon className="w-12 h-12 text-[#DDE3EC] mx-auto mb-4" />
           <p className="font-bold text-[#1C2230] mb-2">Empleo no encontrado</p>
@@ -107,7 +115,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="bg-[#FAFBFD] min-h-screen">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px]">
       {/* Toast */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 bg-white border border-[#9ED4DF] shadow-lg rounded-xl px-5 py-3 text-sm font-medium text-[#1C2230] flex items-center gap-2">
@@ -181,6 +189,11 @@ export default function JobDetailPage() {
                   }`}>
                     {MODALITY_LABEL[job.modality] || job.modality}
                   </span>
+                  {job.is_featured && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#C4A490] px-2.5 py-0.5 rounded-full border border-[#D4B7A2]/50">
+                      <BoltIcon className="w-3.5 h-3.5" />Destacado
+                    </span>
+                  )}
                   {job.published_at && (
                     <span className="text-xs text-[#64748B] flex items-center gap-1">
                       <CalendarIcon className="w-3.5 h-3.5" />
@@ -189,11 +202,18 @@ export default function JobDetailPage() {
                   )}
                 </div>
                 <h1 className="text-3xl font-display font-extrabold text-[#1C2230] mb-3">{job.title}</h1>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-[#64748B]">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-[#64748B]">
                   <span className="flex items-center gap-1.5">
                     <BuildingOffice2Icon className="w-4 h-4 text-[#1E8EA3]" />
-                    <span className="font-medium text-[#1C2230]">{job.company_legal_name_snapshot}</span>
+                    {job.company_id ? (
+                      <Link href={`/empresas/${job.company_id}`} className="font-medium text-[#1C2230] hover:text-[#1E8EA3] hover:underline">
+                        {job.company_legal_name_snapshot}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-[#1C2230]">{job.company_legal_name_snapshot}</span>
+                    )}
                   </span>
+                  <VerifiedBadge />
                 </div>
                 {job.salary_visible && (job.salary_min || job.salary_max) && (
                   <div className="flex items-center gap-1.5 mt-3 text-[#1E8EA3] font-bold">
@@ -254,7 +274,7 @@ export default function JobDetailPage() {
                 <button
                   onClick={() => {
                     if (!isSignedIn) {
-                      router.push(`/login?redirect=/empleos/${id}`);
+                      goToLogin();
                       return;
                     }
                     setShowApplyModal(true);

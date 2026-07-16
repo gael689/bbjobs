@@ -7,6 +7,8 @@ from app.models.job import JobPosting, JobPostingSkill, Application, JobPostingM
 from app.models.payment import Plan, Subscription, JobFeature, Payment, MercadoPagoWebhookEvent, SubscriptionStatus, JobFeatureStatus, PaymentType
 from app.models.tests import PsychometricTest, TestQuestion, TestQuestionOption, TestSubmission, TestAnswer, ScoringMethod, QuestionType, TestSubmissionStatus
 from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notification
+from app.models.contact import ContactMessage, ContactTopic
+from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 
 __all__ = [
     "Base",
@@ -58,5 +60,9 @@ __all__ = [
     "JobAlert",
     "JobAlertNotification",
     "AuditLog",
-    "Notification"
+    "Notification",
+    "ContactMessage",
+    "ContactTopic",
+    "ApplicationStatusHistory",
+    "CandidateActivityLog",
 ]

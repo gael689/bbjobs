@@ -6,6 +6,17 @@ from sqlalchemy.sql import func
 from app.models.base import Base, UUIDMixin
 import uuid
 
+class Gender(str, enum.Enum):
+    masculino = "masculino"
+    femenino = "femenino"
+    otro = "otro"
+    no_declara = "no_declara"
+
+class Availability(str, enum.Enum):
+    full_time = "full_time"
+    part_time = "part_time"
+    ambos = "ambos"
+
 class CandidateProfile(UUIDMixin, Base):
     __tablename__ = "candidate_profiles"
 
@@ -16,8 +27,11 @@ class CandidateProfile(UUIDMixin, Base):
     photo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    
+    gender: Mapped["Gender | None"] = mapped_column(String(50), nullable=True)
+    has_own_transport: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    availability: Mapped["Availability | None"] = mapped_column(String(50), nullable=True)
+    immediate_availability: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     location_zone_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("zones.id", ondelete="SET NULL"), nullable=True)
     
     expected_salary_min: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
@@ -32,7 +46,11 @@ class CandidateProfile(UUIDMixin, Base):
     accepts_remote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_hybrid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_onsite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
+
+    # Throttle del recordatorio "completá tu perfil" — evita mandar la notificación de nuevo
+    # antes de que pase el intervalo mínimo (ver services/profile_completion.py).
+    last_completion_reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

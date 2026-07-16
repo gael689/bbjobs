@@ -66,12 +66,35 @@ export default function OnboardingPage() {
 
   // El rol elegido en /register viaja como unsafeMetadata; el backend igual decide
   // el rol real al crear el User (ver plan §8) — esto sólo determina qué form mostrar.
+  // Con Google (OAuth) el redirect de página completa a veces no reenvía unsafeMetadata,
+  // así que si no vino, caemos al respaldo que /register guardó en localStorage antes
+  // de salir hacia el proveedor — evita que todos los alta por Google terminen en candidato.
   const metaRole = user?.unsafeMetadata?.role;
-  const role: "candidate" | "company" = metaRole === "company" ? "company" : "candidate";
+  const [storedRole] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("bbjobs_signup_role");
+  });
+  const detectedRole: "candidate" | "company" =
+    metaRole === "company" || metaRole === "candidate"
+      ? metaRole
+      : storedRole === "company"
+      ? "company"
+      : "candidate";
+  // Red de seguridad manual: por si el detectado no coincide con lo que la persona
+  // realmente quiso (ej. cambió de opinión, o ningún respaldo llegó bien).
+  const [manualRole, setManualRole] = useState<"candidate" | "company" | null>(null);
+  const role = manualRole ?? detectedRole;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [industries, setIndustries] = useState<Industry[]>([]);
+
+  // Si venimos de /register?next=... (ej. alguien nuevo quiso postularse sin cuenta),
+  // volvemos ahí al terminar en vez de mandar siempre al dashboard.
+  const [nextPath] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("next");
+  });
 
   // Candidate fields
   const [firstName, setFirstName] = useState("");
@@ -102,13 +125,13 @@ export default function OnboardingPage() {
     api.get("/me")
       .then(r => {
         if (r.data.onboarding_complete) {
-          router.replace(`/dashboard/${r.data.role}`);
+          router.replace(nextPath || `/dashboard/${r.data.role}`);
         } else {
           setCheckingStatus(false);
         }
       })
       .catch(() => setCheckingStatus(false));
-  }, [isLoaded, user, router]);
+  }, [isLoaded, user, router, nextPath]);
 
   useEffect(() => {
     if (role === "company") {
@@ -120,6 +143,7 @@ export default function OnboardingPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    localStorage.removeItem("bbjobs_signup_role");
     try {
       if (role === "candidate") {
         const res = await api.post("/me/onboarding/candidate", {
@@ -127,7 +151,7 @@ export default function OnboardingPage() {
           last_name: lastName,
           phone,
         });
-        router.push(`/dashboard/${res.data.role}`);
+        router.push(nextPath || `/dashboard/${res.data.role}`);
       } else {
         const selectedIndustry = industries.find(i => i.id === industryId);
         const isOtro = selectedIndustry?.name === "Otro";
@@ -144,7 +168,7 @@ export default function OnboardingPage() {
           responsible_position: responsiblePosition || undefined,
           ...(isOtro && otherIndustry ? { description: `Industria: ${otherIndustry}` } : {}),
         });
-        router.push(`/dashboard/${res.data.role}`);
+        router.push(nextPath || `/dashboard/${res.data.role}`);
       }
     } catch (err: unknown) {
       const { code, message } = parseErrorDetail(err);
@@ -191,11 +215,19 @@ export default function OnboardingPage() {
         </div>
 
         <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 shadow-sm">
-          <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-xl p-3.5 mb-6 text-sm text-[#1C2230] font-medium">
+          <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-xl p-3.5 mb-3 text-sm text-[#1C2230] font-medium">
             {role === "candidate"
               ? "✓ Subí tu CV  ·  ✓ Postulate con un click  ·  ✓ Tu perfil es privado"
               : "✓ Publicá búsquedas  ·  ✓ Recibí postulaciones  ·  ✓ Empresa verificada por Talency"}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setManualRole(role === "candidate" ? "company" : "candidate")}
+            className="text-xs font-bold text-[#1E8EA3] hover:underline mb-6 block"
+          >
+            {role === "candidate" ? "¿Sos una empresa? Cambiar a registro de empresa" : "¿Buscás trabajo? Cambiar a registro de candidato"}
+          </button>
 
           {error && (
             <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl mb-5 font-medium">

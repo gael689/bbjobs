@@ -1,24 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import Link from "next/link";
 import {
   BriefcaseIcon, MagnifyingGlassIcon, MapPinIcon,
-  BuildingOffice2Icon, FunnelIcon, XMarkIcon,
+  BuildingOffice2Icon, FunnelIcon, XMarkIcon, BoltIcon,
 } from "@heroicons/react/24/outline";
+import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
+import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 
-interface Job {
-  id: string;
-  title: string;
-  company_legal_name_snapshot: string;
-  modality: string;
+interface Job extends PreviewJob {
   zone_id?: string;
-  published_at?: string;
-  salary_min?: number;
-  salary_max?: number;
-  salary_visible?: boolean;
-  salary_currency?: string;
 }
 
 interface Catalog { id: string; name: string; }
@@ -38,14 +31,42 @@ const MODALITY_CLS: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 export default function EmpleosPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [industries, setIndustries] = useState<Catalog[]>([]);
   const [zones, setZones] = useState<Catalog[]>([]);
   const [contractTypes, setContractTypes] = useState<Catalog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [resolvedFiltersKey, setResolvedFiltersKey] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [previewJob, setPreviewJob] = useState<Job | null>(null);
+
+  // Si venimos de vuelta de /login?redirect_url=/empleos?job=... (ej. tras postularse sin
+  // sesión), reabrimos la misma vista previa en vez de dejar al usuario en la lista pelada.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const jobId = new URLSearchParams(window.location.search).get("job");
+    if (!jobId) return;
+    api.get(`/jobs/${jobId}`).then(r => setPreviewJob(r.data)).catch(() => {});
+  }, []);
+
+  function setJobParam(id: string | null) {
+    const params = new URLSearchParams(window.location.search);
+    if (id) params.set("job", id); else params.delete("job");
+    const qs = params.toString();
+    router.replace(`/empleos${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  function openPreview(job: Job) {
+    setPreviewJob(job);
+    setJobParam(job.id);
+  }
+
+  function closePreview() {
+    setPreviewJob(null);
+    setJobParam(null);
+  }
 
   // Prellenado liviano desde la URL (ej. viene de /empleos?q=... del hero de la home) —
   // mismo patrón que /login, evita el boilerplate de Suspense de useSearchParams.
@@ -80,22 +101,28 @@ export default function EmpleosPage() {
     return params;
   }
 
+  const filtersKey = buildParams(1).toString();
+  const loading = resolvedFiltersKey !== filtersKey;
+
   useEffect(() => {
-    setLoading(true);
+    // `ignore` evita que una respuesta vieja (de un filtro anterior) pise los resultados
+    // del filtro actual si llega después — puede pasar tecleando rápido en la búsqueda.
+    let ignore = false;
     const timeout = setTimeout(() => {
-      api.get(`/jobs?${buildParams(1).toString()}`)
+      api.get(`/jobs?${filtersKey}`)
         .then(r => {
+          if (ignore) return;
           setJobs(r.data.items);
           setTotal(r.data.total);
           setPage(1);
         })
-        .catch(() => { setJobs([]); setTotal(0); })
-        .finally(() => setLoading(false));
+        .catch(() => { if (!ignore) { setJobs([]); setTotal(0); } })
+        .finally(() => { if (!ignore) setResolvedFiltersKey(filtersKey); });
     }, q ? 400 : 0);
 
-    return () => clearTimeout(timeout);
+    return () => { ignore = true; clearTimeout(timeout); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, industryId, zoneId, modality, contractTypeId, salaryMin, salaryMax]);
+  }, [filtersKey]);
 
   function loadMore() {
     setLoadingMore(true);
@@ -123,7 +150,7 @@ export default function EmpleosPage() {
   const zoneName = (id: string) => zones.find(z => z.id === id)?.name || "";
 
   return (
-    <div className="bg-[#FAFBFD] min-h-screen">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px]">
       {/* Hero */}
       <div className="bg-gradient-to-r from-[#E6F4F7] to-[#FAFBFD] border-b border-[#9ED4DF] px-4 sm:px-6 py-14">
         <div className="max-w-4xl mx-auto text-center">
@@ -274,17 +301,33 @@ export default function EmpleosPage() {
             ) : (
               <div className="space-y-3">
                 {jobs.map(job => (
-                  <Link
+                  <a
                     key={job.id}
                     href={`/empleos/${job.id}`}
+                    onClick={e => { e.preventDefault(); openPreview(job); }}
                     className="block bg-white border border-[#DDE3EC] rounded-2xl p-6 hover:border-[#1E8EA3] hover:shadow-sm transition-all group"
                   >
                     <div className="flex items-start justify-between gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
+                        {job.logo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={job.logo_url} alt={job.company_legal_name_snapshot} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <span className="font-display font-extrabold text-[#1E8EA3] text-lg">
+                            {job.company_legal_name_snapshot?.[0] || "?"}
+                          </span>
+                        )}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${MODALITY_CLS[job.modality] || "bg-gray-100 text-gray-600"}`}>
                             {MODALITY_LABEL[job.modality] || job.modality}
                           </span>
+                          {job.is_featured && (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#C4A490] px-2.5 py-0.5 rounded-full border border-[#D4B7A2]/50">
+                              <BoltIcon className="w-3.5 h-3.5" />Destacado
+                            </span>
+                          )}
                           {job.published_at && (
                             <span className="text-xs text-[#64748B]">{new Date(job.published_at).toLocaleDateString("es-AR")}</span>
                           )}
@@ -292,10 +335,11 @@ export default function EmpleosPage() {
                         <h2 className="text-lg font-display font-bold text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors truncate">
                           {job.title}
                         </h2>
-                        <div className="flex items-center gap-3 mt-1.5 text-sm text-[#64748B]">
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-sm text-[#64748B]">
                           <span className="flex items-center gap-1">
                             <BuildingOffice2Icon className="w-4 h-4" />
                             {job.company_legal_name_snapshot}
+                            <VerifiedBadge />
                           </span>
                           {job.zone_id && zoneName(job.zone_id) && (
                             <span className="flex items-center gap-1">
@@ -313,11 +357,11 @@ export default function EmpleosPage() {
                       </div>
                       <div className="shrink-0 self-center">
                         <span className="text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full group-hover:bg-[#1E8EA3] group-hover:text-white group-hover:border-[#1E8EA3] transition-all">
-                          Ver empleo
+                          Postularme
                         </span>
                       </div>
                     </div>
-                  </Link>
+                  </a>
                 ))}
               </div>
             )}
@@ -336,6 +380,14 @@ export default function EmpleosPage() {
           </div>
         </div>
       </div>
+
+      {previewJob && (
+        <JobPreviewPanel
+          job={previewJob}
+          returnPath={`/empleos?job=${previewJob.id}`}
+          onClose={closePreview}
+        />
+      )}
     </div>
   );
 }

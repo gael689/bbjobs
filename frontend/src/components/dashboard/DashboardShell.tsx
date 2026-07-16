@@ -89,7 +89,7 @@ export default function DashboardShell({
 
         <div className="px-3 py-4 border-t border-[#DDE3EC] space-y-2">
           <div className="flex items-center justify-between px-1">
-            <NotificationBell />
+            <NotificationBell align="left" openUpward />
             <button
               onClick={handleLogout}
               className="p-2 text-[#64748B] hover:text-red-500 transition-colors"

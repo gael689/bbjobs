@@ -1,6 +1,6 @@
 export default function PrivacidadPage() {
   return (
-    <div className="bg-[#FAFBFD] min-h-screen pt-[108px] pb-20">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
 
         <div className="mb-10">
@@ -111,7 +111,7 @@ export default function PrivacidadPage() {
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Acceso:</strong> solicitar qué datos tuyos almacenamos.</li>
               <li><strong>Rectificación:</strong> corregir datos inexactos o incompletos.</li>
-              <li><strong>Supresión:</strong> solicitar la eliminación de tus datos ("derecho al olvido").</li>
+              <li><strong>Supresión:</strong> solicitar la eliminación de tus datos (&quot;derecho al olvido&quot;).</li>
               <li><strong>Oposición:</strong> oponerte al tratamiento de tus datos para determinadas finalidades.</li>
             </ul>
             <p className="mt-3">

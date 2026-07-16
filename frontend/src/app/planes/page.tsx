@@ -3,7 +3,7 @@ import { SparklesIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 
 export default function PlanesPage() {
   return (
-    <div className="bg-[#FAFBFD] min-h-screen pt-[108px] pb-20 flex items-center">
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20 flex items-center">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
         <div className="w-16 h-16 bg-[#E6F4F7] rounded-2xl flex items-center justify-center mx-auto mb-6">
           <SparklesIcon className="w-8 h-8 text-[#1E8EA3]" />

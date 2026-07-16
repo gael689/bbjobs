@@ -16,7 +16,7 @@ from app.core.scheduler import start_scheduler
 from app.api.v1 import (
     health, companies, candidates, skills, catalogs,
     jobs, applications, tests, plans, subscriptions, payments, webhooks,
-    admin, notifications, account, me, onboarding,
+    admin, notifications, account, me, onboarding, contact,
 )
 
 setup_logging()
@@ -94,3 +94,4 @@ app.include_router(notifications.router, prefix="/api/v1", tags=["notifications"
 app.include_router(account.router, prefix="/api/v1", tags=["account"])
 app.include_router(me.router, prefix="/api/v1", tags=["me"])
 app.include_router(onboarding.router, prefix="/api/v1", tags=["onboarding"])
+app.include_router(contact.router, prefix="/api/v1", tags=["contact"])

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import NeuralCanvas from "@/components/ui/NeuralCanvas";
+import VerifiedBadge from "@/components/jobs/VerifiedBadge";
+import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
 import {
   MagnifyingGlassIcon,
   BriefcaseIcon,
@@ -19,13 +21,8 @@ import {
   BoltIcon,
 } from "@heroicons/react/24/outline";
 
-interface Job {
-  id: string;
-  title: string;
-  company_legal_name_snapshot: string;
-  modality?: string;
+interface Job extends PreviewJob {
   is_featured?: boolean;
-  published_at?: string;
 }
 
 interface JobSuggestion {
@@ -63,43 +60,71 @@ export default function Home() {
   const [previewJobs, setPreviewJobs] = useState<Job[]>([]);
   const [totalActive, setTotalActive] = useState(0);
   const [previewModality, setPreviewModality] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [resolvedModality, setResolvedModality] = useState<string | null>(null);
+  const loading = resolvedModality !== previewModality;
+  const [previewJob, setPreviewJob] = useState<Job | null>(null);
+
+  // Si venimos de vuelta de /login?redirect_url=/?job=... reabrimos la misma vista previa.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const jobId = new URLSearchParams(window.location.search).get("job");
+    if (!jobId) return;
+    api.get(`/jobs/${jobId}`).then(r => setPreviewJob(r.data)).catch(() => {});
+  }, []);
+
+  function setJobParam(id: string | null) {
+    const params = new URLSearchParams(window.location.search);
+    if (id) params.set("job", id); else params.delete("job");
+    const qs = params.toString();
+    router.replace(`/${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  function openPreview(job: Job) {
+    setPreviewJob(job);
+    setJobParam(job.id);
+  }
+
+  function closePreview() {
+    setPreviewJob(null);
+    setJobParam(null);
+  }
 
   // Buscador del hero — ahora real: sugiere contra el backend y navega a /empleos.
   const [heroQuery, setHeroQuery] = useState("");
   const [suggestions, setSuggestions] = useState<JobSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heroBoxRef = useRef<HTMLFormElement>(null);
 
+  const trimmedHeroQuery = heroQuery.trim();
+  const visibleSuggestions = trimmedHeroQuery.length < 2 ? [] : suggestions;
+
   useEffect(() => {
-    setLoading(true);
+    // `ignore` evita que una respuesta vieja pise el resultado si la modalidad cambió
+    // de nuevo antes de que la primera request terminara.
+    let ignore = false;
     const params = new URLSearchParams({ page: "1", page_size: "6" });
     if (previewModality) params.set("modality", previewModality);
     api.get(`/jobs?${params.toString()}`)
       .then(r => {
+        if (ignore) return;
         setPreviewJobs(r.data.items);
         setTotalActive(r.data.total);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!ignore) setResolvedModality(previewModality); });
+    return () => { ignore = true; };
   }, [previewModality]);
 
   useEffect(() => {
-    if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    if (heroQuery.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    suggestTimer.current = setTimeout(() => {
-      api.get(`/jobs/suggest?q=${encodeURIComponent(heroQuery.trim())}`)
-        .then(r => setSuggestions(r.data))
-        .catch(() => setSuggestions([]));
+    if (trimmedHeroQuery.length < 2) return;
+    let ignore = false;
+    const timer = setTimeout(() => {
+      api.get(`/jobs/suggest?q=${encodeURIComponent(trimmedHeroQuery)}`)
+        .then(r => { if (!ignore) setSuggestions(r.data); })
+        .catch(() => { if (!ignore) setSuggestions([]); });
     }, 400);
-    return () => {
-      if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    };
-  }, [heroQuery]);
+    return () => { ignore = true; clearTimeout(timer); };
+  }, [trimmedHeroQuery]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -185,9 +210,9 @@ export default function Home() {
               </button>
             </div>
 
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && visibleSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 mt-2 bg-white border border-[#DDE3EC] rounded-2xl shadow-lg overflow-hidden text-left z-20">
-                {suggestions.map((s, i) => (
+                {visibleSuggestions.map((s, i) => (
                   <button
                     key={`${s.type}-${s.label}-${i}`}
                     type="button"
@@ -287,17 +312,32 @@ export default function Home() {
             ) : (
               <div className="space-y-3">
                 {previewJobs.map(job => (
-                  <div key={job.id} className="group bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4">
+                  <a
+                    key={job.id}
+                    href={`/empleos/${job.id}`}
+                    onClick={e => { e.preventDefault(); openPreview(job); }}
+                    className="group bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4"
+                  >
                     {/* Avatar empresa */}
-                    <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 font-display font-extrabold text-[#1E8EA3] text-lg border border-[#9ED4DF]">
-                      {job.company_legal_name_snapshot?.[0] || "?"}
+                    <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
+                      {job.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={job.logo_url} alt={job.company_legal_name_snapshot} className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <span className="font-display font-extrabold text-[#1E8EA3] text-lg">
+                          {job.company_legal_name_snapshot?.[0] || "?"}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <Link href={`/empleos/${job.id}`} className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
+                      <p className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
                         {job.title}
-                      </Link>
-                      <p className="text-sm text-[#64748B] font-medium mt-0.5">{job.company_legal_name_snapshot}</p>
+                      </p>
+                      <p className="text-sm text-[#64748B] font-medium mt-0.5 flex items-center flex-wrap gap-x-1.5 gap-y-1">
+                        {job.company_legal_name_snapshot}
+                        <VerifiedBadge />
+                      </p>
                       <div className="flex flex-wrap gap-2 mt-2.5">
                         {job.modality && (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
@@ -314,11 +354,11 @@ export default function Home() {
 
                     <div className="flex flex-col items-end gap-3 shrink-0">
                       {job.published_at && <span className="text-xs text-[#94A3B8] font-medium">{timeAgo(job.published_at)}</span>}
-                      <Link href={`/empleos/${job.id}`} className="inline-flex items-center gap-1 text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] transition-colors">
-                        Ver aviso <ChevronRightIcon className="w-4 h-4" />
-                      </Link>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full group-hover:bg-[#1E8EA3] group-hover:text-white group-hover:border-[#1E8EA3] transition-all">
+                        Postularme <ChevronRightIcon className="w-3.5 h-3.5" />
+                      </span>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )}
@@ -472,6 +512,14 @@ export default function Home() {
           </a>
         </div>
       </section>
+
+      {previewJob && (
+        <JobPreviewPanel
+          job={previewJob}
+          returnPath={`/?job=${previewJob.id}`}
+          onClose={closePreview}
+        />
+      )}
     </>
   );
 }
