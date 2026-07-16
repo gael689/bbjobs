@@ -163,34 +163,41 @@ revés, alguien buscando cargar la credencial de Cloudinary no la encontraba lis
 
 ## D. Backend → Railway, paso a paso
 
-**Estado 2026-07-16, según Gael**: el proyecto en Railway ya existe y el repo de GitHub ya está
-conectado (paso 1). No confirmado todavía: si el addon de Postgres del paso 2 es el mismo que se
-viene usando desde el día 1 del proyecto (`reseau.proxy.rlwy.net`, sobre el que ya se creó
-`app_user` — bloque D paso 9) o si se va a provisionar uno nuevo aparte para producción. Importa
-porque si es el mismo, el paso 9 ya está hecho a nivel base de datos y sólo falta reflejarlo en
-las env vars del **servicio** de Railway (no sólo en `backend/.env` local); si es uno nuevo, hay
-que volver a correr `backend/scripts/create_app_user_role.py` contra ese Postgres.
+**Estado 2026-07-16 — primer deploy exitoso.** Confirmado: el Postgres del proyecto de Railway es
+el mismo que se usó toda la sesión (`reseau.proxy.rlwy.net`), así que `app_user` (paso 9) ya
+estaba listo a nivel base de datos — sólo hacía falta cargarlo en las env vars del servicio.
 
 1. ~~Crear proyecto en Railway, conectar el repo de GitHub (rama `main`).~~ — hecho.
-2. Agregar addon de **Postgres** (managed) dentro del mismo proyecto — confirmar si ya existe
-   (ver nota arriba) o si hace falta uno nuevo.
-3. Configurar el servicio backend para buildear con `backend/Dockerfile` (root directory =
-   `backend/`).
-4. ~~Aplicar los fixes C1 y C4~~ — hecho 2026-07-16, verificado localmente simulando `$PORT` y el
-   encadenado con `alembic upgrade head`. C2 sigue abierto como mejora recomendada (no bloqueante
-   hoy porque `DATABASE_URL`/`MIGRATIONS_DATABASE_URL` se armaron a mano con el scheme correcto).
-5. Cargar las env vars de producción (tabla completa en el bloque I) — como mínimo para que
-   arranque: `ENV=production`, `DEBUG=false`, `SECRET_KEY` (un valor random fuerte — sigue siendo
-   obligatorio en `Settings` aunque el JWT propio esté deprecado, `config.py` no tiene default),
-   `DATABASE_URL` **con las credenciales de `app_user`** (no las del addon tal cual, ver paso 9 —
-   con el scheme corregido), `MIGRATIONS_DATABASE_URL` con las credenciales del rol admin/owner
-   del addon (`postgres` u otro, para que `alembic upgrade head` pueda hacer DDL), `ALLOWED_ORIGINS`,
-   `FRONTEND_URL`.
-6. Deploy inicial, confirmar en los logs de Railway que:
-   - `alembic upgrade head` corrió sin errores y quedó en la migración más reciente
-     (`b4c7e1a9f3d6` al momento de este plan — puede haber avanzado).
-   - `scheduler_started` aparece en el log (APScheduler arrancó).
-   - El healthcheck de Railway pasa (puerto correcto, ver C1).
+2. ~~Addon de Postgres~~ — confirmado, es la base que ya se usaba.
+3. ~~Configurar el servicio backend para buildear con `backend/Dockerfile`~~ — hecho, con dos
+   ajustes que no eran obvios de entrada:
+   - **Root Directory** del servicio tenía que ser `backend` — sin esto, Railway (Railpack)
+     escaneaba la raíz del repo entera y no reconocía ningún lenguaje.
+   - **Builder** tenía que pasarse de Railpack (auto-detección) a **Dockerfile** explícitamente.
+4. ~~Aplicar los fixes C1 y C4~~ — hecho 2026-07-16. **Se encontró un bug real en el primer
+   intento de deploy** que la verificación local no había atrapado: `pip install .` corría antes
+   de que el código se copiara a la imagen (`COPY pyproject.toml .` → install → recién `COPY .
+   .`), dejando el paquete `app` mal instalado — `ModuleNotFoundError: No module named 'app'` al
+   correr `alembic upgrade head` en el contenedor real. Funcionaba en local sólo porque ese
+   `.venv` tiene una instalación editable (apunta directo al código fuente), que enmascaraba el
+   problema. Se corrigió el orden del `COPY` en el Dockerfile — verificado sin prender Docker
+   Desktop, instalando de forma no-editable en un venv aislado y reproduciendo/confirmando el fix
+   antes de pushear. C2 sigue abierto como mejora recomendada (no bloqueante hoy porque
+   `DATABASE_URL`/`MIGRATIONS_DATABASE_URL` se armaron a mano con el scheme correcto).
+5. ~~Cargar las env vars de producción~~ — hecho: `ENV=production`, `DEBUG=false`, `SECRET_KEY`,
+   `DATABASE_URL` (`app_user`), `MIGRATIONS_DATABASE_URL` (`postgres`), y el resto copiado del
+   `.env` local (con Clerk todavía en modo test — suficiente para este primer deploy de prueba,
+   ver bloque G para el pase a producción real). `ALLOWED_ORIGINS`/`FRONTEND_URL` siguen en
+   `localhost:3000` — hay que actualizarlas cuando exista el dominio de Vercel.
+6. ~~Deploy inicial~~ — **confirmado en los logs reales**: `alembic upgrade head` corrió limpio,
+   `scheduler_started` (APScheduler con `expire_jobs`/`notify_expiring_soon`), uvicorn escuchando
+   en el puerto que asignó Railway (8080, no el 8000 hardcodeado — confirma el fix de C1),
+   `Application startup complete`.
+   ✅ **Confirmado con requests reales desde afuera** (dominio público generado en Railway:
+   `bbjobs-production.up.railway.app`): `GET /health` → 200, `GET /catalogs/industries` → 200
+   (SELECT real vía `app_user`), `POST /contact` → 200 (INSERT real vía `app_user`, con su
+   notificación a admins disparándose — datos de prueba borrados después). **Primer deploy de
+   backend en Railway funcionando de punta a punta.**
 7. Correr `python seed.py` **una vez**, apuntando a la DB de producción y a la instancia de Clerk
    de producción (ver bloque G) — crea catálogos base + el usuario admin. Usar
    `ADMIN_EMAIL`/`ADMIN_PASSWORD` reales de Talency, no el placeholder del `.env.example`.
