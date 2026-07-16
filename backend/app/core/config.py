@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     
     DATABASE_URL: str
+    # Rol de mínimo privilegio para runtime (sin DDL). Alembic necesita CREATE TABLE/ALTER TABLE,
+    # que ese rol no tiene — las migraciones corren con esta URL separada (rol con privilegios de
+    # owner/DDL) en vez de DATABASE_URL. Si no está seteada, cae a DATABASE_URL (mismo rol para
+    # todo) — no rompe nada para quien no haya hecho el split todavía.
+    MIGRATIONS_DATABASE_URL: str | None = None
 
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     # Para armar back_urls de Mercado Pago (adónde vuelve el usuario tras el checkout).
@@ -28,6 +33,10 @@ class Settings(BaseSettings):
     MP_WEBHOOK_SECRET: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def migrations_database_url(self) -> str:
+        return self.MIGRATIONS_DATABASE_URL or self.DATABASE_URL
 
     @property
     def cors_origins(self) -> List[str]:

@@ -16,8 +16,10 @@ import app.models  # asegura que todos estén cargados
 
 config = context.config
 
-# Sobrescribir url de config con la del entorno
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Migraciones necesitan DDL (CREATE TABLE/ALTER TABLE) — corren con MIGRATIONS_DATABASE_URL
+# (rol con privilegios de owner), no con DATABASE_URL (rol de mínimo privilegio que usa la app
+# en runtime, sin DDL). Ver SEGURIDAD-PLAN.md bloque E.
+config.set_main_option("sqlalchemy.url", settings.migrations_database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
