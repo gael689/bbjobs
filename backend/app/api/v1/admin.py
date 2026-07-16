@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func, desc
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 
 from app.api.deps import get_db, require_role
@@ -25,6 +25,7 @@ from app.schemas.candidate import calculate_age, CandidateFullProfile
 from app.schemas.contact import ContactMessageResponse
 from app.schemas.history import ApplicationStatusHistoryResponse, CandidateActivityLogResponse
 from app.schemas.payment import FeatureHistoryItem
+from app.schemas.job import JobPostingUpdate
 from app.api.v1.applications import (
     ApplicationWithCandidateResponse, CandidateSummary, build_candidate_full_profile,
 )
@@ -94,14 +95,24 @@ class CandidateAdminResponse(BaseModel):
 
 class JobAdminResponse(BaseModel):
     id: uuid.UUID
+    company_id: Optional[uuid.UUID] = None
     title: str
+    description: str
+    requirements: str
+    modality: str
     status: JobPostingStatus
     company_legal_name_snapshot: str
     published_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    duration_days: int
     moderation_status: JobModerationStatus
     moderation_notes: Optional[str] = None
     is_featured: bool = False
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    salary_visible: bool = False
+    benefits: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -144,6 +155,16 @@ class CreateAdminPayload(BaseModel):
     full_name: str
 
 
+class TrendPoint(BaseModel):
+    date: str  # YYYY-MM-DD
+    jobs_created: int
+    applications: int
+
+
+class DashboardTrends(BaseModel):
+    points: List[TrendPoint]  # 7 puntos, del más viejo al más nuevo
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/admin/dashboard", response_model=DashboardMetrics)
@@ -161,10 +182,15 @@ async def get_dashboard_metrics(
         .where(CompanyProfile.verification_status == VerificationStatus.verified)
     )).scalar()
     total_candidates = (await db.execute(select(func.count()).select_from(CandidateProfile))).scalar()
-    total_jobs = (await db.execute(select(func.count()).select_from(JobPosting))).scalar()
+    total_jobs = (await db.execute(
+        select(func.count()).select_from(JobPosting).where(JobPosting.deleted_at.is_(None))
+    )).scalar()
     pending_jobs = (await db.execute(
         select(func.count()).select_from(JobPosting)
-        .where(JobPosting.moderation_status == JobModerationStatus.pending_review)
+        .where(
+            JobPosting.moderation_status == JobModerationStatus.pending_review,
+            JobPosting.deleted_at.is_(None),
+        )
     )).scalar()
     total_applications = (await db.execute(select(func.count()).select_from(Application))).scalar()
     pending_contact_messages = (await db.execute(
@@ -186,6 +212,44 @@ async def get_dashboard_metrics(
         pending_contact_messages=pending_contact_messages or 0,
         total_revenue_featured=float(total_revenue_featured or 0),
     )
+
+
+@router.get("/admin/dashboard/trends", response_model=DashboardTrends)
+async def get_dashboard_trends(
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Serie de los últimos 7 días (hoy incluido) para los sparklines del panel — agregado por
+    día en SQL, no traído fila por fila. Días sin actividad no tienen fila en el resultado del
+    GROUP BY; se completan en 0 acá para que el frontend siempre reciba 7 puntos seguidos."""
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=6)
+    start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+
+    jobs_result = await db.execute(
+        select(func.date(JobPosting.created_at).label("d"), func.count())
+        .where(JobPosting.created_at >= start_dt, JobPosting.deleted_at.is_(None))
+        .group_by("d")
+    )
+    jobs_by_day = {row[0].isoformat(): row[1] for row in jobs_result.all()}
+
+    apps_result = await db.execute(
+        select(func.date(Application.created_at).label("d"), func.count())
+        .where(Application.created_at >= start_dt)
+        .group_by("d")
+    )
+    apps_by_day = {row[0].isoformat(): row[1] for row in apps_result.all()}
+
+    points = []
+    for i in range(7):
+        day = (start_date + timedelta(days=i)).isoformat()
+        points.append(TrendPoint(
+            date=day,
+            jobs_created=jobs_by_day.get(day, 0),
+            applications=apps_by_day.get(day, 0),
+        ))
+
+    return DashboardTrends(points=points)
 
 
 @router.get("/admin/companies", response_model=List[CompanyAdminResponse])
@@ -481,7 +545,7 @@ async def list_jobs(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(JobPosting)
+    q = select(JobPosting).where(JobPosting.deleted_at.is_(None))
     if status:
         q = q.where(JobPosting.status == status)
     if moderation_status:
@@ -503,7 +567,9 @@ async def list_company_jobs(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(JobPosting).where(JobPosting.company_id == company_id).order_by(desc(JobPosting.published_at))
+        select(JobPosting)
+        .where(JobPosting.company_id == company_id, JobPosting.deleted_at.is_(None))
+        .order_by(desc(JobPosting.published_at))
     )
     return result.scalars().all()
 
@@ -682,6 +748,102 @@ async def moderate_job(
 
     await db.commit()
     return {"status": "ok", "moderation_status": job.moderation_status}
+
+
+@router.patch("/admin/jobs/{job_id}", response_model=JobAdminResponse)
+async def update_job_admin(
+    job_id: uuid.UUID,
+    payload: JobPostingUpdate,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edición de contenido desde el admin — título/descripción/requisitos/modalidad/plazo.
+    No cambia `status` ni `moderation_status` acá: para eso ya existen `moderate` (aprobar/
+    rechazar) y `takedown` (dar de baja), que además notifican a la empresa y dejan auditoría
+    con el motivo — permitir el cambio de estado por esta vía los pisaría en silencio."""
+    result = await db.execute(
+        select(JobPosting).where(JobPosting.id == job_id, JobPosting.deleted_at.is_(None))
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
+
+    if payload.status is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede cambiar el estado desde acá — usá aprobar/rechazar o dar de baja",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True, exclude={"status"})
+    duration_changed = "duration_days" in update_data
+    for key, value in update_data.items():
+        setattr(job, key, value)
+
+    # Mismo criterio que el auto-gestionado de la empresa (jobs.py::update_job_posting): el
+    # plazo se recalcula contra published_at, no contra "hoy" — permite acortar o volver a
+    # ampliar (dentro del máximo) sin premiar ni castigar por el momento en que se edita.
+    if duration_changed and job.published_at:
+        job.expires_at = job.published_at + timedelta(days=job.duration_days)
+
+    audit = AuditLog(
+        admin_user_id=admin.id,
+        action="job_edit",
+        target_entity="job_postings",
+        target_id=job.id,
+        notes=None,
+    )
+    db.add(audit)
+
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
+@router.delete("/admin/jobs/{job_id}")
+async def delete_job_admin(
+    job_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-delete — el modelo ya tenía `deleted_at` sin usar. Un DELETE real en SQL arrastraría
+    en cascada `job_features` (`ondelete=CASCADE`, ver models/payment.py), borrando el historial
+    de pagos de una búsqueda destacada. Con soft-delete, la búsqueda desaparece de todos los
+    listados (público, del admin y de la empresa — ver deleted_at.is_(None) en jobs.py) pero
+    Payment/JobFeature quedan intactos para contabilidad."""
+    result = await db.execute(
+        select(JobPosting).where(JobPosting.id == job_id, JobPosting.deleted_at.is_(None))
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
+
+    job.deleted_at = datetime.now(timezone.utc)
+    if job.is_featured:
+        await end_active_feature_for_job(db, job)
+
+    company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.id == job.company_id))
+    company = company_result.scalar_one_or_none()
+    if company:
+        await create_notification(
+            db,
+            user_id=company.user_id,
+            type="job_deleted",
+            title="Tu búsqueda fue eliminada",
+            body=f"'{job.title}' fue eliminada por el equipo de BBJobs.",
+            link="/dashboard/company/estadisticas",
+        )
+
+    audit = AuditLog(
+        admin_user_id=admin.id,
+        action="job_delete",
+        target_entity="job_postings",
+        target_id=job.id,
+        notes=None,
+    )
+    db.add(audit)
+
+    await db.commit()
+    return {"status": "ok"}
 
 
 @router.get("/admin/skills/pending", response_model=List[SkillAdminResponse])

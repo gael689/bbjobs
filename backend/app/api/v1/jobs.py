@@ -16,6 +16,7 @@ from app.schemas.job import (
 )
 from app.services.notifications import notify_all_admins
 from app.services.job_features import end_active_feature_for_job
+from app.services.job_status import can_transition
 
 router = APIRouter()
 
@@ -84,7 +85,9 @@ async def list_my_job_postings(
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(JobPosting).where(JobPosting.company_id == company.id))
+    result = await db.execute(
+        select(JobPosting).where(JobPosting.company_id == company.id, JobPosting.deleted_at.is_(None))
+    )
     return result.scalars().all()
 
 @router.patch("/me/company/jobs/{id}", response_model=JobPostingCompanyResponse)
@@ -110,19 +113,7 @@ async def update_job_posting(
         if current_status in (JobPostingStatus.closed, JobPostingStatus.expired):
             raise HTTPException(status_code=400, detail="Job posting is closed or expired and cannot be changed")
 
-        allowed_transitions = {
-            JobPostingStatus.active: [JobPostingStatus.paused, JobPostingStatus.closed],
-            JobPostingStatus.paused: [JobPostingStatus.active, JobPostingStatus.closed],
-            JobPostingStatus.draft: [JobPostingStatus.active, JobPostingStatus.closed],
-        }
-
-        current_key = None
-        for k in allowed_transitions:
-            if current_status == k:
-                current_key = k
-                break
-
-        if current_key is None or new_status not in allowed_transitions.get(current_key, []):
+        if not can_transition(current_status, new_status):
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot transition from '{current_status}' to '{new_status}'"
@@ -167,6 +158,7 @@ async def list_public_jobs(
     query = select(JobPosting).where(
         JobPosting.status == JobPostingStatus.active,
         JobPosting.moderation_status == JobModerationStatus.approved,
+        JobPosting.deleted_at.is_(None),
     )
 
     if industry_id:
@@ -243,6 +235,7 @@ async def suggest_jobs(
         .where(
             JobPosting.status == JobPostingStatus.active,
             JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
             JobPosting.title.ilike(search_term),
         )
         .distinct()
@@ -253,6 +246,7 @@ async def suggest_jobs(
         .where(
             JobPosting.status == JobPostingStatus.active,
             JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
             JobPosting.company_legal_name_snapshot.ilike(search_term),
         )
         .distinct()
@@ -271,6 +265,7 @@ async def get_public_job(id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             JobPosting.id == id,
             JobPosting.status == JobPostingStatus.active,
             JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
         )
     )
     job = result.scalar_one_or_none()

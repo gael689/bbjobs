@@ -3,9 +3,13 @@ import structlog
 from app.db.session import async_session_maker
 from sqlalchemy.future import select
 from app.models.company import CompanyProfile
+from app.models.candidate import CandidateProfile
 from app.models.job import JobPosting, JobPostingStatus
 from app.services.notifications import create_notification
 from app.services.job_features import end_active_feature_for_job
+from app.services.profile_completion import (
+    compute_profile_completion_for_candidate, should_send_completion_reminder,
+)
 import datetime
 
 logger = structlog.get_logger("app.core.scheduler")
@@ -97,8 +101,43 @@ async def notify_expiring_soon():
             await db.commit()
 
 
+async def send_profile_reminders():
+    """Recordatorio semanal de perfil incompleto — corre a diario, pero
+    should_send_completion_reminder() throttlea a REMINDER_MIN_INTERVAL_DAYS (7) por
+    candidato, así que en la práctica cada uno recibe como mucho un aviso por semana. Mismo
+    mecanismo que ya dispara applications.py::apply_to_job tras postularse, pero acá corre
+    proactivamente para candidatos que no se postulan a nada."""
+    logger.info("running_job_send_profile_reminders")
+    async with async_session_maker() as db:
+        res = await db.execute(select(CandidateProfile))
+        candidates = res.scalars().all()
+
+        sent = 0
+        for candidate in candidates:
+            completion = await compute_profile_completion_for_candidate(db, candidate)
+            if should_send_completion_reminder(candidate, completion.percent):
+                await create_notification(
+                    db,
+                    user_id=candidate.user_id,
+                    type="profile_incomplete",
+                    title="Tu perfil está incompleto",
+                    body=(
+                        f"Tu perfil está {completion.percent}% completo. Las empresas ven que te falta "
+                        "cargar datos — completalo para destacar frente a otros candidatos."
+                    ),
+                    link="/dashboard/candidate/perfil",
+                )
+                candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
+                sent += 1
+
+        if sent:
+            logger.info("profile_reminders_sent", count=sent)
+            await db.commit()
+
+
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
     scheduler.add_job(notify_expiring_soon, "interval", hours=1)
+    scheduler.add_job(send_profile_reminders, "interval", hours=24)
     scheduler.start()
     logger.info("scheduler_started")

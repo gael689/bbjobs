@@ -16,7 +16,7 @@ from app.schemas.candidate import (
     CandidateSkillCreate, CandidateSkillResponse,
     LanguageCreate, LanguageResponse,
 )
-from app.integrations.cloudinary_client import upload_pdf
+from app.integrations.cloudinary_client import upload_pdf, upload_image
 from app.services.profile_completion import compute_profile_completion_for_candidate
 from app.services.history import log_candidate_activity
 import uuid
@@ -106,6 +106,41 @@ async def upload_cv(
 
     await log_candidate_activity(
         db, candidate_id=profile.id, event_type="cv_upload", summary="Subió/actualizó su CV",
+    )
+
+    await db.commit()
+    await db.refresh(profile)
+    return await _build_profile_response(profile, db)
+
+@router.post("/me/candidate/photo", response_model=CandidateProfileResponse)
+async def upload_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db)
+):
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Solo se permiten imágenes")
+
+    content = await file.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Archivo muy grande. Máximo 2MB")
+
+    profile = await _get_candidate_profile(current_user.id, db)
+
+    try:
+        url = upload_image(
+            content,
+            folder="bbjobs/candidate_photos",
+            public_id=str(profile.id),
+            content_type=file.content_type,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    profile.photo_url = url
+
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="photo_upload", summary="Actualizó su foto de perfil",
     )
 
     await db.commit()
