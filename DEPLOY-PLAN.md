@@ -359,11 +359,11 @@ nuevas, no que se copien. Aplica en particular a `SECRET_KEY` y a la contraseña
 | `SECRET_KEY` | random fuerte, **generado nuevo para prod** (no reusar el de dev) | sigue siendo obligatorio aunque el JWT propio esté deprecado |
 | `DATABASE_URL` | del addon de Railway, **con scheme `postgresql+asyncpg://`**, con las credenciales del rol `app_user` (ver bloque D paso 9 — creado y verificado 2026-07-16, mínimo privilegio, sin DDL) | ver fix C2 |
 | `MIGRATIONS_DATABASE_URL` | credenciales del rol admin/owner del addon (`postgres` u otro con permisos de DDL) | nueva — separada de `DATABASE_URL` porque `app_user` no puede correr `alembic upgrade head`; si se omite, Alembic cae a `DATABASE_URL` y fallaría por falta de DDL |
-| `ALLOWED_ORIGINS` | `https://bbjobs.com.ar,https://www.bbjobs.com.ar` | CORS — sin esto el frontend no puede llamar a la API |
+| `ALLOWED_ORIGINS` | 2026-07-16: `http://localhost:3000,https://bbjobs-eight.vercel.app,https://bbjobs.com.ar,https://www.bbjobs.com.ar` | CORS — sin esto el frontend no puede llamar a la API. 🟡 **Sacar `localhost` antes del lanzamiento real** — se dejó a propósito para poder probar el backend desplegado desde un frontend local, pero es un origen de confianza que no debería quedar habilitado en producción de forma permanente. |
 | `FRONTEND_URL` | `https://bbjobs.com.ar` | usado para construir `success_url` de MP |
 | `CLERK_SECRET_KEY` | clave `sk_live_...` de producción | ver bloque G |
 | `CLERK_WEBHOOK_SECRET` | signing secret del webhook de producción | ver bloque G |
-| `CLERK_AUTHORIZED_PARTIES` | `https://bbjobs.com.ar` | 🔴 si queda en `localhost`, el login rompe en prod |
+| `CLERK_AUTHORIZED_PARTIES` | mismo valor y misma nota de `localhost` que `ALLOWED_ORIGINS` (2026-07-16) | 🔴 si queda sin la URL real del frontend, el login rompe en prod |
 | `SENTRY_DSN` | DSN del proyecto de Sentry | ver bloque L |
 | `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | credenciales definitivas | confirmar que no son de una cuenta de prueba |
 | `MP_ACCESS_TOKEN` / `MP_PUBLIC_KEY` / `MP_WEBHOOK_SECRET` | producción (tras validar en sandbox) | ver bloque H |
