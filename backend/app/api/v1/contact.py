@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.limiter import limiter
 from app.models.contact import ContactMessage
 from app.schemas.contact import ContactMessageCreate
 from app.services.notifications import notify_all_admins
@@ -10,7 +11,9 @@ router = APIRouter()
 
 
 @router.post("/contact")
+@limiter.limit("5/minute")
 async def submit_contact_message(
+    request: Request,
     payload: ContactMessageCreate,
     db: AsyncSession = Depends(get_db),
 ):

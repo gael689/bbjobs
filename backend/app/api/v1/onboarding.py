@@ -5,11 +5,12 @@ identidad; el rol y los datos de negocio se completan en este paso (ver plan §2
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.api.deps import get_db, get_clerk_identity, ClerkIdentity
+from app.core.limiter import limiter
 from app.models.core import User, UserRole
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile, VerificationStatus
@@ -51,7 +52,9 @@ async def _reject_if_email_taken(db: AsyncSession, email: str) -> None:
 
 
 @router.post("/me/onboarding/candidate", response_model=OnboardingResponse)
+@limiter.limit("10/minute")
 async def onboarding_candidate(
+    request: Request,
     payload: CandidateOnboarding,
     identity: ClerkIdentity = Depends(get_clerk_identity),
     db: AsyncSession = Depends(get_db),
@@ -88,7 +91,9 @@ async def onboarding_candidate(
 
 
 @router.post("/me/onboarding/company", response_model=OnboardingResponse)
+@limiter.limit("10/minute")
 async def onboarding_company(
+    request: Request,
     payload: CompanyOnboarding,
     identity: ClerkIdentity = Depends(get_clerk_identity),
     db: AsyncSession = Depends(get_db),

@@ -45,7 +45,13 @@ CONTRACT_TYPES = [
 ]
 
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@bbjobs.com.ar")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Admin1234!")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    raise SystemExit(
+        "ADMIN_PASSWORD no está seteada. Definila en backend/.env antes de correr el seed "
+        "— no hay default: un default hardcodeado terminaría creando la cuenta admin real "
+        "con una contraseña conocida si alguien corre esto contra producción sin pensarlo."
+    )
 
 
 async def seed():
