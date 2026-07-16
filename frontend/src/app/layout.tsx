@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   keywords: "empleo Bahía Blanca, trabajo Bahía Blanca, búsqueda laboral, Talency",
 };
 
+// La CSP con nonce (ver proxy.ts) necesita que cada página se renderice por request: una página
+// estática se genera en build time, sin request de la que sacar un nonce, así que sus scripts
+// quedarían sin el atributo nonce y la CSP los bloquearía enteros. `force-dynamic` en el layout
+// raíz aplica a todo el árbol de rutas de una sola vez (ver SEGURIDAD-PLAN.md bloque C — es un
+// costo consciente: se pierde el prerenderizado estático a cambio de bloquear scripts inline no
+// autorizados de verdad, no sólo confiar en que React escapa el contenido).
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" className={`${jakarta.variable} ${dmSans.variable}`}>
