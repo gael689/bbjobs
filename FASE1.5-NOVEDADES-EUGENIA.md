@@ -73,6 +73,56 @@ navegación por esta razón.
 
 ---
 
+## ✅ Rediseño de los tres paneles y nuevas funciones (última tanda de cambios)
+
+Esto es lo que se agregó en la etapa más reciente, por fuera de lo anterior. Es más que nada
+de experiencia de uso — la plataforma sigue haciendo lo mismo, pero ahora es más rápida de
+usar y guía más a cada tipo de usuario.
+
+**Un "Inicio" en cada panel**
+Antes, al entrar a cualquiera de los tres paneles (admin, empresa, candidato) se caía directo
+en una subpantalla cualquiera. Ahora cada uno tiene una pantalla de Inicio con tarjetas grandes
+y claras — cuántas búsquedas hay activas, cuántas postulaciones nuevas, si falta verificar algo,
+etc. — para que la persona sepa de un vistazo qué tiene pendiente antes de entrar a buscarlo.
+
+**Búsquedas — un solo lugar para gestionarlas, en admin y en empresa**
+Antes esto estaba repartido: para ver las postulaciones de una búsqueda había que entrar a la
+empresa y desplegarla. Ahora hay una pantalla "Búsquedas" dedicada (lista a la izquierda, detalle
+a la derecha) donde se puede, sin cambiar de pantalla:
+- Ver todos los datos de la búsqueda y sus postulantes (con su perfil completo a un clic).
+- Pausarla, reactivarla o cerrarla.
+- Editarla.
+- Destacarla (pagar para darle prioridad) directamente desde ahí.
+Esto ya existía parcialmente para admin; ahora la empresa tiene el mismo tipo de pantalla para
+sus propias búsquedas — antes tenía que ir a "Estadísticas" para algunas cosas y a
+"Publicar" para otras.
+
+**Publicar una búsqueda y completar el perfil, ahora paso a paso**
+Dos de los formularios más largos de la plataforma (publicar una búsqueda, como empresa; y
+completar el perfil, como candidato) se convirtieron en un asistente de pasos, con flechas para
+avanzar y retroceder, en vez de un formulario largo de una sola vez. La idea es que se sienta
+como "ir completando de a poco" en vez de "llenar un montón de campos antes de poder guardar" —
+en el caso del candidato, además arranca directamente en la sección que le falta completar, y
+cada sección ya completa se marca con un tilde verde.
+
+**Ver el perfil de un candidato o de una empresa, en grande**
+Antes esa ventana se abría pegada al costado de la pantalla, chica. Ahora se abre centrada, más
+ancha, y muestra toda la información bien organizada (experiencia, educación, habilidades,
+idiomas, CV) sin tener que scrollear tanto.
+
+**Notificaciones — ahora con historial, no sólo la campanita**
+Se agregó "Notificaciones" como una sección más del menú (en los tres paneles), con un número
+al lado si hay pendientes. Ahí se puede ver el historial completo — qué está pendiente, qué ya
+se leyó, todo junto — no sólo las últimas que aparecen al tocar la campana.
+
+**Recordatorio automático semanal para completar el perfil**
+Antes, el aviso de "te falta completar el perfil" sólo le llegaba a un candidato si se
+postulaba a algo. Ahora, además, el sistema revisa todas las semanas quién tiene el perfil
+incompleto y le manda el aviso aunque no haya hecho nada en la plataforma esa semana — para
+traer de vuelta a los que se registraron y no volvieron.
+
+---
+
 ## ⚠️ Cosas para tener en cuenta
 
 - **La moderación de búsquedas es manual** — hay que definir con Eugenia cada cuánto alguien de
@@ -81,6 +131,12 @@ navegación por esta razón.
   — nadie está obligado a cargarlos, se incentiva mostrando el % de perfil completo.
 - El plazo de 20 días por búsqueda es una decisión de producto ya tomada, no algo a validar —
   se avisó acá por si surge en la conversación.
+- **Falta la foto de perfil del candidato.** El indicador de "perfil completo" la pide, pero
+  todavía no hay forma de subirla (ni pantalla ni el enganche con el almacenamiento de
+  imágenes) — es una pieza aparte, chica, que se puede sumar cuando se priorice.
+- El recordatorio semanal es automático y corre solo — no requiere que nadie de Talency haga
+  nada, pero vale la pena que Eugenia sepa que existe por si un candidato pregunta por qué le
+  llegó un aviso sin haber hecho nada esa semana.
 
 ---
 
@@ -95,3 +151,10 @@ navegación por esta razón.
    panel de estadísticas.
 5. Como admin, desplegar una empresa para ver sus búsquedas y postulantes sin salir de la
    pantalla de "Empresas".
+6. Mostrar el Inicio de cada panel apenas se entra, antes de ir a cualquier otra pantalla.
+7. Publicar una búsqueda nueva usando el asistente paso a paso, y completar el perfil de un
+   candidato de la misma forma.
+8. Abrir el perfil completo de un candidato desde la pantalla de Búsquedas, no sólo desde
+   Candidatos.
+9. Mostrar la sección de Notificaciones y su historial, y destacar que el recordatorio semanal
+   de perfil incompleto ya está funcionando solo.

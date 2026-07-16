@@ -51,11 +51,52 @@ violaciones, login funcional), y **se creó y verificó contra la base real de R
 Postgres de mínimo privilegio** (`app_user` — el backend se conectaba antes como superusuario;
 ahora el rol de runtime ni siquiera puede hacer `CREATE TABLE`, confirmado con una prueba real).
 RLS se descartó por decisión explícita del usuario, no por bloqueo técnico (ver
-`SEGURIDAD-PLAN.md` bloque F). Quedan **3 ítems de seguridad atados a pasos concretos de este
-mismo plan de deploy**, marcados en los bloques correspondientes más abajo con 🔒 **[Seguridad]**:
-reflejar el rol `app_user` en las env vars del servicio de Railway (bloque D, ya resuelto a nivel
-base de datos), MFA para admins + actualizar la CSP si se usa un dominio custom de Clerk
-(bloque G), y rotación de secretos (bloque I).
+`SEGURIDAD-PLAN.md` bloque F). Quedan **2 ítems de seguridad atados a pasos concretos de este
+mismo plan de deploy** (el tercero, rotación de la password de DB, ya tiene mecanismo resuelto —
+ver bloque K): MFA para admins + actualizar la CSP si se usa un dominio custom de Clerk
+(bloque G), y que las credenciales de producción nuevas (Clerk/MP/Cloudinary/`SECRET_KEY`) nazcan
+nuevas en vez de reusar las de dev (bloque I).
+
+**Actualización 2026-07-16 (sesión de rediseño de paneles + cierre de gaps de producto)**: en
+paralelo a este plan de deploy se hizo una segunda ronda grande de trabajo, ya terminada y
+verificada localmente (`tsc`, `eslint`, `next build`, `pytest`, todos limpios):
+- Rediseño completo de los tres paneles: Inicio en cada uno, módulo de Búsquedas maestro-detalle
+  (admin y empresa), asistentes paso a paso para publicar una búsqueda y para completar el perfil
+  del candidato, modales de perfil centrados y más anchos, sección de Notificaciones con
+  historial completo, recordatorio semanal automático de perfil incompleto (vía el
+  `AsyncIOScheduler` que ya corría para `expire_jobs`). Detalle funcional en
+  `FASE1.5-NOVEDADES-EUGENIA.md`.
+- Dos gaps de producto cerrados: carga de foto de perfil del candidato (`POST
+  /me/candidate/photo`, mismo patrón que el logo de empresa) y el primer test suite del backend
+  (`backend/tests/`, 26 tests de lógica pura — ver detalle en el bloque P más abajo).
+
+**Nada de esto está pusheado todavía** — es el primer paso real antes de retomar el resto de este
+plan, ver bloque **0** justo abajo.
+
+---
+
+## 0. 🔴 Pushear el trabajo pendiente — lo primero, antes de tocar cualquier bloque de abajo
+
+Railway y Vercel deployan directo desde la rama `main` de GitHub (webhook ya conectado, bloques
+D1/E1). Si el código no está pusheado, ningún redeploy tiene nada nuevo para desplegar — hoy todo
+lo hecho **después** del primer deploy (bloques D/E, ejecutados más temprano el 2026-07-16) sigue
+sólo en el disco local: el rediseño completo de los tres paneles, la foto de perfil del
+candidato, y el test suite del backend (ver el resumen de arriba).
+
+Nada de esto agrega migraciones nuevas de Alembic — los campos que usa (`photo_url`,
+`location_zone_id`, `accepts_remote/hybrid/onsite`, etc.) ya existían en la base. Pushear y
+redeployar no debería necesitar ningún paso extra de base de datos.
+
+- [ ] Último `git status`/`git diff` antes de pushear — confirmar que no se coló ninguna
+  credencial en un archivo versionado (se viene revisando a lo largo de toda la sesión, pero es
+  el último filtro real).
+- [ ] `git push` a `main`.
+- [ ] Confirmar en el dashboard de Railway y de Vercel que el redeploy automático arrancó y
+  terminó en verde (no asumir — el hallazgo del bloque E sobre `.gitignore` mostró que "compila
+  en local" no es garantía de nada una vez que Vercel clona el repo real).
+- [ ] Repetir los primeros ítems del smoke test (bloque N) contra lo ya desplegado en Railway/
+  Vercel — no hace falta esperar a Clerk/MP producción para confirmar que este redeploy en
+  particular no rompió nada.
 
 ---
 
@@ -445,7 +486,14 @@ sigue atado a este plan de deploy:
 - [ ] 🔒 **[Seguridad, pendiente]** MFA para admins — ver bloque G paso 8.
 - [x] 🔒 ✅ **[Seguridad, resuelto 2026-07-16]** Rol de DB de mínimo privilegio — ver bloque D
   paso 9. Falta sólo reflejarlo en las env vars del servicio de Railway (no código).
-- [ ] 🔒 **[Seguridad, pendiente]** Rotación de secretos — ver bloque I.
+- [x] 🔒 ✅ **[Seguridad, mecanismo resuelto 2026-07-16]** Rotación de la password de la base —
+  `backend/scripts/create_app_user_role.py` ya es idempotente: cada vez que se corre, le genera
+  una password nueva a `app_user` y reescribe el `.env`. No hacía falta un script nuevo, ya
+  estaba resuelto sin querer al armarlo para el bloque D paso 9. Sigue pendiente **correrlo**
+  contra la base de producción si en algún momento hay sospecha de exposición — eso es un paso
+  operativo, no de código. El resto de credenciales (Clerk/MP/Cloudinary/`SECRET_KEY`) no tienen
+  "rotación" automatizable — la regla ahí es simplemente que nazcan nuevas al crear las cuentas
+  de producción (bloque I), no reusar las de dev.
 - [ ] 🟡 Backups de Postgres (ver nota del bloque D) — depende del plan de Railway elegido, sin
   código de por medio.
 - [x] ✅ **`ADMIN_PASSWORD` sin default inseguro — resuelto 2026-07-16**: `seed.py` ya no cae en
@@ -549,9 +597,15 @@ no un olvido:
 1. Sin RLS real a nivel Postgres (bloque K / `SEGURIDAD-PLAN.md` bloque F) — autorización sólo a
    nivel aplicación, decisión consciente hasta que existan rol de mínimo privilegio + staging.
 2. ~~Sin CI/CD~~ — resuelto (bloque M, 2026-07-16).
-3. Sin tests automatizados (`backend/tests/` vacío, `pytest` ni siquiera es dependencia) — todo
-   verificado manualmente contra la base real, como viene siendo la práctica en las últimas
-   sesiones.
+3. ~~Sin tests automatizados~~ — parcialmente resuelto 2026-07-16: `backend/tests/` tiene 26 tests
+   (`pip install ".[dev]"` + `pytest`) sobre la lógica de negocio más frágil — la máquina de
+   estados de una búsqueda (con un test de regresión explícito del bug real de comparar
+   `str(Enum)`), el cálculo de "% de perfil completo", el throttle del recordatorio semanal, y
+   las estadísticas de postulantes. Corren en menos de un segundo, sin necesitar base de datos.
+   Todavía **no hay tests de endpoints contra una base real** — necesitaría una base de test
+   separada en el mismo proyecto de Railway (`CREATE DATABASE bbjobs_test`), documentado como
+   paso a paso en `backend/tests/README.md`, no hecho todavía a propósito (implica correr DDL
+   contra la instancia real, mejor confirmarlo antes que hacerlo por decisión unilateral).
 4. Un solo desarrollador — sin plan de on-call ni backup humano si Gael no puede responder ante un
    incidente. Mitigación mínima: documentar un runbook básico (rollback de deploy en Railway/
    Vercel, rollback de migración con `alembic downgrade -1`, cómo revocar `MP_ACCESS_TOKEN`).
@@ -560,11 +614,14 @@ no un olvido:
 
 ## Orden de ejecución sugerido
 
+**0 (pushear el trabajo pendiente — literalmente lo primero, hoy es el único bloqueante real)** →
 A (dominio, ✅ hecho) → C (fixes de código C1-C4, en paralelo, no dependen de nada) →
 ✅ ~~C5, J, K (parcial), M~~ (código puro, resuelto 2026-07-16, incluye la sesión de seguridad de
-`SEGURIDAD-PLAN.md` bloques A/B/C) → B (crear cuentas) → D (Railway, incluye 🔒 rol de DB mínimo
-privilegio) → E (Vercel) → F (DNS) → G (Clerk producción, incluye 🔒 MFA admins) → H (Mercado
-Pago: sandbox primero, producción después de N) → I (confirmar env vars reapuntadas + 🔒
-rotación de secretos) → resto de J + K + L (monitoreo — puede ir en paralelo una vez que el sitio
-esté arriba) → N (smoke test completo, sumar verificación de que la CSP no rompió nada en
-producción) → recién ahí, anunciar el lanzamiento a Eugenia.
+`SEGURIDAD-PLAN.md` bloques A/B/C) → B (crear cuentas externas que falten: Clerk producción, MP,
+Sentry — Railway/Vercel/Cloudinary ya están) → D (Railway, incluye 🔒 rol de DB mínimo
+privilegio, ✅ ya resuelto) → E (Vercel) → F (DNS) → G (Clerk producción, incluye 🔒 MFA admins)
+→ H (Mercado Pago: sandbox primero, producción después de N) → I (confirmar env vars reapuntadas
+— credenciales nuevas para prod, no las de dev) → resto de J + L (monitoreo: Sentry — sólo falta
+crear la cuenta y cargar el DSN, el código ya está listo) → N (smoke test completo, sumar
+verificación de que la CSP no rompió nada en producción) → recién ahí, anunciar el lanzamiento a
+Eugenia.
