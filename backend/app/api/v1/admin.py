@@ -272,7 +272,7 @@ async def suspend_company(
     if not company:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
-    if str(company.verification_status) == str(VerificationStatus.suspended):
+    if company.verification_status == VerificationStatus.suspended:
         raise HTTPException(status_code=400, detail="La empresa ya está suspendida")
 
     company.verification_status = VerificationStatus.suspended
@@ -322,7 +322,7 @@ async def reactivate_company(
     if not company:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
-    if str(company.verification_status) != str(VerificationStatus.suspended):
+    if company.verification_status != VerificationStatus.suspended:
         raise HTTPException(status_code=400, detail="La empresa no está suspendida")
 
     company.verification_status = VerificationStatus.verified
@@ -362,7 +362,7 @@ async def takedown_job(
     if not job:
         raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
 
-    if str(job.status) == str(JobPostingStatus.closed):
+    if job.status == JobPostingStatus.closed:
         raise HTTPException(status_code=400, detail="La búsqueda ya está cerrada")
 
     job.status = JobPostingStatus.closed
@@ -636,7 +636,7 @@ async def moderate_job(
     if not job:
         raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
 
-    if str(job.moderation_status) != str(JobModerationStatus.pending_review):
+    if job.moderation_status != JobModerationStatus.pending_review:
         raise HTTPException(status_code=400, detail="La búsqueda ya fue revisada")
 
     if payload.action == "approve":
@@ -732,7 +732,7 @@ async def update_skill_status(
         if suggester:
             link = (
                 "/dashboard/candidate/perfil"
-                if str(suggester.role) == str(UserRole.candidate)
+                if suggester.role == UserRole.candidate
                 else "/dashboard/company/perfil"
             )
             await create_notification(

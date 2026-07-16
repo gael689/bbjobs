@@ -107,7 +107,7 @@ async def update_job_posting(
         new_status = payload.status
 
         # closed/expired son terminales
-        if str(current_status) in (str(JobPostingStatus.closed), str(JobPostingStatus.expired)):
+        if current_status in (JobPostingStatus.closed, JobPostingStatus.expired):
             raise HTTPException(status_code=400, detail="Job posting is closed or expired and cannot be changed")
 
         allowed_transitions = {
@@ -118,7 +118,7 @@ async def update_job_posting(
 
         current_key = None
         for k in allowed_transitions:
-            if str(current_status) == str(k):
+            if current_status == k:
                 current_key = k
                 break
 
@@ -129,7 +129,7 @@ async def update_job_posting(
             )
 
         job.status = new_status
-        if str(new_status) == str(JobPostingStatus.closed):
+        if new_status == JobPostingStatus.closed:
             job.closed_at = datetime.datetime.now(datetime.timezone.utc)
             if job.is_featured:
                 await end_active_feature_for_job(db, job)

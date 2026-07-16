@@ -31,11 +31,11 @@ async def get_me(
         return MeResponse(onboarding_complete=False)
 
     is_verified = None
-    if str(user.role) == str(UserRole.company):
+    if user.role == UserRole.company:
         company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.user_id == user.id))
         company = company_result.scalar_one_or_none()
         if company:
-            is_verified = str(company.verification_status) == str(VerificationStatus.verified)
+            is_verified = company.verification_status == VerificationStatus.verified
 
     return MeResponse(
         onboarding_complete=True,

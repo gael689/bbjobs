@@ -35,7 +35,7 @@ async def feature_job(
 
     # Se puede pagar con la búsqueda todavía pendiente de aprobación (gana prioridad de
     # revisión) o ya aprobada — sólo se bloquea si la búsqueda ya terminó su ciclo de vida.
-    if str(job.status) in (str(JobPostingStatus.closed), str(JobPostingStatus.expired)):
+    if job.status in (JobPostingStatus.closed, JobPostingStatus.expired):
         raise HTTPException(status_code=400, detail="No se puede destacar una búsqueda cerrada o vencida")
 
     result_existing = await db.execute(

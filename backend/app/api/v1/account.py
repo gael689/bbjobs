@@ -30,7 +30,7 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ):
     # Admins cannot self-delete via this endpoint
-    if str(current_user.role) == str(UserRole.admin):
+    if current_user.role == UserRole.admin:
         raise HTTPException(status_code=403, detail="Los administradores no pueden eliminar su cuenta por este medio")
 
     # Ya no tenemos contraseña propia para re-autenticar (Clerk es dueño de las
@@ -40,9 +40,9 @@ async def delete_account(
 
     clerk_user_id = current_user.clerk_user_id
 
-    if str(current_user.role) == str(UserRole.candidate):
+    if current_user.role == UserRole.candidate:
         await _delete_candidate(current_user, db)
-    elif str(current_user.role) == str(UserRole.company):
+    elif current_user.role == UserRole.company:
         await _anonymize_company(current_user, db)
 
     await db.commit()
