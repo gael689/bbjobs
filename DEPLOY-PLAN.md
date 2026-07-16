@@ -233,6 +233,19 @@ el plan elegido):
 
 ## E. Frontend → Vercel, paso a paso
 
+**Bug real encontrado en el primer intento de deploy (2026-07-16), ya resuelto**:
+`.gitignore` tenía una regla `lib/` sin scope (pensada para carpetas de virtualenv de Python,
+junto a `lib64/` — plantilla genérica de Python) que bloqueaba **cualquier** carpeta `lib` del
+repo, incluida `frontend/src/lib/` — donde vive `api.ts` (el cliente axios que importa
+prácticamente toda página), `clerk-appearance.ts` y `jobApply.ts`. Esos tres archivos **nunca
+habían estado en git**, sólo existían en el disco local — por eso todo funcionó siempre en local
+y en el build local de esta sesión, y recién se rompió con ~30 errores `Module not found` en el
+primer build limpio desde GitHub (Vercel clona el repo real, no tu working tree). Se corrigió el
+scope a `backend/lib/`/`backend/lib64/` (su intención real) y se agregaron los tres archivos.
+**Lección para el resto del deploy**: un build local o un `git status` limpio no garantizan que
+todo lo necesario esté realmente en git — vale la pena, después de este hallazgo, no asumir que
+"si build local funciona, el deploy va a funcionar".
+
 1. Crear proyecto en Vercel (plan **Pro**, ver nota del bloque B), conectar el repo, root
    directory = `frontend/`. Vercel detecta Next.js automáticamente (build = `next build`).
 2. Cargar env vars — `NEXT_PUBLIC_API_URL` apuntando al backend de Railway (dominio que Railway
