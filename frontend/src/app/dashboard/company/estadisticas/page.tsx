@@ -76,7 +76,7 @@ export default function CompanyEstadisticasPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 py-8 max-w-4xl">
+    <div className="px-4 sm:px-6 py-8 max-w-6xl">
       {toastMsg && (
         <div className="fixed top-6 right-6 z-50 bg-white border border-[#9ED4DF] shadow-lg rounded-xl px-5 py-3 text-sm font-medium text-[#1C2230]">
           {toastMsg}
@@ -164,21 +164,63 @@ export default function CompanyEstadisticasPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
-            <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
-            {allApps.length === 0 ? (
-              <p className="text-sm text-[#64748B]">Todavía no recibiste postulaciones.</p>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(statusBreakdown).map(([status, count]) => {
-                  const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
-                  return (
-                    <div key={status} className="flex items-center justify-between">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${meta.cls}`}>{meta.label}</span>
-                      <span className="text-sm font-bold text-[#1C2230]">{count}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
+              <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
+              {allApps.length === 0 ? (
+                <p className="text-sm text-[#64748B]">Todavía no recibiste postulaciones.</p>
+              ) : (
+                <div className="space-y-2">
+                  {Object.entries(statusBreakdown).map(([status, count]) => {
+                    const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
+                    return (
+                      <div key={status} className="flex items-center justify-between">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${meta.cls}`}>{meta.label}</span>
+                        <span className="text-sm font-bold text-[#1C2230]">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {applicantStats && applicantStats.total > 0 && (
+              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
+                <h3 className="text-sm font-bold text-[#1C2230] mb-4">Perfil de postulantes (todas las búsquedas)</h3>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
+                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">
+                      {applicantStats.avg_age != null ? applicantStats.avg_age : "—"}
+                    </p>
+                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Edad prom.</p>
+                  </div>
+                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
+                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">
+                      {applicantStats.avg_experience_years != null ? `${applicantStats.avg_experience_years}a` : "—"}
+                    </p>
+                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Experiencia</p>
+                  </div>
+                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
+                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">{applicantStats.immediate_availability_count}</p>
+                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Disp. inmediata</p>
+                  </div>
+                </div>
+                {Object.keys(applicantStats.education_distribution).length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2">Título alcanzado</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(applicantStats.education_distribution).map(([level, count]) => (
+                        <div key={level} className="flex items-center gap-2">
+                          <span className="text-xs text-[#1C2230] w-24 shrink-0">{EDUCATION_LEVEL_LABEL[level] || level}</span>
+                          <div className="flex-1 h-2 bg-[#EEF2F7] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#1E8EA3] rounded-full" style={{ width: `${(count / applicantStats.total) * 100}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-[#1C2230] w-6 text-right">{count}</span>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -225,48 +267,6 @@ export default function CompanyEstadisticasPage() {
               </div>
             )}
           </div>
-
-          {applicantStats && applicantStats.total > 0 && (
-            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
-              <h3 className="text-sm font-bold text-[#1C2230] mb-4">
-                Perfil de postulantes (todas las búsquedas)
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-                <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 text-center">
-                  <p className="text-xl font-display font-extrabold text-[#1E8EA3]">
-                    {applicantStats.avg_age != null ? applicantStats.avg_age : "—"}
-                  </p>
-                  <p className="text-xs text-[#64748B] font-medium mt-0.5">Edad promedio</p>
-                </div>
-                <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 text-center">
-                  <p className="text-xl font-display font-extrabold text-[#1E8EA3]">
-                    {applicantStats.avg_experience_years != null ? `${applicantStats.avg_experience_years}a` : "—"}
-                  </p>
-                  <p className="text-xs text-[#64748B] font-medium mt-0.5">Experiencia promedio</p>
-                </div>
-                <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 text-center">
-                  <p className="text-xl font-display font-extrabold text-[#1E8EA3]">{applicantStats.immediate_availability_count}</p>
-                  <p className="text-xs text-[#64748B] font-medium mt-0.5">Con disp. inmediata</p>
-                </div>
-              </div>
-              {Object.keys(applicantStats.education_distribution).length > 0 && (
-                <div>
-                  <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2">Título alcanzado</p>
-                  <div className="space-y-1.5">
-                    {Object.entries(applicantStats.education_distribution).map(([level, count]) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <span className="text-xs text-[#1C2230] w-24 shrink-0">{EDUCATION_LEVEL_LABEL[level] || level}</span>
-                        <div className="flex-1 h-2 bg-[#EEF2F7] rounded-full overflow-hidden">
-                          <div className="h-full bg-[#1E8EA3] rounded-full" style={{ width: `${(count / applicantStats.total) * 100}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-[#1C2230] w-6 text-right">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>

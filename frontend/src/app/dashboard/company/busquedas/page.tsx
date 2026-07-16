@@ -2,20 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import Link from "next/link";
 import {
-  CheckCircleIcon, XCircleIcon, BoltIcon, PencilIcon, TrashIcon,
-  UserCircleIcon, XMarkIcon,
+  CheckCircleIcon, XCircleIcon, BoltIcon, PencilIcon, PauseIcon, PlayIcon,
+  UserCircleIcon, XMarkIcon, ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
 import {
-  MODERATION_CLS, MODERATION_LABEL, MODALITY_LABEL,
-  CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
-  type Job, type AdminApplication,
+  JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
+  type Application, type JobPosting,
 } from "../types";
 
-type FilterTab = "all" | "pending_review" | "approved" | "rejected";
+type FilterTab = "all" | "active" | "paused" | "closed";
 
 interface EditForm {
   title: string;
@@ -25,42 +25,36 @@ interface EditForm {
   duration_days: number;
 }
 
-export default function AdminBusquedasPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
+export default function CompanyBusquedasPage() {
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  const [rejectModal, setRejectModal] = useState<string | null>(null);
-  const [rejectNotes, setRejectNotes] = useState("");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [featureModal, setFeatureModal] = useState<JobPosting | null>(null);
+  const [featuring, setFeaturing] = useState(false);
 
-  const [applicantsByJob, setApplicantsByJob] = useState<Record<string, AdminApplication[]>>({});
+  const [applicantsByJob, setApplicantsByJob] = useState<Record<string, Application[]>>({});
+  const applicantsLoading = !!selectedId && !applicantsByJob[selectedId];
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
-  // Sin flag de loading aparte — "está cargando" se deriva de que selectedId todavía no tiene
-  // entrada en el cache (evita un setState síncrono dentro del efecto de abajo).
-  const applicantsLoading = !!selectedId && !applicantsByJob[selectedId];
 
   const toast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 3500);
   }, []);
 
-  // `loading` arranca en `true` (useState arriba) y sólo se apaga async en el .finally — nunca
-  // se vuelve a prender sincrónicamente, así que fetchJobs es seguro de llamar directo desde
-  // un efecto sin disparar el lint de set-state-in-effect.
   const fetchJobs = useCallback((keepSelection = true) => {
-    api.get("/admin/jobs").then(r => {
-      const data: Job[] = r.data;
+    api.get("/me/company/jobs").then(r => {
+      const data: JobPosting[] = r.data;
       setJobs(data);
       if (!keepSelection || !data.some(j => j.id === selectedId)) {
-        const firstPending = data.find(j => j.moderation_status === "pending_review");
-        setSelectedId((firstPending ?? data[0])?.id ?? null);
+        setSelectedId(data[0]?.id ?? null);
       }
-    }).catch(() => toast("Error al cargar búsquedas", "error"))
+    }).catch(() => toast("Error al cargar tus búsquedas", "error"))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
@@ -75,11 +69,9 @@ export default function AdminBusquedasPage() {
     setEditing(false);
   }, []);
 
-  // Única fuente de fetch de postulantes — dispara al cambiar de búsqueda seleccionada
-  // (por click en la lista o por la auto-selección de fetchJobs), cacheado por id.
   useEffect(() => {
     if (selectedId && !applicantsByJob[selectedId]) {
-      api.get(`/admin/jobs/${selectedId}/applications`)
+      api.get(`/me/company/jobs/${selectedId}/applications`)
         .then(r => setApplicantsByJob(prev => ({ ...prev, [selectedId]: r.data })))
         .catch(() => setApplicantsByJob(prev => ({ ...prev, [selectedId]: [] })));
     }
@@ -88,68 +80,32 @@ export default function AdminBusquedasPage() {
 
   const filteredJobs = useMemo(() => {
     if (filterTab === "all") return jobs;
-    return jobs.filter(j => j.moderation_status === filterTab);
+    return jobs.filter(j => j.status === filterTab);
   }, [jobs, filterTab]);
 
   const selectedJob = jobs.find(j => j.id === selectedId) ?? null;
   const applicants = selectedId ? applicantsByJob[selectedId] ?? [] : [];
 
-  const pendingCount = jobs.filter(j => j.moderation_status === "pending_review").length;
-
-  async function handleModerate(jobId: string, action: "approve" | "reject") {
-    if (action === "reject") {
-      setRejectModal(jobId);
-      return;
-    }
-    setActionLoading(jobId + "approve");
+  async function handleStatusChange(jobId: string, status: string) {
+    setActionLoading(jobId + status);
     try {
-      await api.patch(`/admin/jobs/${jobId}/moderate`, { action: "approve", notes: null });
-      toast("Búsqueda aprobada y publicada");
+      await api.patch(`/me/company/jobs/${jobId}`, { status });
+      toast(status === "paused" ? "Búsqueda pausada" : status === "active" ? "Búsqueda reactivada" : "Búsqueda cerrada");
       fetchJobs();
     } catch {
-      toast("Error al aprobar", "error");
+      toast("Error al actualizar el estado", "error");
     } finally {
       setActionLoading(null);
     }
   }
 
-  async function handleRejectConfirm() {
-    if (!rejectModal) return;
-    setActionLoading(rejectModal + "reject");
-    try {
-      await api.patch(`/admin/jobs/${rejectModal}/moderate`, { action: "reject", notes: rejectNotes || null });
-      toast("Búsqueda rechazada");
-      fetchJobs();
-    } catch {
-      toast("Error al rechazar", "error");
-    } finally {
-      setActionLoading(null);
-      setRejectModal(null);
-      setRejectNotes("");
-    }
-  }
-
-  async function handleTakedown(jobId: string) {
-    if (!confirm("¿Dar de baja esta búsqueda por incumplimiento?")) return;
-    setActionLoading(jobId + "takedown");
-    try {
-      await api.patch(`/admin/jobs/${jobId}/takedown`);
-      toast("Búsqueda dada de baja");
-      fetchJobs();
-    } catch {
-      toast("Error al dar de baja", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  function startEdit(job: Job) {
+  function startEdit(job: JobPosting) {
     setEditForm({
       title: job.title,
       description: job.description,
       requirements: job.requirements,
       modality: job.modality,
-      duration_days: job.duration_days,
+      duration_days: job.duration_days ?? 20,
     });
     setEditing(true);
   }
@@ -158,7 +114,7 @@ export default function AdminBusquedasPage() {
     if (!selectedId || !editForm) return;
     setActionLoading(selectedId + "edit");
     try {
-      await api.patch(`/admin/jobs/${selectedId}`, editForm);
+      await api.patch(`/me/company/jobs/${selectedId}`, editForm);
       toast("Búsqueda actualizada");
       setEditing(false);
       fetchJobs();
@@ -173,7 +129,7 @@ export default function AdminBusquedasPage() {
     setLoadingViewProfile(true);
     setViewProfile(null);
     try {
-      const r = await api.get(`/admin/candidates/${candidateId}`);
+      const r = await api.get(`/me/company/candidates/${candidateId}`);
       setViewProfile(r.data);
     } catch {
       toast("Error al cargar el perfil del candidato", "error");
@@ -182,25 +138,24 @@ export default function AdminBusquedasPage() {
     }
   }
 
-  async function handleDelete(jobId: string) {
-    if (!confirm("¿Eliminar esta búsqueda? No se puede deshacer — desaparece del portal, de tu panel y del de la empresa.")) return;
-    setActionLoading(jobId + "delete");
+  async function confirmFeature() {
+    if (!featureModal) return;
+    setFeaturing(true);
     try {
-      await api.delete(`/admin/jobs/${jobId}`);
-      toast("Búsqueda eliminada");
-      fetchJobs(false);
+      const r = await api.post(`/me/company/jobs/${featureModal.id}/feature`);
+      window.location.href = r.data.init_point;
     } catch {
-      toast("Error al eliminar", "error");
-    } finally {
-      setActionLoading(null);
+      toast("Error al iniciar el pago del destacado", "error");
+      setFeaturing(false);
+      setFeatureModal(null);
     }
   }
 
   const TABS: { key: FilterTab; label: string }[] = [
     { key: "all", label: "Todas" },
-    { key: "pending_review", label: "Por revisar" },
-    { key: "approved", label: "Aprobadas" },
-    { key: "rejected", label: "Rechazadas" },
+    { key: "active", label: "Activas" },
+    { key: "paused", label: "Pausadas" },
+    { key: "closed", label: "Cerradas" },
   ];
 
   return (
@@ -216,26 +171,26 @@ export default function AdminBusquedasPage() {
         </div>
       )}
 
-      {rejectModal && (
+      {featureModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="font-display font-bold text-[#1C2230] mb-3">Rechazar búsqueda</h2>
-            <p className="text-sm text-[#64748B] mb-4">Indicá el motivo del rechazo (opcional, se enviará a la empresa).</p>
-            <textarea
-              value={rejectNotes}
-              onChange={e => setRejectNotes(e.target.value)}
-              rows={3}
-              placeholder="Motivo del rechazo..."
-              className="w-full border border-[#DDE3EC] rounded-xl px-4 py-3 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] resize-none mb-4"
-            />
+            <div className="flex items-center gap-2 mb-3">
+              <BoltIcon className="w-5 h-5 text-[#D4B7A2]" />
+              <h2 className="font-display font-bold text-[#1C2230]">Destacar búsqueda</h2>
+            </div>
+            <p className="text-sm text-[#64748B] mb-4">
+              Vas a destacar <span className="font-bold text-[#1C2230]">&quot;{featureModal.title}&quot;</span> por{" "}
+              <span className="font-bold text-[#1C2230]">${FEATURED_JOB_PRICE.toLocaleString("es-AR")} ARS</span>.
+              Vas a ser redirigido a Mercado Pago para completar el pago.
+            </p>
             <div className="flex gap-3">
-              <button onClick={() => { setRejectModal(null); setRejectNotes(""); }}
-                className="flex-1 border border-[#DDE3EC] text-[#64748B] font-bold rounded-xl py-2.5 text-sm hover:bg-[#FAFBFD]">
+              <button onClick={() => setFeatureModal(null)} disabled={featuring}
+                className="flex-1 border border-[#DDE3EC] text-[#64748B] font-bold rounded-xl py-2.5 text-sm hover:bg-[#FAFBFD] disabled:opacity-60">
                 Cancelar
               </button>
-              <button onClick={handleRejectConfirm} disabled={!!actionLoading}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl py-2.5 text-sm disabled:opacity-60">
-                Confirmar rechazo
+              <button onClick={confirmFeature} disabled={featuring}
+                className="flex-1 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl py-2.5 text-sm disabled:opacity-60">
+                {featuring ? "Redirigiendo..." : "Ir a pagar"}
               </button>
             </div>
           </div>
@@ -243,12 +198,15 @@ export default function AdminBusquedasPage() {
       )}
 
       <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
-        <h1 className="text-2xl font-display font-bold text-[#1C2230]">Búsquedas y postulantes</h1>
+        <h1 className="text-2xl font-display font-bold text-[#1C2230]">Búsquedas</h1>
+        <Link
+          href="/dashboard/company/publicar"
+          className="inline-flex items-center gap-1.5 text-sm font-bold bg-[#1E8EA3] hover:bg-[#187B8E] text-white px-4 py-2 rounded-xl transition-colors"
+        >
+          Publicar nueva <ArrowRightIcon className="w-4 h-4" />
+        </Link>
       </div>
-      <p className="text-[#64748B] text-sm mb-6">
-        {jobs.length} búsqueda{jobs.length !== 1 ? "s" : ""}
-        {pendingCount > 0 && <> · <span className="text-amber-600 font-semibold">{pendingCount} por revisar</span></>}
-      </p>
+      <p className="text-[#64748B] text-sm mb-6">Gestioná el estado, la edición y el destacado de tus búsquedas.</p>
 
       <div className="flex gap-2 mb-4">
         {TABS.map(t => (
@@ -269,8 +227,11 @@ export default function AdminBusquedasPage() {
           <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : jobs.length === 0 ? (
-        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-12 text-center text-[#64748B]">
-          Sin búsquedas publicadas.
+        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-12 text-center">
+          <p className="text-[#64748B] font-medium mb-4">Todavía no publicaste ninguna búsqueda.</p>
+          <Link href="/dashboard/company/publicar" className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1E8EA3] hover:underline">
+            Publicar tu primera búsqueda <ArrowRightIcon className="w-4 h-4" />
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
@@ -288,11 +249,13 @@ export default function AdminBusquedasPage() {
                   }`}
                 >
                   <p className="font-bold text-[13.5px] text-[#1C2230] truncate">{job.title}</p>
-                  <p className="text-xs text-[#64748B] truncate mt-0.5">{job.company_legal_name_snapshot}</p>
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${MODERATION_CLS[job.moderation_status]}`}>
-                      {MODERATION_LABEL[job.moderation_status]}
-                    </span>
+                    <ExpiryBadge expiresAt={job.expires_at} status={job.status} />
+                    {job.moderation_status && job.moderation_status !== "approved" && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${JOB_MODERATION_CLS[job.moderation_status]}`}>
+                        {JOB_MODERATION_LABEL[job.moderation_status]}
+                      </span>
+                    )}
                     {job.is_featured && (
                       <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-[#F7EFE9] text-[#B98F72] px-2 py-0.5 rounded-full">
                         <BoltIcon className="w-3 h-3" />Destacada
@@ -350,7 +313,7 @@ export default function AdminBusquedasPage() {
                     <select
                       value={editForm.modality}
                       onChange={e => setEditForm({ ...editForm, modality: e.target.value })}
-                      className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3]"
+                      className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] bg-white"
                     >
                       <option value="presencial">Presencial</option>
                       <option value="remoto">Remoto</option>
@@ -384,18 +347,19 @@ export default function AdminBusquedasPage() {
                   <div className="min-w-0">
                     <h2 className="font-display font-bold text-lg text-[#1C2230]">{selectedJob.title}</h2>
                     <p className="text-sm text-[#64748B] mt-0.5">
-                      {selectedJob.company_legal_name_snapshot}
-                      {selectedJob.published_at && ` · Publicada ${new Date(selectedJob.published_at).toLocaleDateString("es-AR")}`}
-                      {` · ${MODALITY_LABEL[selectedJob.modality] || selectedJob.modality}`}
+                      {selectedJob.published_at && `Publicada ${new Date(selectedJob.published_at).toLocaleDateString("es-AR")}`}
                     </p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${MODERATION_CLS[selectedJob.moderation_status]}`}>
-                        {MODERATION_LABEL[selectedJob.moderation_status]}
-                      </span>
                       <ExpiryBadge expiresAt={selectedJob.expires_at} status={selectedJob.status} />
+                      {selectedJob.moderation_status && selectedJob.moderation_status !== "approved" && (
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${JOB_MODERATION_CLS[selectedJob.moderation_status]}`}>
+                          {JOB_MODERATION_LABEL[selectedJob.moderation_status]}
+                        </span>
+                      )}
                       {selectedJob.is_featured && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#B98F72] px-2.5 py-0.5 rounded-full border border-[#D4B7A2]/50">
                           <BoltIcon className="w-3.5 h-3.5" />Destacada
+                          {selectedJob.featured_until && ` · hasta ${new Date(selectedJob.featured_until).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}`}
                         </span>
                       )}
                     </div>
@@ -405,34 +369,41 @@ export default function AdminBusquedasPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap shrink-0">
-                    {selectedJob.moderation_status === "pending_review" && (
-                      <>
-                        <button
-                          onClick={() => handleModerate(selectedJob.id, "reject")}
-                          disabled={!!actionLoading}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
-                        >
-                          <XCircleIcon className="w-3.5 h-3.5" />Rechazar
-                        </button>
-                        <button
-                          onClick={() => handleModerate(selectedJob.id, "approve")}
-                          disabled={!!actionLoading}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#1E8EA3] hover:bg-[#187B8E] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
-                        >
-                          {actionLoading === selectedJob.id + "approve" ? (
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : <CheckCircleIcon className="w-3.5 h-3.5" />}
-                          Aprobar
-                        </button>
-                      </>
-                    )}
-                    {selectedJob.status !== "closed" && selectedJob.status !== "expired" && (
+                    {selectedJob.status === "active" && (
                       <button
-                        onClick={() => handleTakedown(selectedJob.id)}
-                        disabled={actionLoading === selectedJob.id + "takedown"}
-                        className="text-xs font-bold bg-[#64748B] hover:bg-[#54606F] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                        onClick={() => handleStatusChange(selectedJob.id, "paused")}
+                        disabled={!!actionLoading}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#64748B] hover:bg-[#54606F] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
                       >
-                        {actionLoading === selectedJob.id + "takedown" ? "..." : "Dar de baja"}
+                        <PauseIcon className="w-3.5 h-3.5" />Pausar
+                      </button>
+                    )}
+                    {selectedJob.status === "paused" && (
+                      <button
+                        onClick={() => handleStatusChange(selectedJob.id, "active")}
+                        disabled={!!actionLoading}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#1E8EA3] hover:bg-[#187B8E] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        <PlayIcon className="w-3.5 h-3.5" />Reactivar
+                      </button>
+                    )}
+                    {(selectedJob.status === "active" || selectedJob.status === "paused") && (
+                      <button
+                        onClick={() => {
+                          if (confirm("¿Cerrar esta búsqueda? No vas a poder reabrirla.")) handleStatusChange(selectedJob.id, "closed");
+                        }}
+                        disabled={!!actionLoading}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        Cerrar
+                      </button>
+                    )}
+                    {!selectedJob.is_featured && selectedJob.status !== "closed" && selectedJob.status !== "expired" && (
+                      <button
+                        onClick={() => setFeatureModal(selectedJob)}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#D4B7A2] hover:bg-[#c7a58d] text-[#3D2B1F] px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <BoltIcon className="w-3.5 h-3.5" />Destacar
                       </button>
                     )}
                     <button
@@ -440,13 +411,6 @@ export default function AdminBusquedasPage() {
                       className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#1C2230] hover:bg-[#111621] text-white px-3 py-1.5 rounded-lg transition-colors"
                     >
                       <PencilIcon className="w-3.5 h-3.5" />Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(selectedJob.id)}
-                      disabled={actionLoading === selectedJob.id + "delete"}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
-                    >
-                      <TrashIcon className="w-3.5 h-3.5" />Eliminar
                     </button>
                   </div>
                 </div>
@@ -486,7 +450,17 @@ export default function AdminBusquedasPage() {
                 </div>
 
                 {/* Postulantes */}
-                <h3 className="font-display font-bold text-sm text-[#1C2230] mb-3">Postulantes</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display font-bold text-sm text-[#1C2230]">Postulantes</h3>
+                  {applicants.length > 0 && (
+                    <Link
+                      href="/dashboard/company/postulaciones"
+                      className="text-xs font-bold text-[#1E8EA3] hover:underline"
+                    >
+                      Ver y filtrar en Postulaciones →
+                    </Link>
+                  )}
+                </div>
                 {applicantsLoading ? (
                   <div className="py-8 flex justify-center">
                     <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
@@ -495,7 +469,7 @@ export default function AdminBusquedasPage() {
                   <p className="text-sm text-[#64748B]">Todavía no hay postulantes.</p>
                 ) : (
                   <div className="divide-y divide-[#DDE3EC]/60">
-                    {applicants.map(app => (
+                    {applicants.slice(0, 6).map(app => (
                       <div key={app.id} className="flex items-center gap-3 py-3">
                         {app.candidate ? (
                           <ProfileCompletionRing percent={app.candidate.completion_percent} size={34} strokeWidth={4} />
@@ -504,12 +478,10 @@ export default function AdminBusquedasPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
-                            {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato eliminado"}
+                            {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
                           </p>
                           <p className="text-[11.5px] text-[#64748B] truncate">
                             {app.candidate?.age && `${app.candidate.age} años · `}
-                            {app.candidate?.gender && `${CANDIDATE_GENDER_LABEL[app.candidate.gender]} · `}
-                            {app.candidate?.availability && `${CANDIDATE_AVAILABILITY_LABEL[app.candidate.availability]} · `}
                             Postuló {new Date(app.created_at).toLocaleDateString("es-AR")}
                           </p>
                         </div>

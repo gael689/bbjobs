@@ -74,6 +74,7 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   // Vencimiento de búsqueda
   job_expiring_soon: WARNING,
   job_expired: MUTED,
+  job_deleted: DESTRUCTIVE,
   // Moderación de búsquedas (positivo/negativo para la empresa)
   job_approved: { ...TEAL, icon: CheckBadgeIcon },
   job_rejected: DESTRUCTIVE,

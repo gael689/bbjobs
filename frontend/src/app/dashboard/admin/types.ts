@@ -133,15 +133,31 @@ export type ModerationStatus = "pending_review" | "approved" | "rejected";
 
 export interface Job {
   id: string;
+  company_id?: string;
   title: string;
+  description: string;
+  requirements: string;
+  modality: string;
   company_legal_name_snapshot: string;
   status: string;
   published_at?: string;
   expires_at?: string;
+  duration_days: number;
   moderation_status: ModerationStatus;
   moderation_notes?: string;
   is_featured?: boolean;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_visible?: boolean;
+  benefits?: string;
 }
+
+export const MODALITY_LABEL: Record<string, string> = {
+  presencial: "Presencial",
+  remoto: "Remoto",
+  "híbrido": "Híbrido",
+};
 
 export const MODERATION_LABEL: Record<ModerationStatus, string> = {
   pending_review: "Por revisar",

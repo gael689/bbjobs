@@ -10,12 +10,18 @@ import type { NotificationItemData } from "@/hooks/useNotifications";
 export default function NotificationBell({
   align = "right",
   openUpward = false,
+  variant = "icon",
 }: {
   /** Desde qué borde cuelga el menú — "left" cuando el botón está pegado al borde
    * izquierdo de la pantalla (sidebar de los paneles), si no se corta. */
   align?: "left" | "right";
   /** Abrir hacia arriba — el botón de los paneles está al pie del sidebar. */
   openUpward?: boolean;
+  /** "prominent" — tarjeta con ícono + texto ("Notificaciones" / "N sin leer"), para el
+   * sidebar de los paneles. "icon" — sólo el ícono con badge, para la topbar mobile. Reusa
+   * el mismo useNotifications() de acá adentro — no lo dupliques externamente, el hook
+   * hace polling por intervalo y llamarlo dos veces dobla los requests. */
+  variant?: "icon" | "prominent";
 }) {
   const router = useRouter();
   const { items, unreadCount, loading, open, toggleOpen, close, markRead, markAllRead } =
@@ -41,18 +47,43 @@ export default function NotificationBell({
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        onClick={toggleOpen}
-        className="relative p-2 text-[#64748B] hover:text-[#1E8EA3] transition-colors"
-        aria-label="Notificaciones"
-      >
-        <BellIcon className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[#1E8EA3] text-white text-[10px] font-bold leading-none animate-pulse">
-            {unreadCount > 9 ? "9+" : unreadCount}
+      {variant === "prominent" ? (
+        <button
+          onClick={toggleOpen}
+          className="w-full flex items-center justify-between gap-3 bg-[#16303A] hover:bg-[#1B3A46] border border-white/[0.06] rounded-[13px] px-3.5 py-3 transition-colors"
+          aria-label="Notificaciones"
+        >
+          <span className="flex items-center gap-2.5">
+            <span className="relative w-[30px] h-[30px] rounded-[9px] bg-[#1E8EA3]/20 flex items-center justify-center shrink-0">
+              <BellIcon className="w-[15px] h-[15px] text-[#7ED2E2]" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 flex items-center justify-center rounded-full bg-[#D4B7A2] text-[#241C15] text-[9.5px] font-extrabold leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </span>
+            <span className="text-left">
+              <span className="block text-[12.5px] font-bold text-[#E8EEF0]">Notificaciones</span>
+              <span className="block text-[10.5px] text-[#7C939B]">
+                {unreadCount > 0 ? `${unreadCount} sin leer` : "Al día"}
+              </span>
+            </span>
           </span>
-        )}
-      </button>
+        </button>
+      ) : (
+        <button
+          onClick={toggleOpen}
+          className="relative p-2 text-[#64748B] hover:text-[#1E8EA3] transition-colors"
+          aria-label="Notificaciones"
+        >
+          <BellIcon className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[#1E8EA3] text-white text-[10px] font-bold leading-none animate-pulse">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div

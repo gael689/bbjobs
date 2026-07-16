@@ -23,13 +23,23 @@ export default function AdminPagosPage() {
       <p className="text-[#64748B] text-sm mb-6">Historial de búsquedas destacadas de todas las empresas.</p>
 
       {history.length > 0 && (
-        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 mb-6 inline-flex items-center gap-3">
-          <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
-            <CreditCardIcon className="w-5 h-5 text-green-600" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-2xl p-5">
+            <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center mb-3">
+              <CreditCardIcon className="w-5 h-5 text-green-700" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">${totalRevenue.toLocaleString("es-AR")}</p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Ingresos totales por destacados (ARS)</p>
           </div>
-          <div>
-            <p className="text-xl font-display font-extrabold text-[#1C2230]">${totalRevenue.toLocaleString("es-AR")} ARS</p>
-            <p className="text-xs text-[#64748B] font-medium">Ingresos totales por destacados</p>
+          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">
+              {history.filter(h => h.feature_status === "active").length}
+            </p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Destacados activos ahora</p>
+          </div>
+          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">{history.length}</p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Compras totales</p>
           </div>
         </div>
       )}
@@ -44,8 +54,11 @@ export default function AdminPagosPage() {
         ) : (
           <div className="divide-y divide-[#DDE3EC]/60">
             {history.map(item => (
-              <div key={item.payment_id} className="px-6 py-4 flex items-center justify-between gap-3 hover:bg-[#FAFBFD] transition-colors">
-                <div className="min-w-0">
+              <div key={item.payment_id} className="px-6 py-4 flex items-center gap-4 hover:bg-[#FAFBFD] transition-colors">
+                <div className="w-9 h-9 rounded-lg bg-[#F7EFE9] text-[#B98F72] flex items-center justify-center shrink-0">
+                  <CreditCardIcon className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="font-bold text-[#1C2230] truncate">{item.job_title}</p>
                   <p className="text-xs text-[#64748B]">
                     {item.company_name} · {new Date(item.purchased_at).toLocaleDateString("es-AR")} · ${item.amount.toLocaleString("es-AR")} {item.currency}

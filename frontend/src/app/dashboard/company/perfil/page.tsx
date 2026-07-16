@@ -120,14 +120,14 @@ export default function CompanyPerfilPage() {
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 py-8 space-y-6 max-w-3xl">
+      <div className="px-4 sm:px-6 py-8 max-w-6xl">
         {!isVerified && (
           <div className={`rounded-2xl border px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
             isPending ? "bg-amber-50 border-amber-200" :
             isRejected ? "bg-red-50 border-red-200" :
             isSuspended ? "bg-red-50 border-red-200" :
             "bg-[#E6F4F7] border-[#9ED4DF]"
-          }`}>
+          } mb-6`}>
             <div className="flex items-center gap-3">
               {isPending ? (
                 <ClockIcon className="w-6 h-6 text-amber-500 shrink-0" />
@@ -165,9 +165,10 @@ export default function CompanyPerfilPage() {
           </div>
         )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
         <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6 space-y-4">
           <h3 className="text-lg font-display font-bold text-[#1C2230]">Datos de la empresa</h3>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <dl className="space-y-4 text-sm">
             <div>
               <dt className="text-[#64748B] font-semibold">Razón social</dt>
               <dd className="text-[#1C2230] mt-0.5">{profile?.legal_name || "—"}</dd>
@@ -236,6 +237,7 @@ export default function CompanyPerfilPage() {
             {savingPublicProfile ? "Guardando..." : "Guardar perfil público"}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );

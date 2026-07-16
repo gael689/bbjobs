@@ -2,12 +2,14 @@
 
 import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import { BriefcaseIcon, PaperAirplaneIcon, UserIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, BriefcaseIcon, PaperAirplaneIcon, UserIcon, BellIcon } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
+  { href: "/dashboard/candidate", label: "Inicio", icon: HomeIcon, exact: true },
+  { href: "/dashboard/candidate/perfil", label: "Mi perfil", icon: UserIcon },
   { href: "/dashboard/candidate/empleos", label: "Explorar empleos", icon: BriefcaseIcon },
   { href: "/dashboard/candidate/postulaciones", label: "Mis postulaciones", icon: PaperAirplaneIcon },
-  { href: "/dashboard/candidate/perfil", label: "Mi perfil", icon: UserIcon },
+  { href: "/dashboard/candidate/notificaciones", label: "Notificaciones", icon: BellIcon },
 ];
 
 export default function CandidateDashboardLayout({ children }: { children: React.ReactNode }) {

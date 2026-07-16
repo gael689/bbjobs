@@ -90,12 +90,32 @@ function CompanyPagosContent() {
     return () => clearTimeout(timer);
   }, [paymentId]);
 
+  const totalSpent = history.filter(h => h.payment_status === "approved").reduce((s, h) => s + h.amount, 0);
+  const activeCount = history.filter(h => h.feature_status === "active").length;
+
   return (
-    <div className="px-4 sm:px-6 py-8 max-w-4xl">
+    <div className="px-4 sm:px-6 py-8 max-w-6xl">
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Pagos</h1>
       <p className="text-[#64748B] text-sm mb-6">Historial de búsquedas destacadas.</p>
 
       {paymentId && jobId && <ReturnBanner jobId={jobId} paymentId={paymentId} />}
+
+      {history.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-2xl p-5">
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">${totalSpent.toLocaleString("es-AR")}</p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Gastado en destacados (ARS)</p>
+          </div>
+          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">{activeCount}</p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Destacados activos ahora</p>
+          </div>
+          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
+            <p className="text-2xl font-display font-extrabold text-[#1C2230]">{history.length}</p>
+            <p className="text-xs text-[#64748B] font-medium mt-0.5">Compras totales</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
         {loading ? (

@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
-  DocumentTextIcon, FunnelIcon, XMarkIcon, UserCircleIcon,
-  BriefcaseIcon, AcademicCapIcon, WrenchScrewdriverIcon, LanguageIcon, ArrowDownTrayIcon,
-  ClockIcon,
+  DocumentTextIcon, FunnelIcon, UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import {
   CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL, EDUCATION_LEVEL_LABEL,
   EMPTY_CANDIDATE_FILTERS,
@@ -87,6 +86,27 @@ export default function AdminCandidatosPage() {
     <div className="px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Candidatos</h1>
       <p className="text-[#64748B] text-sm mb-6">Candidatos registrados en la plataforma.</p>
+
+      {candidates.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+          <div className="bg-white border border-[#DDE3EC] rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-[#1C2230]">{candidates.length}</p>
+            <p className="text-[11px] text-[#64748B]">En esta vista</p>
+          </div>
+          <div className="bg-[#E6F4F7] border border-[#9ED4DF]/50 rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-[#187B8E]">
+              {candidates.filter(c => !!c.cv_file_url).length}
+            </p>
+            <p className="text-[11px] text-[#187B8E]/80">Con CV cargado</p>
+          </div>
+          <div className="bg-[#F7EFE9] border border-[#D4B7A2]/40 rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-[#B98F72]">
+              {Math.round(candidates.reduce((s, c) => s + c.completion_percent, 0) / candidates.length)}%
+            </p>
+            <p className="text-[11px] text-[#B98F72]/90">Perfil completo prom.</p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={applyFilters} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 mb-5">
         <div className="flex items-center gap-2 mb-3">
@@ -229,140 +249,13 @@ export default function AdminCandidatosPage() {
         )}
       </div>
 
-      {(profile || loadingProfile) && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-end p-4" onClick={() => setProfile(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-[#DDE3EC] px-6 py-4 flex items-center justify-between z-10">
-              <h2 className="text-lg font-display font-bold text-[#1C2230]">Perfil del candidato</h2>
-              <button onClick={() => setProfile(null)} className="text-[#64748B] hover:text-[#1C2230] transition-colors">
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            </div>
-
-            {loadingProfile ? (
-              <div className="py-20 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : profile && (
-              <div className="p-6 space-y-6">
-                <div className="flex items-start gap-4">
-                  <ProfileCompletionRing percent={profile.completion_percent} size={56} strokeWidth={5} />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-display font-bold text-[#1C2230]">{profile.first_name} {profile.last_name}</h3>
-                    <p className="text-sm text-[#64748B] mt-0.5">{profile.phone}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {profile.accepts_onsite && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Presencial</span>}
-                      {profile.accepts_remote && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Remoto</span>}
-                      {profile.accepts_hybrid && <span className="text-xs font-medium bg-[#E6F4F7] text-[#1E8EA3] px-2 py-0.5 rounded-full">Híbrido</span>}
-                    </div>
-                  </div>
-                  {profile.cv_file_url && (
-                    <a href={profile.cv_file_url} target="_blank" rel="noreferrer"
-                      className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-3 py-2 rounded-lg transition-colors">
-                      <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                      Descargar CV
-                    </a>
-                  )}
-                </div>
-
-                {profile.summary && (
-                  <div>
-                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Sobre el candidato</p>
-                    <p className="text-sm text-[#1C2230] leading-relaxed bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">{profile.summary}</p>
-                  </div>
-                )}
-
-                {profile.experience.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <BriefcaseIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Experiencia</p>
-                    </div>
-                    <div className="space-y-3">
-                      {profile.experience.map((exp, i) => (
-                        <div key={i} className="border border-[#DDE3EC] rounded-xl p-4">
-                          <p className="font-bold text-sm text-[#1C2230]">{exp.role_title}</p>
-                          <p className="text-sm text-[#1E8EA3] font-medium">{exp.company_name}</p>
-                          {exp.description && <p className="text-xs text-[#64748B] mt-2 leading-relaxed">{exp.description}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {profile.education.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <AcademicCapIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Educación</p>
-                    </div>
-                    <div className="space-y-3">
-                      {profile.education.map((edu, i) => (
-                        <div key={i} className="border border-[#DDE3EC] rounded-xl p-4">
-                          <p className="font-bold text-sm text-[#1C2230]">{edu.degree}</p>
-                          <p className="text-sm text-[#1E8EA3] font-medium">{edu.institution}</p>
-                          <p className="text-xs text-[#64748B] mt-0.5 capitalize">{edu.level}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {profile.skills.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <WrenchScrewdriverIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Habilidades</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.skills.map((sk, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#E6F4F7] text-[#1C2230] border border-[#9ED4DF] px-3 py-1.5 rounded-full">
-                          {sk.skill_name}<span className="text-[#64748B] font-normal">· {sk.level}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {profile.languages.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <LanguageIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Idiomas</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.languages.map((lang, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#FAFBFD] text-[#1C2230] border border-[#DDE3EC] px-3 py-1.5 rounded-full">
-                          {lang.language_name}<span className="text-[#64748B] font-normal">· {lang.level}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activity.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <ClockIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Actividad reciente</p>
-                    </div>
-                    <div className="space-y-2">
-                      {activity.map(item => (
-                        <div key={item.id} className="flex items-start gap-2 text-xs">
-                          <span className="text-[#94A3B8] shrink-0 mt-0.5">
-                            {new Date(item.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-                          </span>
-                          <span className="text-[#1C2230]">{item.summary}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <CandidateProfileModal
+        profile={profile}
+        loading={loadingProfile}
+        onClose={() => setProfile(null)}
+        activity={activity}
+      />
     </div>
   );
 }
+

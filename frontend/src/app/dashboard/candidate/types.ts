@@ -12,6 +12,7 @@ export interface CandidateProfile {
   first_name: string;
   last_name: string;
   phone: string;
+  photo_url?: string;
   cv_file_url?: string;
   cv_uploaded_at?: string;
   summary?: string;
@@ -20,8 +21,17 @@ export interface CandidateProfile {
   has_own_transport?: boolean;
   availability?: Availability;
   immediate_availability?: boolean;
+  location_zone_id?: string;
+  accepts_remote: boolean;
+  accepts_hybrid: boolean;
+  accepts_onsite: boolean;
   completion_percent: number;
   missing_fields: ProfileMissingItem[];
+}
+
+export interface Zone {
+  id: string;
+  name: string;
 }
 
 export const GENDER_LABEL: Record<Gender, string> = {

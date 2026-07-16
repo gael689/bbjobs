@@ -3,8 +3,8 @@
 import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
-  BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
-  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon,
+  HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
+  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon,
 } from "@heroicons/react/24/outline";
 
 // "Skills pendientes" se dio de baja: sin flujo de sugerencia de skills de parte de los
@@ -12,10 +12,12 @@ import {
 // siempre vacía. El backend de sugerencias queda intacto por si se reusa como gestor de
 // catálogo más adelante.
 const NAV_ITEMS = [
+  { href: "/dashboard/admin", label: "Inicio", icon: HomeIcon, exact: true },
   { href: "/dashboard/admin/empresas", label: "Empresas", icon: BuildingOffice2Icon },
   { href: "/dashboard/admin/candidatos", label: "Candidatos", icon: UsersIcon },
-  { href: "/dashboard/admin/busquedas", label: "Búsquedas", icon: BriefcaseIcon },
+  { href: "/dashboard/admin/busquedas", label: "Búsquedas y postulantes", icon: BriefcaseIcon },
   { href: "/dashboard/admin/mensajes", label: "Mensajes", icon: ChatBubbleLeftRightIcon },
+  { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: BellIcon },
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon },
   { href: "/dashboard/admin/nuevo-admin", label: "Nuevo admin", icon: UserPlusIcon },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },

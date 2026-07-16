@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
   BuildingOffice2Icon, CheckCircleIcon, XCircleIcon, ClockIcon, ShieldExclamationIcon,
-  ChevronDownIcon, ChevronUpIcon, BriefcaseIcon, UsersIcon,
+  ChevronDownIcon, ChevronUpIcon, BriefcaseIcon, UsersIcon, UserCircleIcon,
+  XMarkIcon, GlobeAltIcon, EnvelopeIcon, PhoneIcon, IdentificationIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import {
@@ -18,6 +19,8 @@ export default function AdminEmpresasPage() {
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [rejectModal, setRejectModal] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
+
+  const [viewCompany, setViewCompany] = useState<Company | null>(null);
 
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [companyJobs, setCompanyJobs] = useState<Record<string, Job[]>>({});
@@ -130,6 +133,8 @@ export default function AdminEmpresasPage() {
   }
 
   const pending = companies.filter(c => c.verification_status === "pending");
+  const verified = companies.filter(c => c.verification_status === "verified");
+  const suspended = companies.filter(c => c.verification_status === "suspended");
 
   return (
     <div className="px-4 sm:px-6 py-8">
@@ -172,6 +177,27 @@ export default function AdminEmpresasPage() {
 
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Empresas</h1>
       <p className="text-[#64748B] text-sm mb-6">Gestioná la verificación de empresas registradas.</p>
+
+      {companies.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white border border-[#DDE3EC] rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-[#1C2230]">{companies.length}</p>
+            <p className="text-[11px] text-[#64748B]">Total</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-amber-700">{pending.length}</p>
+            <p className="text-[11px] text-amber-700/80">Pendientes</p>
+          </div>
+          <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-green-700">{verified.length}</p>
+            <p className="text-[11px] text-green-700/80">Verificadas</p>
+          </div>
+          <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            <p className="text-lg font-display font-extrabold text-red-700">{suspended.length}</p>
+            <p className="text-[11px] text-red-700/80">Suspendidas</p>
+          </div>
+        </div>
+      )}
 
       {pending.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 flex items-center gap-3 mb-6">
@@ -267,6 +293,13 @@ export default function AdminEmpresasPage() {
                   )}
 
                   <button
+                    onClick={() => setViewCompany(company)}
+                    className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] px-2 py-2 rounded-xl hover:bg-[#E6F4F7] transition-colors"
+                  >
+                    <UserCircleIcon className="w-4 h-4" />
+                    Ver perfil
+                  </button>
+                  <button
                     onClick={() => toggleCompanyJobs(company.id)}
                     className="inline-flex items-center gap-1.5 text-sm font-bold text-[#64748B] border border-[#DDE3EC] px-3 py-2 rounded-xl hover:bg-[#FAFBFD] transition-colors"
                   >
@@ -340,6 +373,105 @@ export default function AdminEmpresasPage() {
           ))
         )}
       </div>
+
+      {viewCompany && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setViewCompany(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-[#DDE3EC] px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
+              <h2 className="text-lg font-display font-bold text-[#1C2230]">Perfil de la empresa</h2>
+              <button onClick={() => setViewCompany(null)} className="text-[#64748B] hover:text-[#1C2230] transition-colors">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-5 pb-6 border-b border-[#DDE3EC]">
+                {viewCompany.logo_url ? (
+                  <div className="w-16 h-16 rounded-2xl border border-[#DDE3EC] bg-white flex items-center justify-center shrink-0 overflow-hidden">
+                    <img src={viewCompany.logo_url} alt="logo" className="max-h-full max-w-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-[#E6F4F7] flex items-center justify-center shrink-0">
+                    <BuildingOffice2Icon className="w-8 h-8 text-[#1E8EA3]" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-2xl font-display font-bold text-[#1C2230]">{viewCompany.legal_name}</h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${VERIF_CLS[viewCompany.verification_status]}`}>
+                      {VERIF_LABEL[viewCompany.verification_status]}
+                    </span>
+                    {viewCompany.verified_at && (
+                      <span className="text-xs text-[#64748B]">
+                        Verificada el {new Date(viewCompany.verified_at).toLocaleDateString("es-AR")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {viewCompany.website && (
+                  <a
+                    href={viewCompany.website.startsWith("http") ? viewCompany.website : `https://${viewCompany.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <GlobeAltIcon className="w-4 h-4" />
+                    Sitio web
+                  </a>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 mt-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Datos legales</p>
+                    <div className="border border-[#DDE3EC] rounded-xl p-4 space-y-2.5">
+                      <div className="flex items-center gap-2 text-sm text-[#1C2230]">
+                        <IdentificationIcon className="w-4 h-4 text-[#1E8EA3] shrink-0" />
+                        CUIT: {viewCompany.cuit}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Responsable</p>
+                    <div className="border border-[#DDE3EC] rounded-xl p-4 space-y-2.5">
+                      <p className="text-sm font-bold text-[#1C2230]">{viewCompany.responsible_full_name}</p>
+                      <div className="flex items-center gap-2 text-sm text-[#64748B]">
+                        <EnvelopeIcon className="w-4 h-4 shrink-0" />
+                        <a href={`mailto:${viewCompany.responsible_email}`} className="hover:text-[#1E8EA3]">{viewCompany.responsible_email}</a>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-[#64748B]">
+                        <PhoneIcon className="w-4 h-4 shrink-0" />
+                        <a href={`tel:${viewCompany.responsible_phone}`} className="hover:text-[#1E8EA3]">{viewCompany.responsible_phone}</a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {viewCompany.verification_notes && (
+                    <div>
+                      <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Notas de verificación</p>
+                      <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">{viewCompany.verification_notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Sobre la empresa</p>
+                  {viewCompany.description ? (
+                    <p className="text-sm text-[#1C2230] leading-relaxed bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">{viewCompany.description}</p>
+                  ) : (
+                    <p className="text-sm text-[#64748B] bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">Todavía no completó la descripción de perfil público.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

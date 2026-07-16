@@ -19,6 +19,8 @@ export type JobModerationStatus = "pending_review" | "approved" | "rejected";
 export interface JobPosting {
   id: string;
   title: string;
+  description: string;
+  requirements: string;
   status: string;
   published_at?: string;
   modality: string;
@@ -28,6 +30,11 @@ export interface JobPosting {
   moderation_notes?: string;
   is_featured?: boolean;
   featured_until?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_visible?: boolean;
+  benefits?: string;
 }
 
 // Precio fijo de destacar una búsqueda — espejo de FEATURED_JOB_PRICE en
