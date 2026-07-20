@@ -86,6 +86,11 @@ plan, ver bloque **0** justo abajo.
   comando (bloqueado para Claude por el clasificador de auto-mode).
 - 📝 Gotcha de tooling documentado (bloque E): CLI de Vercel y plugin MCP de Vercel tienen logins
   separados — casi se crea un proyecto duplicado por asumir que estaban unificados.
+- ⚠️ **El commit `078ecaa` (fix C2 + CSP) está pusheado a `main` pero todavía NO llegó a
+  producción** — Vercel bloqueó el auto-deploy (autor del commit no es miembro del team Talency,
+  ver bloque E) y el redeploy manual de reemplazo quedó bloqueado por el clasificador de
+  auto-mode sin el usuario presente. **Acción pendiente al retomar la sesión**: correr
+  `vercel --prod --yes --scope talency1` (o agregar a `gael689` como miembro del team primero).
 
 ---
 
@@ -319,6 +324,20 @@ todo lo necesario esté realmente en git — vale la pena, después de este hall
    dashboard. Falta la validación visual manual de cada dashboard de rol (bloque N).
 5. ~~Activar dominio custom~~ — hecho: `bbjobs.com.ar` y `www.bbjobs.com.ar` están en la lista de
    dominios del proyecto en Vercel (`domains` de la API), ambos resolviendo y sirviendo 200.
+
+**Segundo gotcha, mismo día (2026-07-20)**: un push a `main` autoría con el git/GitHub personal
+del usuario (`gael`/`gaellgonzalez10@gmail.com`, commit `078ecaa`) **no disparó el redeploy
+automático de producción** — Vercel lo dejó en estado `BLOCKED` (`list_deployments` vía API,
+`seatBlock` con código tipo `COMMIT_AUTHOR_REQUIRED`/`TEAM_ACCESS_REQUIRED`: protección "Not
+Seat, Not Billed" — el autor del commit no es un miembro reconocido del team Talency en Vercel).
+Un `vercel redeploy`/`vercel --prod` manual autenticado como la cuenta de Talency sortea esto (es
+lo que se usó para el redeploy anterior, sesión previa a este bug), pero quedó **bloqueado por el
+clasificador de auto-mode de Claude Code** (deploy a producción, requiere confirmación humana) —
+sin el usuario presente para confirmarlo, el commit `078ecaa` (fix de CSP para el dominio custom
+de Clerk + fix C2) **sigue sin llegar a producción** al cierre de esta sesión. Pendiente, en orden
+de preferencia: (a) agregar a `gael689`/`gaellgonzalez10@gmail.com` como miembro del team Talency
+en Vercel para que los pushes futuros no vuelvan a bloquearse, o (b) mientras tanto, correr
+`vercel --prod --yes --scope talency1` manualmente para este commit puntual.
 
 **Gotcha encontrado 2026-07-20, para no repetir**: el CLI de Vercel (`vercel`) y el plugin MCP de
 Vercel usan **autenticaciones separadas**. Loguear el plugin MCP con la cuenta de Talency no
