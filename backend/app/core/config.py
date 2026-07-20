@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
@@ -5,13 +6,25 @@ class Settings(BaseSettings):
     ENV: str = "development"
     DEBUG: bool = True
     SECRET_KEY: str
-    
+
     DATABASE_URL: str
     # Rol de mínimo privilegio para runtime (sin DDL). Alembic necesita CREATE TABLE/ALTER TABLE,
     # que ese rol no tiene — las migraciones corren con esta URL separada (rol con privilegios de
     # owner/DDL) en vez de DATABASE_URL. Si no está seteada, cae a DATABASE_URL (mismo rol para
     # todo) — no rompe nada para quien no haya hecho el split todavía.
     MIGRATIONS_DATABASE_URL: str | None = None
+
+    @field_validator("DATABASE_URL", "MIGRATIONS_DATABASE_URL")
+    @classmethod
+    def _use_asyncpg_scheme(cls, v: str | None) -> str | None:
+        # Railway (y Heroku antes) autogeneran DATABASE_URL con scheme `postgres://` o
+        # `postgresql://` — ninguno de los dos es válido para create_async_engine, que necesita
+        # `postgresql+asyncpg://`. Sin esto, copiar la URL autogenerada tal cual rompe el arranque.
+        if v and v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+        if v and v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
 
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     # Para armar back_urls de Mercado Pago (adónde vuelve el usuario tras el checkout).

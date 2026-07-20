@@ -23,11 +23,14 @@ export default clerkMiddleware(async (auth, request) => {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
-  // Clerk hoy sirve desde una instancia de test (*.clerk.accounts.dev) — el wildcard cubre
-  // cualquier subdominio de esa forma. CUANDO se pase a producción (DEPLOY-PLAN.md bloque G):
-  // si se configura un dominio custom de Clerk (ej. clerk.bbjobs.com.ar) hay que sumarlo acá,
-  // el wildcard de *.clerk.accounts.dev no lo cubre.
-  const clerkOrigins = "https://*.clerk.accounts.dev";
+  // Preview deploys siguen en la instancia de test de Clerk (*.clerk.accounts.dev, cubierto por
+  // el wildcard). Production (DEPLOY-PLAN.md bloque G, 2026-07-20) pasó a un dominio custom de
+  // Clerk (clerk.www.bbjobs.com.ar para el Frontend API, accounts.www.bbjobs.com.ar para el
+  // Account Portal) que el wildcard de *.clerk.accounts.dev no cubre — hay que listarlo
+  // explícito. isDev sólo distingue "corriendo local" de "deployado" (Preview y Production
+  // corren ambos con NODE_ENV=production), así que se listan los tres orígenes siempre.
+  const clerkOrigins =
+    "https://*.clerk.accounts.dev https://clerk.www.bbjobs.com.ar https://accounts.www.bbjobs.com.ar";
 
   // NO usar 'strict-dynamic' acá: verificado con Playwright (ver SEGURIDAD-PLAN.md bloque C)
   // que ClerkProvider inyecta sus propios <script src="https://...clerk.accounts.dev/..."> ya

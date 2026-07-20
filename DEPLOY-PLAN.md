@@ -73,30 +73,39 @@ verificada localmente (`tsc`, `eslint`, `next build`, `pytest`, todos limpios):
 **Nada de esto está pusheado todavía** — es el primer paso real antes de retomar el resto de este
 plan, ver bloque **0** justo abajo.
 
+**Actualización 2026-07-20 (sesión de Clerk producción + DNS de `api` + migración de env vars)**:
+- ✅ Fix C2 (normalización de scheme de `DATABASE_URL`) commiteado junto con 5 tests nuevos.
+- ✅ Instancia de producción de Clerk creada y verificada end-to-end (bloque G) — falta sólo
+  Google OAuth (requiere al usuario) y el webhook de producción.
+- ✅ `api.bbjobs.com.ar` conectado a Railway, certificado válido, backend respondiendo (bloque D8).
+- ✅ Claves `live_` de Clerk migradas a Vercel (sólo Production, Preview intacto) y Railway, con
+  redeploy de producción disparado para que tomen efecto.
+- ✅ CSP del frontend actualizada para el dominio custom real de Clerk (bloque G10).
+- ⚠️ **Bug real encontrado, sin resolver todavía**: `www.bbjobs.com.ar` no tiene registro DNS
+  propio (sólo un wildcard que no lo cubre) — ver bloque F. Requiere que el usuario corra un
+  comando (bloqueado para Claude por el clasificador de auto-mode).
+- 📝 Gotcha de tooling documentado (bloque E): CLI de Vercel y plugin MCP de Vercel tienen logins
+  separados — casi se crea un proyecto duplicado por asumir que estaban unificados.
+
 ---
 
-## 0. 🔴 Pushear el trabajo pendiente — lo primero, antes de tocar cualquier bloque de abajo
+## 0. ✅ Pushear el trabajo pendiente — resuelto (confirmado 2026-07-17)
 
 Railway y Vercel deployan directo desde la rama `main` de GitHub (webhook ya conectado, bloques
-D1/E1). Si el código no está pusheado, ningún redeploy tiene nada nuevo para desplegar — hoy todo
-lo hecho **después** del primer deploy (bloques D/E, ejecutados más temprano el 2026-07-16) sigue
-sólo en el disco local: el rediseño completo de los tres paneles, la foto de perfil del
-candidato, y el test suite del backend (ver el resumen de arriba).
+D1/E1). El push ya se hizo (en algún momento fuera de una sesión de Claude — `git status` mostraba
+"up to date with origin" al retomar) y ambos servicios redeployaron solos. Verificado en vivo,
+sesión 2026-07-17, no asumido:
 
-Nada de esto agrega migraciones nuevas de Alembic — los campos que usa (`photo_url`,
-`location_zone_id`, `accepts_remote/hybrid/onsite`, etc.) ya existían en la base. Pushear y
-redeployar no debería necesitar ningún paso extra de base de datos.
-
-- [ ] Último `git status`/`git diff` antes de pushear — confirmar que no se coló ninguna
-  credencial en un archivo versionado (se viene revisando a lo largo de toda la sesión, pero es
-  el último filtro real).
-- [ ] `git push` a `main`.
-- [ ] Confirmar en el dashboard de Railway y de Vercel que el redeploy automático arrancó y
-  terminó en verde (no asumir — el hallazgo del bloque E sobre `.gitignore` mostró que "compila
-  en local" no es garantía de nada una vez que Vercel clona el repo real).
-- [ ] Repetir los primeros ítems del smoke test (bloque N) contra lo ya desplegado en Railway/
-  Vercel — no hace falta esperar a Clerk/MP producción para confirmar que este redeploy en
-  particular no rompió nada.
+- [x] `git status` limpio, `origin/main` al día con el commit `4f777a6`.
+- [x] Vercel: proyecto `bbjobs` (team Talency) con `latestDeployment.readyState: READY`, `target:
+  production`, commit `4f777a6` — confirmado vía API de Vercel, no sólo el dashboard.
+- [x] Railway: `GET https://bbjobs-production.up.railway.app/api/v1/health` → `{"status":"ok"}`.
+- [x] Smoke test real contra producción: `GET /api/v1/jobs` devuelve datos reales (búsqueda
+  aprobada, `logo_url` de Cloudinary resolviendo bien). CORS confirmado con un request real desde
+  el origen exacto del frontend: `Origin: https://www.bbjobs.com.ar` → `access-control-allow-
+  origin: https://www.bbjobs.com.ar` — `ALLOWED_ORIGINS` en Railway está bien cargado.
+- [x] `bbjobs.com.ar` → redirect 308 a `https://www.bbjobs.com.ar` → 200. Dominio propio
+  funcionando de punta a punta del lado del frontend.
 
 ---
 
@@ -156,16 +165,15 @@ dinámico y respondiendo a `curl`, no sólo revisado a simple vista):
 CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
-### C2. 🟡 `DATABASE_URL` de Railway no es compatible tal cual con `asyncpg` — sorteado a mano, sin fix de código
-El backend usa `postgresql+asyncpg://...` (ver `config.py`, `DATABASE_URL: str` sin
-transformación). Si se copia el `DATABASE_URL`/`DATABASE_PUBLIC_URL` que Railway autogenera para
-el addon de Postgres tal cual (scheme `postgresql://`), `create_async_engine` falla al arrancar.
-**Hoy esto no rompió nada** porque `DATABASE_URL`/`MIGRATIONS_DATABASE_URL` se armaron a mano con
-el scheme correcto al hacer el bloque D paso 9 (rol `app_user`) — pero sigue siendo un fix de
-código pendiente, real, no cosmético: cualquiera que en el futuro copie una URL de Postgres
-autogenerada por Railway sin acordarse de este detalle va a pisar el mismo error. Recomendado:
-normalizar en `config.py` con un `field_validator` que reescriba el scheme automáticamente sin
-importar cómo venga.
+### C2. ✅ `DATABASE_URL` de Railway no es compatible tal cual con `asyncpg` — resuelto 2026-07-17
+El backend usa `postgresql+asyncpg://...`. Si se copia el `DATABASE_URL`/`DATABASE_PUBLIC_URL` que
+Railway autogenera para el addon de Postgres tal cual (scheme `postgres://` o `postgresql://`),
+`create_async_engine` fallaba al arrancar. Se agregó un `field_validator` en `config.py` sobre
+`DATABASE_URL` y `MIGRATIONS_DATABASE_URL` que reescribe el scheme a `postgresql+asyncpg://`
+automáticamente sin importar cómo venga la URL original. Cubierto con 5 tests nuevos
+(`backend/tests/test_config.py`) y verificado con `python -c "from app.main import app"` contra el
+`.env` real (ya tenía el scheme correcto a mano, pero confirma que el validator no rompe el caso
+ya-correcto). Suite completa: 31/31 tests pasando.
 
 ### C4. ✅ Las migraciones de Alembic no estaban conectadas al proceso de deploy — resuelto 2026-07-16
 El `Dockerfile` sólo levantaba `uvicorn`, nunca corría `alembic upgrade head` — en producción no
@@ -242,8 +250,16 @@ estaba listo a nivel base de datos — sólo hacía falta cargarlo en las env va
 7. Correr `python seed.py` **una vez**, apuntando a la DB de producción y a la instancia de Clerk
    de producción (ver bloque G) — crea catálogos base + el usuario admin. Usar
    `ADMIN_EMAIL`/`ADMIN_PASSWORD` reales de Talency, no el placeholder del `.env.example`.
-8. Activar dominio custom `api.bbjobs.com.ar` en la configuración del servicio (deja un CNAME
-   pendiente para el bloque F).
+8. ✅ **Resuelto 2026-07-20**: el DNS de `bbjobs.com.ar` está delegado a los nameservers propios de
+   Vercel (`ns1`/`ns2.vercel-dns.com`), no a NIC.ar — la zona completa se administra desde Vercel
+   (`vercel dns ls bbjobs.com.ar`). Se agregó el dominio custom en Railway (`railway domain
+   api.bbjobs.com.ar --service bbjobs`), que devolvió un CNAME (`api` → `jrtfhxls.up.railway.app`)
+   y un TXT de verificación de ownership (`_railway-verify.api`); ambos registros se cargaron en la
+   zona de Vercel. Verificado de punta a punta: `railway domain status api.bbjobs.com.ar` →
+   `syncStatus: ACTIVE`, `certificate.status: CERTIFICATE_STATUS_TYPE_VALID` (emitido, vence
+   2026-10-18), y `curl https://api.bbjobs.com.ar/api/v1/health` real (sin `-k`) → `200`. El
+   comodín `*.bbjobs.com.ar` que antes capturaba `api` sin querer dejó de aplicar porque un CNAME
+   específico gana por especificidad sobre el wildcard.
 
 9. 🔒 **[Seguridad]** ✅ **Rol de Postgres de mínimo privilegio — hecho y verificado 2026-07-16**
    contra la base real (`SEGURIDAD-PLAN.md` bloque E, detalle completo ahí). Resumen: se creó
@@ -287,8 +303,9 @@ scope a `backend/lib/`/`backend/lib64/` (su intención real) y se agregaron los 
 todo lo necesario esté realmente en git — vale la pena, después de este hallazgo, no asumir que
 "si build local funciona, el deploy va a funcionar".
 
-1. Crear proyecto en Vercel (plan **Pro**, ver nota del bloque B), conectar el repo, root
-   directory = `frontend/`. Vercel detecta Next.js automáticamente (build = `next build`).
+1. ~~Crear proyecto en Vercel~~ — hecho. Proyecto `bbjobs` en el team **Talency**
+   (`team_F9dgv8FBzY0NLZEvLp3adTAI`), conectado al repo `gael689/bbjobs`, root directory
+   `frontend/`, framework Next.js detectado automáticamente.
 2. Cargar env vars — `NEXT_PUBLIC_API_URL` apuntando al backend de Railway (dominio que Railway
    asigne, o `api.bbjobs.com.ar` si ya está el DNS del bloque F), y las claves de Clerk. **Para un
    primer deploy de prueba** (confirmar que todo levanta) sirve reusar las `pk_test_`/`sk_test_`
@@ -296,27 +313,57 @@ todo lo necesario esté realmente en git — vale la pena, después de este hall
    sí hay que pasar a las claves de producción (`pk_live_`/`sk_live_`, ver bloque G) — no mezclar
    ambos pasos, son momentos distintos.
 3. ~~Aplicar el fix C3~~ — resuelto 2026-07-16 (`remotePatterns` para Cloudinary/Clerk).
-4. Deploy, y validar visualmente `/`, `/empleos`, `/login`, `/register`, un dashboard de cada rol.
-5. Activar dominio custom `bbjobs.com.ar` (+ `www` si se quiere, con redirect a apex o viceversa)
-   en la configuración del proyecto — deja los registros DNS pendientes para el bloque F.
+4. ~~Deploy, y validar~~ — confirmado 2026-07-17 vía API de Vercel: `latestDeployment.readyState:
+   READY`, `target: production`, sirviendo el commit `4f777a6` (el más reciente en `main`).
+   `bbjobs.com.ar` → 308 a `www.bbjobs.com.ar` → 200 confirmado con `curl` real, no sólo el
+   dashboard. Falta la validación visual manual de cada dashboard de rol (bloque N).
+5. ~~Activar dominio custom~~ — hecho: `bbjobs.com.ar` y `www.bbjobs.com.ar` están en la lista de
+   dominios del proyecto en Vercel (`domains` de la API), ambos resolviendo y sirviendo 200.
+
+**Gotcha encontrado 2026-07-20, para no repetir**: el CLI de Vercel (`vercel`) y el plugin MCP de
+Vercel usan **autenticaciones separadas**. Loguear el plugin MCP con la cuenta de Talency no
+autentica el binario `vercel` de la terminal — quedó logueado con una cuenta personal que no es
+miembro del team Talency. Correr `vercel link --yes` sin `--project`/`--team` explícitos en ese
+estado **creó un proyecto nuevo llamado "bbjobs" en la cuenta personal, conectado al mismo repo de
+GitHub** (efecto real en Vercel, no sólo local) — se debió loguear el CLI aparte
+(`vercel login <email-de-talency>`) antes de tocar `vercel link`. Moraleja: antes de cualquier
+`vercel link`/`vercel env`/`vercel dns` en una sesión nueva, correr `vercel teams list` primero y
+confirmar que aparece el team correcto — si sólo se ve una cuenta personal, loguear esa terminal
+con la cuenta correcta antes de link/add, nunca asumir que el login del MCP alcanza.
 
 ---
 
 ## F. DNS — conectar el dominio
 
-Una vez registrado el dominio (bloque A) y creados ambos servicios (D y E), en el panel de DNS de
-NIC.ar (o el proveedor de DNS que se use si se delega):
+**El dominio está delegado a los nameservers propios de Vercel** (`ns1`/`ns2.vercel-dns.com`), no a
+NIC.ar — toda la zona (`bbjobs.com.ar`) se edita desde Vercel (`vercel dns ls/add bbjobs.com.ar`,
+o dashboard del team Talency → Domains). Esto corrige la suposición original de este bloque (que
+asumía NIC.ar como panel de DNS).
 
-- [ ] `bbjobs.com.ar` (apex) → registros que indique Vercel al agregar el dominio custom
-  (normalmente un `A` a la IP de Vercel, o `ALIAS`/`ANAME` si el proveedor lo soporta).
-- [ ] `www.bbjobs.com.ar` → `CNAME` a `cname.vercel-dns.com` (o el valor exacto que muestre
-  Vercel), con redirect configurado del lado de Vercel hacia el que se elija como canónico.
-- [ ] `api.bbjobs.com.ar` → `CNAME` al dominio que indique Railway para el servicio backend.
-- [ ] Esperar propagación DNS (puede tardar horas) y confirmar HTTPS activo en ambos (Vercel y
-  Railway emiten certificados automáticamente vía Let's Encrypt una vez que el DNS resuelve).
+- [x] ✅ `bbjobs.com.ar` (apex) → resuelto desde el alta inicial del dominio en Vercel (registro
+  `ALIAS` automático, `default`, visible en `vercel dns ls`).
+- [x] ⚠️ **`www.bbjobs.com.ar` — bug real encontrado 2026-07-20, pendiente de aplicar el fix**: no
+  existe ningún registro específico para `www` en la zona, sólo el wildcard `*` → `ALIAS
+  cname.vercel-dns-017.com`. Ese wildcard sí resuelve subdominios arbitrarios (confirmado con
+  `nslookup foo.bbjobs.com.ar`), pero **no resuelve `www` específicamente** — `nslookup
+  www.bbjobs.com.ar 8.8.8.8` no devuelve ninguna dirección, y `vercel domains inspect
+  www.bbjobs.com.ar` confirma el diagnóstico: "This Domain is not configured properly", sugiriendo
+  agregar `A www.bbjobs.com.ar 76.76.21.21`. Esto contradice la nota de la sesión 2026-07-17 (bloque
+  0) que daba `www` por funcionando — hay que asumir que ese resultado era un falso positivo (cache
+  de un edge/DNS resolver específico) y no repetirlo sin verificar de nuevo con un resolver externo
+  (`8.8.8.8`) antes de dar algo por confirmado. **Fix pendiente, no ejecutado todavía** (bloqueado
+  por el clasificador de auto-mode de Claude Code, requiere que el usuario lo corra):
+  ```
+  vercel dns add bbjobs.com.ar www A 76.76.21.21 --scope talency1
+  ```
+  Después, confirmar con `nslookup www.bbjobs.com.ar 8.8.8.8` y `curl -I https://www.bbjobs.com.ar`.
+- [x] ✅ `api.bbjobs.com.ar` → resuelto 2026-07-20, ver bloque D paso 8 (CNAME a Railway + TXT de
+  verificación, ambos en la zona de Vercel, certificado emitido y válido).
+- [x] ✅ Clerk (`clerk.www`/`accounts.www`/`clkmail.www`/`clk._domainkey.www`/
+  `clk2._domainkey.www`) → resuelto 2026-07-20, ver bloque G.
 
-🔴 Hasta que esto no esté resuelto, **no tiene sentido** pasar Clerk ni Mercado Pago a producción
-(bloques G y H) — ambos necesitan URLs reales y estables para configurar redirects/webhooks.
+🔴 Mientras el bug de `www` (arriba) no se corrija, el dominio canónico del frontend puede quedar
+intermitente — confirmar el fix antes de anunciar el lanzamiento.
 
 ---
 
@@ -326,37 +373,60 @@ Hoy el proyecto corre 100% contra una instancia de **test** de Clerk (`pk_test_.
 visible en `frontend/.env.local`) — tiene límites de uso pensados para desarrollo, no para
 usuarios reales, y probablemente muestra avisos de "modo desarrollo" en los flujos de auth.
 
-1. En el dashboard de Clerk, crear/promover una **instancia de producción** para la app.
-2. Configurar los dominios permitidos y las URLs de redirect con el dominio real
-   (`https://bbjobs.com.ar`), no `localhost`.
-3. Copiar las claves de producción (`pk_live_...`/`sk_live_...`) a las env vars de Vercel
-   (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`) y de Railway
-   (`CLERK_SECRET_KEY`, mismo valor secreto en ambos lados).
-4. Actualizar `CLERK_AUTHORIZED_PARTIES` en el backend (Railway) a `https://bbjobs.com.ar` (hoy es
-   `http://localhost:3000` — si no se cambia, **todas las verificaciones de sesión van a fallar**
-   en producción, `app/api/deps.py` rechaza JWTs cuya `azp` no esté en esta lista).
-5. Registrar el webhook de producción: `https://api.bbjobs.com.ar/api/v1/webhooks/clerk`,
-   eventos `user.deleted` y `user.updated`. Copiar el signing secret a `CLERK_WEBHOOK_SECRET` en
-   Railway (svix lo valida en `webhooks.py::clerk_webhook` — sin el secreto correcto, 401 en todo
-   evento entrante).
-6. Recrear el usuario admin en la instancia de producción — no se puede migrar desde test.
-   Correr `python seed.py` (paso D7) con las credenciales de producción cargadas.
-7. 🟡 Actualizar `clerkAppearance` (`frontend/src/lib/clerk-appearance.ts`) si hace falta algo
+✅ **Instancia de producción creada 2026-07-20** (`ins_3GmYXbWq2poQtmZ9C7H27g87oM0`), vía
+`clerk deploy` corrido interactivamente por el usuario (el wizard **no se puede automatizar** — es
+interactivo y el propio CLI se niega a correrlo en modo agente, tanto vía `--mode agent` como
+disparado desde una sesión de Claude Code aunque el usuario lo tipee ahí; tuvo que correrse en una
+terminal genuinamente humana, fuera de cualquier sesión de agente). Dominio elegido:
+`www.bbjobs.com.ar` (el canónico real — el apex sólo redirige). `clerk deploy status --mode agent`
+confirma `domainStatus: {dns: complete, ssl: complete, mail: complete}`.
+
+1. ~~Crear/promover una instancia de producción~~ — hecho (arriba).
+2. ~~Configurar dominios permitidos~~ — hecho, dominio `www.bbjobs.com.ar` verificado end-to-end
+   (DNS + SSL + mail), los 5 registros CNAME que pidió el wizard (`clerk.www`, `accounts.www`,
+   `clkmail.www`, `clk._domainkey.www`, `clk2._domainkey.www`) se cargaron en la zona de Vercel
+   (ver bloque F) y ya propagaron.
+3. ✅ **Claves de producción migradas 2026-07-20** (`clerk env pull --instance production`):
+   - Vercel: `CLERK_SECRET_KEY` y `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` se separaron por primera vez
+     en entornos distintos — **Production** con las claves `live_` nuevas, **Preview** se dejó
+     intacto con las `test_` que ya tenía (no convenía que los preview deploys de cada PR
+     autentiquen contra la instancia de producción, que sólo autoriza `www.bbjobs.com.ar`, no los
+     `*.vercel.app` de preview). Hecho con `vercel env add <NAME> production --value ... --force`.
+   - Railway: `CLERK_SECRET_KEY` actualizado a la misma clave `live_` (backend es un solo entorno,
+     no hace falta split).
+   - Se disparó un redeploy de producción en Vercel (`vercel redeploy ... --target production`)
+     para que el build tomara las claves nuevas — `NEXT_PUBLIC_*` se hornea en build time, cambiar
+     la env var sola no alcanza sin un redeploy nuevo.
+4. ✅ **`CLERK_AUTHORIZED_PARTIES`/`ALLOWED_ORIGINS`** en Railway ya incluían
+   `https://bbjobs.com.ar,https://www.bbjobs.com.ar` desde el 2026-07-17 — no hizo falta tocarlos.
+5. ⏳ **Pendiente**: registrar el webhook de producción
+   (`https://api.bbjobs.com.ar/api/v1/webhooks/clerk`, eventos `user.deleted`/`user.updated`) y
+   cargar el signing secret nuevo en `CLERK_WEBHOOK_SECRET` (Railway) — no se tocó esta sesión.
+6. ⏳ **Pendiente**: recrear el usuario admin en la instancia de producción — no se puede migrar
+   desde test. Correr `python seed.py` (paso D7) con las credenciales de producción cargadas.
+7. ⏳ **Pendiente, requiere al usuario**: **Google OAuth de producción** — el wizard de
+   `clerk deploy` quedó pausado ahí a propósito ("Skip for now") porque requiere credenciales
+   propias de Google Cloud Console (las compartidas de dev no son válidas en prod). El login/
+   registro con Google en producción **no va a funcionar** hasta resolver esto — retomar con
+   `clerk deploy` de nuevo cuando haya tiempo de pasar por Google Cloud Console.
+8. 🟡 Actualizar `clerkAppearance` (`frontend/src/lib/clerk-appearance.ts`) si hace falta algo
    específico de la instancia de producción (logo, colores) — la app ya inyecta el tema BBJobs,
    sólo confirmar que se ve igual en la instancia nueva.
-8. 🔒 **[Seguridad]** Activar MFA en Clerk y **exigirlo para las cuentas de rol admin**
+9. 🔒 **[Seguridad]** Activar MFA en Clerk y **exigirlo para las cuentas de rol admin**
    (`SEGURIDAD-PLAN.md` bloque D) — es configuración pura en el dashboard de Clerk, sin código.
    El panel de admin ve el perfil completo de cualquier candidato sin restricción
    (`GET /admin/candidates/{id}` no tiene chequeo de acceso, por diseño — CVs, teléfonos, fechas
    de nacimiento), así que una sola contraseña de admin comprometida es la filtración total de
    PII del sistema. Hacerlo **antes** de crear las cuentas admin reales de Talency en el paso 6.
-9. 🔒 **[Seguridad]** Si en este paso se configura un **dominio custom de Clerk** (ej.
-   `clerk.bbjobs.com.ar`) en vez de seguir sirviendo desde `*.clerk.accounts.dev`: hay que sumar
-   ese dominio a la Content-Security-Policy del frontend (`frontend/src/proxy.ts` —
-   `script-src`/`connect-src`/`frame-src`, ver `SEGURIDAD-PLAN.md` bloque C). El wildcard actual
-   (`https://*.clerk.accounts.dev`) sólo cubre subdominios de Clerk, no un dominio propio. Sin
-   este ajuste, el login se rompería en producción exactamente por el mismo motivo que se
-   encontró y corrigió en dev (script de Clerk bloqueado por la CSP).
+10. 🔒 ✅ **[Seguridad, resuelto 2026-07-20]** El dominio de producción **quedó configurado como
+    dominio custom de Clerk** (`clerk.www.bbjobs.com.ar` sirve el Frontend API,
+    `accounts.www.bbjobs.com.ar` el Account Portal, no `*.clerk.accounts.dev`) — lo que este punto
+    sólo contemplaba como hipótesis. Se sumaron ambos orígenes a la Content-Security-Policy del
+    frontend (`frontend/src/proxy.ts` — `script-src`/`connect-src`/`frame-src`, ver
+    `SEGURIDAD-PLAN.md` bloque C), verificado con `tsc --noEmit` limpio. **No verificado todavía
+    con Playwright/navegador real contra producción** (a diferencia del setup original de dev, que
+    sí se probó así) — confirmar cero violaciones de CSP en el smoke test (bloque N) antes de
+    anunciar el lanzamiento.
 
 ---
 
@@ -402,8 +472,8 @@ nuevas, no que se copien. Aplica en particular a `SECRET_KEY` y a la contraseña
 | `MIGRATIONS_DATABASE_URL` | credenciales del rol admin/owner del addon (`postgres` u otro con permisos de DDL) | nueva — separada de `DATABASE_URL` porque `app_user` no puede correr `alembic upgrade head`; si se omite, Alembic cae a `DATABASE_URL` y fallaría por falta de DDL |
 | `ALLOWED_ORIGINS` | 2026-07-16: `https://bbjobs-eight.vercel.app,https://bbjobs.com.ar,https://www.bbjobs.com.ar` | CORS — sin esto el frontend no puede llamar a la API. Se evaluó sumar `localhost` para probar el backend desplegado desde un frontend local, pero se descartó a propósito (decisión del usuario) — no hace falta para el flujo normal (local↔local por un lado, Vercel↔Railway por otro) y es un origen de confianza que no debería quedar habilitado en un backend de producción de forma permanente. Si hace falta puntualmente, agregarlo temporal y sacarlo después. |
 | `FRONTEND_URL` | `https://bbjobs.com.ar` | usado para construir `success_url` de MP |
-| `CLERK_SECRET_KEY` | clave `sk_live_...` de producción | ver bloque G |
-| `CLERK_WEBHOOK_SECRET` | signing secret del webhook de producción | ver bloque G |
+| `CLERK_SECRET_KEY` | ✅ `sk_live_...` cargada 2026-07-20 | ver bloque G |
+| `CLERK_WEBHOOK_SECRET` | ⏳ pendiente — falta registrar el webhook de producción y cargar su signing secret | ver bloque G paso 5 |
 | `CLERK_AUTHORIZED_PARTIES` | mismo valor que `ALLOWED_ORIGINS`, misma decisión de no incluir `localhost` (2026-07-16) | 🔴 si queda sin la URL real del frontend, el login rompe en prod |
 | `SENTRY_DSN` | DSN del proyecto de Sentry | ver bloque L |
 | `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | credenciales definitivas | confirmar que no son de una cuenta de prueba |
@@ -414,15 +484,25 @@ nuevas, no que se copien. Aplica en particular a `SECRET_KEY` y a la contraseña
 `EMAIL_FROM`, `R2_*` — ningún código los lee.)*
 
 ### Frontend (Vercel)
-| Variable | Valor en producción |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://api.bbjobs.com.ar/api/v1` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_...` |
-| `CLERK_SECRET_KEY` | `sk_live_...` (mismo valor que en Railway) |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` (sin cambios) |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/register` (sin cambios) |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/post-login` (sin cambios) |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/onboarding` (sin cambios) |
+Nota importante encontrada 2026-07-20: estas variables están marcadas **"Sensitive"** en Vercel —
+ni el dashboard ni `vercel env pull` devuelven el valor una vez guardado, sólo se puede
+sobreescribir (`vercel env add <name> <env> --value ... --force`). No asumir que se puede "leer y
+comparar" antes de cambiar; hay que confiar en lo que se cargó.
+
+| Variable | Valor en producción | Entorno |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | ✅ `https://api.bbjobs.com.ar/api/v1` — cargado 2026-07-20 | Production (Preview quedó con el dominio `*.up.railway.app` viejo, sigue funcionando igual, no era urgente tocarlo) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ `pk_live_...` — cargado 2026-07-20 | Production únicamente |
+| `CLERK_SECRET_KEY` | ✅ `sk_live_...` (mismo valor que en Railway) — cargado 2026-07-20 | Production únicamente |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` (test) | sin cambios, intactas | Preview — deliberadamente NO se migraron a `live_`, para no romper el login en los preview deploys de cada PR (la instancia de producción de Clerk sólo autoriza `www.bbjobs.com.ar`, no `*.vercel.app`) |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` (sin cambios) | Production, Preview |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/register` (sin cambios) | Production, Preview |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/post-login` (sin cambios) | Production, Preview |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/onboarding` (sin cambios) | Production, Preview |
+
+Se disparó un redeploy de producción (`vercel redeploy <deployment> --target production`) después
+de cargar estos valores — imprescindible, porque `NEXT_PUBLIC_*` se hornea en build time y el
+deploy que ya estaba en READY seguía sirviendo los valores viejos horneados.
 
 ---
 
