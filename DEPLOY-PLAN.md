@@ -418,9 +418,10 @@ confirma `domainStatus: {dns: complete, ssl: complete, mail: complete}`.
      la env var sola no alcanza sin un redeploy nuevo.
 4. ✅ **`CLERK_AUTHORIZED_PARTIES`/`ALLOWED_ORIGINS`** en Railway ya incluían
    `https://bbjobs.com.ar,https://www.bbjobs.com.ar` desde el 2026-07-17 — no hizo falta tocarlos.
-5. ⏳ **Pendiente**: registrar el webhook de producción
-   (`https://api.bbjobs.com.ar/api/v1/webhooks/clerk`, eventos `user.deleted`/`user.updated`) y
-   cargar el signing secret nuevo en `CLERK_WEBHOOK_SECRET` (Railway) — no se tocó esta sesión.
+5. ✅ **Resuelto 2026-07-21**: webhook de producción registrado
+   (`https://api.bbjobs.com.ar/api/v1/webhooks/clerk`, sólo `user.deleted`/`user.updated`
+   tildados — el resto de categorías de Clerk, org/session/billing/invitations, no aplican, no hay
+   código que las consuma) y `CLERK_WEBHOOK_SECRET` cargado en Railway.
 6. ⏳ **Pendiente**: recrear el usuario admin en la instancia de producción — no se puede migrar
    desde test. Correr `python seed.py` (paso D7) con las credenciales de producción cargadas.
 7. ⏳ **Pendiente, requiere al usuario**: **Google OAuth de producción** — el wizard de
@@ -492,7 +493,7 @@ nuevas, no que se copien. Aplica en particular a `SECRET_KEY` y a la contraseña
 | `ALLOWED_ORIGINS` | 2026-07-16: `https://bbjobs-eight.vercel.app,https://bbjobs.com.ar,https://www.bbjobs.com.ar` | CORS — sin esto el frontend no puede llamar a la API. Se evaluó sumar `localhost` para probar el backend desplegado desde un frontend local, pero se descartó a propósito (decisión del usuario) — no hace falta para el flujo normal (local↔local por un lado, Vercel↔Railway por otro) y es un origen de confianza que no debería quedar habilitado en un backend de producción de forma permanente. Si hace falta puntualmente, agregarlo temporal y sacarlo después. |
 | `FRONTEND_URL` | `https://bbjobs.com.ar` | usado para construir `success_url` de MP |
 | `CLERK_SECRET_KEY` | ✅ `sk_live_...` cargada 2026-07-20 | ver bloque G |
-| `CLERK_WEBHOOK_SECRET` | ⏳ pendiente — falta registrar el webhook de producción y cargar su signing secret | ver bloque G paso 5 |
+| `CLERK_WEBHOOK_SECRET` | ✅ `whsec_...` cargado 2026-07-21 | ver bloque G paso 5 |
 | `CLERK_AUTHORIZED_PARTIES` | mismo valor que `ALLOWED_ORIGINS`, misma decisión de no incluir `localhost` (2026-07-16) | 🔴 si queda sin la URL real del frontend, el login rompe en prod |
 | `SENTRY_DSN` | DSN del proyecto de Sentry | ver bloque L |
 | `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | credenciales definitivas | confirmar que no son de una cuenta de prueba |
