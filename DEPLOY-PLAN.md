@@ -350,6 +350,15 @@ GitHub** (efecto real en Vercel, no sólo local) — se debió loguear el CLI ap
 confirmar que aparece el team correcto — si sólo se ve una cuenta personal, loguear esa terminal
 con la cuenta correcta antes de link/add, nunca asumir que el login del MCP alcanza.
 
+**Resuelto 2026-07-21**: el workflow `deploy-vercel.yml` (agregado para sortear el seat-block
+autenticando con `VERCEL_TOKEN`) **no alcanzaba** — confirmado vía API (`list_deployments`): los
+deploys disparados por Actions también salían `BLOCKED`, sin ni un log de build, porque el
+chequeo de autor lo aplica la integración Git nativa de Vercel sobre cualquier deploy asociado al
+commit, sin importar qué token lo dispare. Fix real: **desconectar la integración Git del proyecto**
+(Project Settings → Git → Disconnect en el dashboard de Vercel) para que ese chequeo deje de
+aplicarse — el workflow de Actions queda como único disparador de deploy a producción. Este commit
+es el push de prueba post-desconexión.
+
 ---
 
 ## F. DNS — conectar el dominio
