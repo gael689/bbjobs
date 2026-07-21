@@ -131,12 +131,37 @@ traer de vuelta a los que se registraron y no volvieron.
   — nadie está obligado a cargarlos, se incentiva mostrando el % de perfil completo.
 - El plazo de 20 días por búsqueda es una decisión de producto ya tomada, no algo a validar —
   se avisó acá por si surge en la conversación.
-- **Falta la foto de perfil del candidato.** El indicador de "perfil completo" la pide, pero
-  todavía no hay forma de subirla (ni pantalla ni el enganche con el almacenamiento de
-  imágenes) — es una pieza aparte, chica, que se puede sumar cuando se priorice.
+- ~~Falta la foto de perfil del candidato~~ — **ya se agregó**: el candidato ya puede subir su
+  foto de perfil desde su pantalla, y cuenta para el % de "perfil completo".
 - El recordatorio semanal es automático y corre solo — no requiere que nadie de Talency haga
   nada, pero vale la pena que Eugenia sepa que existe por si un candidato pregunta por qué le
   llegó un aviso sin haber hecho nada esa semana.
+
+---
+
+## 🚀 Estado del lanzamiento — puesta en producción real (2026-07-20)
+
+Esto no es una función nueva de la plataforma, sino el trabajo de "mudar" el sitio de la
+computadora de desarrollo a internet, con dominio propio. Avance de esta semana:
+
+**Ya funcionando con el dominio real (`bbjobs.com.ar`)**
+- El sistema de login/registro pasó de un modo de prueba a un modo de producción real — ya no
+  hay avisos de "modo desarrollo" en las pantallas de login.
+- El sitio tiene certificado de seguridad (candadito verde) tanto para la parte que ven los
+  usuarios como para la parte técnica que la conecta con la base de datos.
+
+**Pendiente, sin impacto para usar la plataforma hoy**
+- ⚠️ Por un tema de configuración del dominio (`www.bbjobs.com.ar`) que se está terminando de
+  resolver, puede haber algún momento en los próximos días donde esa dirección puntual no cargue
+  — se está trabajando en eso, no requiere nada de Talency.
+- Iniciar sesión con Google (en vez de email/contraseña) todavía no está habilitado en el modo
+  real — falta un trámite en Google que no depende de código. Mientras tanto, email/contraseña
+  funciona sin problema.
+- Los cobros reales de Mercado Pago (destacar una búsqueda pagando) todavía están en modo de
+  prueba — falta la cuenta de negocio real de Talency para pasar a cobrar de verdad.
+
+Ninguno de estos tres pendientes bloquea mostrarle la plataforma a alguien ni usarla para
+gestionar candidatos/búsquedas — son los últimos pasos antes de anunciarla como 100% en vivo.
 
 ---
 
