@@ -45,14 +45,19 @@ export default clerkMiddleware(async (auth, request) => {
   // atributos style="" (sólo para <style>/<link>, ver CSP3). La inyección de CSS es un riesgo
   // mucho menor que la de JS (no ejecuta código ni exfiltra datos), así que el compromiso es
   // script-src estricto (con nonce + allowlist puntual) + style-src relajado.
+  // Clerk usa Cloudflare Turnstile (challenges.cloudflare.com) para el CAPTCHA de bot-protection
+  // en signup/signin. Sin este origen en script-src/frame-src/connect-src, Turnstile no carga y
+  // Clerk devuelve 400 con "CAPTCHA failed to load" (visto en prod 2026-07-21).
+  const turnstileOrigin = "https://challenges.cloudflare.com";
+
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' ${clerkOrigins}${isDev ? " 'unsafe-eval'" : ""};
+    script-src 'self' 'nonce-${nonce}' ${clerkOrigins} ${turnstileOrigin}${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://res.cloudinary.com https://img.clerk.com;
     font-src 'self' data:;
-    connect-src 'self' ${apiOrigin()} ${clerkOrigins};
-    frame-src 'self' ${clerkOrigins};
+    connect-src 'self' ${apiOrigin()} ${clerkOrigins} ${turnstileOrigin};
+    frame-src 'self' ${clerkOrigins} ${turnstileOrigin};
     worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
