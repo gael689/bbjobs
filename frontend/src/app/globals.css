@@ -149,3 +149,15 @@ body {
 .bracket-bl { bottom: 24px; left: 24px; border-width: 0 0 1.5px 1.5px; }
 .bracket-br { bottom: 24px; right: 24px; border-width: 0 1.5px 1.5px 0; }
 
+/* ─── Widget de Clerk embebido (login/register) ───
+   Con `elevation: 'flush'`, Clerk calcula el ancho de .cl-rootBox/.cl-cardBox/.cl-card
+   como si todavía tuvieran que "sangrar" por encima del padding que le sacamos a .cl-card
+   (vía la clase p-0 en clerk-appearance.ts) — el resultado es un ancho mayor al contenedor
+   real, que en mobile generaba scroll horizontal (o, con overflow-hidden, cortaba los
+   botones). Forzamos 100% real acá porque las clases de Tailwind pasadas por `appearance`
+   pierden la pulseada de especificidad contra el <style> que inyecta Clerk. */
+.cl-rootBox, .cl-cardBox, .cl-card {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+

@@ -19,10 +19,11 @@ export const clerkAppearance = {
     fontFamilyButtons: "var(--font-display)",
   },
   elements: {
-    rootBox: "w-full",
-    card: "bg-transparent shadow-none border-none p-0 w-full",
-    headerTitle: "font-display font-bold text-[#1C2230]",
-    headerSubtitle: "text-[#64748B]",
+    rootBox: "w-full max-w-full",
+    card: "bg-transparent shadow-none border-none p-0 w-full max-w-full",
+    header: "hidden",
+    headerTitle: "hidden",
+    headerSubtitle: "hidden",
     socialButtonsBlockButton:
       "border border-[#DDE3EC] hover:bg-[#FAFBFD] text-[#1C2230] font-semibold",
     dividerLine: "bg-[#DDE3EC]",

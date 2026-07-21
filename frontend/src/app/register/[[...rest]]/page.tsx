@@ -39,7 +39,7 @@ function RegisterForm() {
   const signInUrl = next ? `/login?redirect_url=${encodeURIComponent(next)}` : "/login";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative">
+    <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative overflow-x-hidden">
       <Link
         href="/"
         className="fixed top-6 left-6 flex items-center justify-center w-11 h-11 rounded-full bg-white border border-[#DDE3EC] text-[#1C2230] hover:text-[#1E8EA3] shadow-sm transition-colors"
@@ -56,11 +56,11 @@ function RegisterForm() {
               <span className="text-[#1E8EA3]">BB</span><span className="text-[#1C2230]">JOBS</span>
             </span>
           </div>
-          <h1 className="font-display font-bold text-3xl text-[#1C2230] mb-2">Creá tu cuenta</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#1C2230] mb-2">Creá tu cuenta</h1>
           <p className="text-[#64748B] text-sm">Elegí cómo querés usar BBJobs</p>
         </div>
 
-        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 shadow-sm">
+        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6 sm:p-8 shadow-sm overflow-hidden">
           {/* Toggle de rol */}
           <div className="flex bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-1.5 mb-6">
             {(["candidate", "company"] as const).map(r => (

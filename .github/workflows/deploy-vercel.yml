@@ -30,4 +30,16 @@ jobs:
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy prebuilt output
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # vercel.com doesn't move www.bbjobs.com.ar / bbjobs.com.ar to the new deployment on its
+      # own (auto-assigning custom domains is off, a side effect of disconnecting Vercel's native
+      # Git integration to work around the commit-author seat-block above) - without this, every
+      # push builds and deploys fine but the live site keeps serving whatever was aliased last.
+      - name: Point production domains at the new deployment
+        run: |
+          vercel alias set ${{ steps.deploy.outputs.url }} www.bbjobs.com.ar --token=${{ secrets.VERCEL_TOKEN }} --scope talency1
+          vercel alias set ${{ steps.deploy.outputs.url }} bbjobs.com.ar --token=${{ secrets.VERCEL_TOKEN }} --scope talency1

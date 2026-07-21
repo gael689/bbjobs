@@ -27,7 +27,7 @@ export default function LoginPage() {
   const signUpUrl = redirectUrl ? `/register?next=${encodeURIComponent(redirectUrl)}` : "/register";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative">
+    <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative overflow-x-hidden">
       <Link
         href="/"
         className="fixed top-6 left-6 flex items-center justify-center w-11 h-11 rounded-full bg-white border border-[#DDE3EC] text-[#1C2230] hover:text-[#1E8EA3] shadow-sm transition-colors"
@@ -44,7 +44,7 @@ export default function LoginPage() {
               <span className="text-[#1E8EA3]">BB</span><span className="text-[#1C2230]">JOBS</span>
             </span>
           </div>
-          <h1 className="font-display font-bold text-3xl text-[#1C2230] mb-2">Bienvenido de vuelta</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#1C2230] mb-2">Bienvenido de vuelta</h1>
           <p className="text-[#64748B]">Ingresá a tu cuenta para continuar</p>
         </div>
 
@@ -55,7 +55,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 shadow-sm">
+        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6 sm:p-8 shadow-sm overflow-hidden">
           <SignIn
             routing="path"
             path="/login"
