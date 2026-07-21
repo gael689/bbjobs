@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
-import { UserIcon, ArrowRightOnRectangleIcon, Bars3Icon, XMarkIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { UserIcon, ArrowRightOnRectangleIcon, Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function Header() {
@@ -46,15 +46,6 @@ export default function Header() {
           <Link href="/empleos" className="hover:text-[#1E8EA3] transition-colors">Empleos</Link>
           <Link href="/empresas" className="hover:text-[#1E8EA3] transition-colors">Empresas</Link>
           <Link href="/contacto" className="hover:text-[#1E8EA3] transition-colors">Contacto</Link>
-          {/* Badge IA */}
-          <Link
-            href="/ia"
-            className="flex items-center gap-1.5 text-[#1E8EA3] bg-[#E6F4F7] px-3 py-1.5 rounded-full font-bold text-xs border border-[#9ED4DF] hover:bg-[#1E8EA3] hover:text-white transition-all"
-          >
-            <span className="ai-dot w-1.5 h-1.5 rounded-full bg-[#1E8EA3] inline-block" />
-            IA Matching
-            <span className="text-[9px] font-extrabold uppercase tracking-wide bg-[#D4B7A2] text-[#3D2B1F] px-1.5 py-0.5 rounded-full">Próximamente</span>
-          </Link>
         </nav>
 
         {/* ── CTAs desktop ── */}
@@ -120,10 +111,6 @@ export default function Header() {
             ].map(({ href, label }) => (
               <Link key={href} href={href} className="block text-center py-3 font-bold text-base text-[#1C2230] hover:text-[#1E8EA3] hover:bg-[#F1F5F9] rounded-xl transition-colors" onClick={() => setMobileOpen(false)}>{label}</Link>
             ))}
-            <Link href="/ia" className="flex items-center justify-center gap-2 py-3 font-bold text-base text-[#1E8EA3] hover:bg-[#F1F5F9] rounded-xl transition-colors" onClick={() => setMobileOpen(false)}>
-              <SparklesIcon className="w-4 h-4" /> IA Matching
-              <span className="text-[9px] font-extrabold uppercase tracking-wide bg-[#D4B7A2] text-[#3D2B1F] px-1.5 py-0.5 rounded-full">Próximamente</span>
-            </Link>
           </div>
           <div className="pt-1 flex flex-col gap-3">
             {isSignedIn ? (
