@@ -92,6 +92,39 @@ plan, ver bloque **0** justo abajo.
   auto-mode sin el usuario presente. **Acción pendiente al retomar la sesión**: correr
   `vercel --prod --yes --scope talency1` (o agregar a `gael689` como miembro del team primero).
 
+**Actualización 2026-07-21 (seat-block resuelto de verdad, claves live de Clerk, base limpia)**:
+- ✅ **El seat-block de Vercel quedó resuelto de raíz** — el workaround anterior (workflow de
+  GitHub Actions autenticado con `VERCEL_TOKEN`) **no alcanzaba**: confirmado vía API que esos
+  deploys también salían `BLOCKED`, sin ni un log de build, porque el chequeo de autor lo aplica
+  la integración Git nativa de Vercel sobre cualquier deploy asociado al commit, sin importar qué
+  token lo dispare. Fix real: se **desconectó la integración Git del proyecto**
+  (Project Settings → Git → Disconnect) — el workflow de Actions (o `vercel deploy` manual) queda
+  como único camino de deploy, y ya no lo bloquea el chequeo de autor. Verificado con varios pushes
+  reales saliendo `READY`.
+- ⚠️ **Efecto secundario nuevo del disconnect, sin resolver de forma permanente**: los dominios
+  custom (`bbjobs.com.ar`, `www.bbjobs.com.ar`) **ya no se re-apuntan solos** a cada deploy nuevo de
+  producción — antes lo hacía automáticamente la integración Git al promover un deploy. Ahora hace
+  falta un paso manual extra después de cada deploy: `vercel alias set <deployment> www.bbjobs.com.ar`
+  (y lo mismo para `bbjobs.com.ar`). Encontrado porque el deploy con las claves `live_` de Clerk
+  salía `READY` pero el sitio real seguía sirviendo el build viejo. **Pendiente real**: automatizar
+  este paso dentro del workflow de Actions (agregar `vercel alias set` al final de
+  `deploy-vercel.yml`) para no depender de acordarse de hacerlo a mano.
+- ✅ **Las claves `live_` de Clerk en Vercel Production, esta vez de verdad**: la actualización que
+  el bloque G3 daba por hecha el 2026-07-20 **no se había guardado realmente** (el timestamp de
+  `vercel env ls` seguía en la edición vieja) — recién quedó bien guardada y verificada hoy
+  (confirmado con `curl`/screenshot contra `www.bbjobs.com.ar`: sirve `pk_live_...`, ya no aparece
+  el cartel "Development mode"). Ver bloque G3 actualizado.
+- ✅ **Admin de producción recreado en la instancia de Clerk correcta** (bloque G6) — al pasar el
+  front a `pk_live_` se encontró que la instancia de producción de Clerk tenía **cero usuarios**
+  (`clerk users list --instance prod`): el admin (`empleo.talency@gmail.com`) sólo existía en la
+  instancia de test. Se creó el usuario real en producción (misma contraseña que ya tenía
+  documentada) y se actualizó `users.clerk_user_id` en la base para apuntar al nuevo ID. El usuario
+  viejo de test se borró.
+- ✅ **Base y Clerk-test limpiados de cuentas de prueba antes del lanzamiento real**: se borraron
+  todos los `users` no-admin (y en cascada sus perfiles/búsquedas/postulaciones/notificaciones/
+  pagos) más sus contrapartes en Clerk, y se sacó también el admin de prueba duplicado
+  (`admin@bbjobs.com.ar`) — queda un único admin real, `empleo.talency@gmail.com`.
+
 ---
 
 ## 0. ✅ Pushear el trabajo pendiente — resuelto (confirmado 2026-07-17)
@@ -414,25 +447,33 @@ confirma `domainStatus: {dns: complete, ssl: complete, mail: complete}`.
    (DNS + SSL + mail), los 5 registros CNAME que pidió el wizard (`clerk.www`, `accounts.www`,
    `clkmail.www`, `clk._domainkey.www`, `clk2._domainkey.www`) se cargaron en la zona de Vercel
    (ver bloque F) y ya propagaron.
-3. ✅ **Claves de producción migradas 2026-07-20** (`clerk env pull --instance production`):
-   - Vercel: `CLERK_SECRET_KEY` y `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` se separaron por primera vez
-     en entornos distintos — **Production** con las claves `live_` nuevas, **Preview** se dejó
-     intacto con las `test_` que ya tenía (no convenía que los preview deploys de cada PR
-     autentiquen contra la instancia de producción, que sólo autoriza `www.bbjobs.com.ar`, no los
-     `*.vercel.app` de preview). Hecho con `vercel env add <NAME> production --value ... --force`.
-   - Railway: `CLERK_SECRET_KEY` actualizado a la misma clave `live_` (backend es un solo entorno,
-     no hace falta split).
-   - Se disparó un redeploy de producción en Vercel (`vercel redeploy ... --target production`)
-     para que el build tomara las claves nuevas — `NEXT_PUBLIC_*` se hornea en build time, cambiar
-     la env var sola no alcanza sin un redeploy nuevo.
+3. ✅ **Claves de producción migradas — resuelto de verdad 2026-07-21** (el intento del
+   2026-07-20 quedó a medias: la env var de Vercel Production nunca se guardó, `www.bbjobs.com.ar`
+   siguió sirviendo `pk_test_` durante un día entero sin que nadie lo notara):
+   - Vercel: `CLERK_SECRET_KEY` y `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` separadas por entorno —
+     **Production** con las claves `live_`, **Preview** se dejó intacto con las `test_` que ya
+     tenía (no conviene que los preview deploys de cada PR autentiquen contra la instancia de
+     producción, que sólo autoriza `www.bbjobs.com.ar`, no los `*.vercel.app` de preview).
+     **Gotcha**: `CLERK_SECRET_KEY`/`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` aparecen como filas
+     separadas por entorno en el dashboard con el mismo nombre — fácil editar la fila de Preview
+     por error pensando que es la de Production. Verificar siempre el timestamp "Updated" antes de
+     asumir que se guardó.
+   - Railway: `CLERK_SECRET_KEY` ya tenía la clave `live_` correcta desde antes (backend es un
+     solo entorno, no hace falta split) — confirmado con `railway variables`.
+   - Redeploy + re-alias manual de `www.bbjobs.com.ar`/`bbjobs.com.ar` (ver nota del disconnect de
+     Git en el resumen de arriba) — verificado con `curl` real contra el dominio: sirve `pk_live_`,
+     ya no aparece el cartel "Development mode".
 4. ✅ **`CLERK_AUTHORIZED_PARTIES`/`ALLOWED_ORIGINS`** en Railway ya incluían
    `https://bbjobs.com.ar,https://www.bbjobs.com.ar` desde el 2026-07-17 — no hizo falta tocarlos.
 5. ✅ **Resuelto 2026-07-21**: webhook de producción registrado
    (`https://api.bbjobs.com.ar/api/v1/webhooks/clerk`, sólo `user.deleted`/`user.updated`
    tildados — el resto de categorías de Clerk, org/session/billing/invitations, no aplican, no hay
    código que las consuma) y `CLERK_WEBHOOK_SECRET` cargado en Railway.
-6. ⏳ **Pendiente**: recrear el usuario admin en la instancia de producción — no se puede migrar
-   desde test. Correr `python seed.py` (paso D7) con las credenciales de producción cargadas.
+6. ✅ **Resuelto 2026-07-21**: admin recreado directamente en la instancia de producción
+   (`clerk users create --instance prod`, misma contraseña que ya tenía documentada) y
+   `users.clerk_user_id` actualizado en la base para apuntar al nuevo ID — no se puede migrar un
+   usuario de test a producción, son pools separados. El admin de prueba (`admin@bbjobs.com.ar`)
+   se eliminó; queda un único admin real, `empleo.talency@gmail.com`.
 7. ✅ **Resuelto 2026-07-21**: Google OAuth de producción configurado. Proyecto nuevo en Google
    Cloud ("BBJobs"), OAuth consent screen (ahora "Google Auth Platform" — pestañas Audience/
    Branding/Data Access/Clients, UI distinta a la de antes) publicado en producción (no "Testing"),
