@@ -49,12 +49,15 @@ export async function generateMetadata(
       description,
       url: `${SITE_URL}/empleos/${id}`,
       type: "website",
-      images: job.logo_url ? [{ url: job.logo_url }] : undefined,
+      images: job.logo_url
+        ? [{ url: job.logo_url }]
+        : [{ url: `${SITE_URL}/og-image.png`, width: 1200, height: 630 }],
     },
     twitter: {
-      card: "summary",
+      card: job.logo_url ? "summary" : "summary_large_image",
       title,
       description,
+      images: [job.logo_url || `${SITE_URL}/og-image.png`],
     },
   };
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   BriefcaseIcon, MagnifyingGlassIcon, MapPinIcon,
-  BuildingOffice2Icon, FunnelIcon, XMarkIcon, BoltIcon,
+  BuildingOffice2Icon, FunnelIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
 import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
@@ -305,8 +305,17 @@ export default function EmpleosPage() {
                     key={job.id}
                     href={`/empleos/${job.id}`}
                     onClick={e => { e.preventDefault(); openPreview(job); }}
-                    className="block bg-white border border-[#DDE3EC] rounded-2xl p-6 hover:border-[#1E8EA3] hover:shadow-sm transition-all group"
+                    className={`relative overflow-hidden block rounded-2xl p-6 transition-all group ${
+                      job.is_featured
+                        ? "bg-gradient-to-br from-red-50 to-white border-2 border-red-200 hover:border-red-400 hover:shadow-md"
+                        : "bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] hover:shadow-sm"
+                    }`}
                   >
+                    {job.is_featured && (
+                      <div className="absolute -right-10 top-4 w-36 rotate-45 bg-red-600 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                        Destacado
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-4">
                       <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
                         {job.logo_url ? (
@@ -323,11 +332,6 @@ export default function EmpleosPage() {
                           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${MODALITY_CLS[job.modality] || "bg-gray-100 text-gray-600"}`}>
                             {MODALITY_LABEL[job.modality] || job.modality}
                           </span>
-                          {job.is_featured && (
-                            <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#C4A490] px-2.5 py-0.5 rounded-full border border-[#D4B7A2]/50">
-                              <BoltIcon className="w-3.5 h-3.5" />Destacado
-                            </span>
-                          )}
                           {job.published_at && (
                             <span className="text-xs text-[#64748B]">{new Date(job.published_at).toLocaleDateString("es-AR")}</span>
                           )}

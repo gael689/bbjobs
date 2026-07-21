@@ -43,12 +43,15 @@ export async function generateMetadata(
       description,
       url: `${SITE_URL}/empresas/${id}`,
       type: "website",
-      images: company.logo_url ? [{ url: company.logo_url }] : undefined,
+      images: company.logo_url
+        ? [{ url: company.logo_url }]
+        : [{ url: `${SITE_URL}/og-image.png`, width: 1200, height: 630 }],
     },
     twitter: {
-      card: "summary",
+      card: company.logo_url ? "summary" : "summary_large_image",
       title,
       description,
+      images: [company.logo_url || `${SITE_URL}/og-image.png`],
     },
   };
 }

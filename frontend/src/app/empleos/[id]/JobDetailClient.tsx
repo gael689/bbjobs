@@ -190,7 +190,7 @@ export default function JobDetailClient() {
                     {MODALITY_LABEL[job.modality] || job.modality}
                   </span>
                   {job.is_featured && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#C4A490] px-2.5 py-0.5 rounded-full border border-[#D4B7A2]/50">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full border border-red-200">
                       <BoltIcon className="w-3.5 h-3.5" />Destacado
                     </span>
                   )}

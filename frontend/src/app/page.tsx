@@ -18,7 +18,6 @@ import {
   CheckBadgeIcon,
   ChevronRightIcon,
   UserGroupIcon,
-  BoltIcon,
 } from "@heroicons/react/24/outline";
 
 interface Job extends PreviewJob {
@@ -316,8 +315,17 @@ export default function Home() {
                     key={job.id}
                     href={`/empleos/${job.id}`}
                     onClick={e => { e.preventDefault(); openPreview(job); }}
-                    className="group bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4"
+                    className={`group relative overflow-hidden rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4 ${
+                      job.is_featured
+                        ? "bg-gradient-to-br from-red-50 to-white border-2 border-red-200 hover:border-red-400 hover:shadow-md"
+                        : "bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm"
+                    }`}
                   >
+                    {job.is_featured && (
+                      <div className="absolute -right-10 top-4 w-36 rotate-45 bg-red-600 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                        Destacado
+                      </div>
+                    )}
                     {/* Avatar empresa */}
                     <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
                       {job.logo_url ? (
@@ -342,11 +350,6 @@ export default function Home() {
                         {job.modality && (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
                             <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
-                          </span>
-                        )}
-                        {job.is_featured && (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#F7EFE9] text-[#C4A490] px-2.5 py-1 rounded-full border border-[#D4B7A2]/50">
-                            <BoltIcon className="w-3.5 h-3.5" />Destacado
                           </span>
                         )}
                       </div>

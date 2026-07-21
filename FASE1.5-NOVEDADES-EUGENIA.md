@@ -36,8 +36,8 @@ navegación por esta razón.
 - Nuevos datos opcionales: fecha de nacimiento, sexo, movilidad propia (sí/no), disponibilidad
   (full-time/part-time), disponibilidad inmediata.
 - Descripción personal corta (hasta 300 caracteres) que la empresa ve al revisar una postulación.
-- Selector de habilidades desde el catálogo existente (antes no había forma de cargarlas desde
-  el perfil, aunque el dato ya se guardaba).
+- Selector de habilidades desde el catálogo existente.
+- Foto de perfil: el candidato puede subir su foto, y cuenta para el % de "perfil completo".
 
 **Indicador de "perfil completo"**
 - Un círculo con el porcentaje de perfil completo, visible tanto para el candidato como para la
@@ -123,6 +123,22 @@ traer de vuelta a los que se registraron y no volvieron.
 
 ---
 
+## ✅ Marca e imagen del portal
+
+**Imagen al compartir el link**
+Cuando alguien comparte el link de BBJobs por WhatsApp, redes sociales o mail, ahora aparece una
+imagen de marca (logo, nombre y frase del portal) en la vista previa, en vez de un link pelado
+o sin imagen. Un aviso o el perfil de una empresa que tiene su propio logo sigue mostrando ese
+logo puntual al compartirse; el resto usa la imagen general del portal.
+
+**Búsquedas destacadas, más visibles**
+La tarjeta de una búsqueda destacada (la que la empresa paga para darle prioridad) ahora se
+distingue de un vistazo en toda la lista: fondo y borde en rojo, y una cinta con la palabra
+"Destacado" en la esquina — antes era sólo una etiqueta chica del mismo color que el resto de
+la tarjeta, fácil de pasar por alto.
+
+---
+
 ## ⚠️ Cosas para tener en cuenta
 
 - **La moderación de búsquedas es manual** — hay que definir con Eugenia cada cuánto alguien de
@@ -131,37 +147,35 @@ traer de vuelta a los que se registraron y no volvieron.
   — nadie está obligado a cargarlos, se incentiva mostrando el % de perfil completo.
 - El plazo de 20 días por búsqueda es una decisión de producto ya tomada, no algo a validar —
   se avisó acá por si surge en la conversación.
-- ~~Falta la foto de perfil del candidato~~ — **ya se agregó**: el candidato ya puede subir su
-  foto de perfil desde su pantalla, y cuenta para el % de "perfil completo".
 - El recordatorio semanal es automático y corre solo — no requiere que nadie de Talency haga
   nada, pero vale la pena que Eugenia sepa que existe por si un candidato pregunta por qué le
   llegó un aviso sin haber hecho nada esa semana.
 
 ---
 
-## 🚀 Estado del lanzamiento — puesta en producción real (2026-07-20)
+## 🚀 Estado del lanzamiento — puesta en producción real
 
-Esto no es una función nueva de la plataforma, sino el trabajo de "mudar" el sitio de la
-computadora de desarrollo a internet, con dominio propio. Avance de esta semana:
+El sitio ya está mudado de la computadora de desarrollo a internet, con dominio propio, y esto
+es el estado actual:
 
-**Ya funcionando con el dominio real (`bbjobs.com.ar`)**
-- El sistema de login/registro pasó de un modo de prueba a un modo de producción real — ya no
-  hay avisos de "modo desarrollo" en las pantallas de login.
-- El sitio tiene certificado de seguridad (candadito verde) tanto para la parte que ven los
-  usuarios como para la parte técnica que la conecta con la base de datos.
+**Ya funcionando en el dominio real (`bbjobs.com.ar` / `www.bbjobs.com.ar`)**
+- El sistema de login/registro corre en modo de producción real — ya no hay avisos de "modo
+  desarrollo" en las pantallas de login, y todas las pantallas (login, registro, recuperar
+  contraseña) están en español.
+- Iniciar sesión con Google ya está habilitado en producción, además de email/contraseña.
+- El sitio tiene certificado de seguridad (candadito verde), tanto en la parte que ven los
+  usuarios como en la conexión con la base de datos.
+- La base se limpió de todas las cuentas y datos de prueba que se usaron para testear — el
+  único acceso que queda es el de administrador de Talency, para arrancar en limpio.
+- Cada vez que se sube una mejora al código, ahora se publica sola en el sitio en vivo en
+  cuestión de minutos, sin pasos manuales — antes esto podía trabarse y requerir intervención.
 
-**Pendiente, sin impacto para usar la plataforma hoy**
-- ⚠️ Por un tema de configuración del dominio (`www.bbjobs.com.ar`) que se está terminando de
-  resolver, puede haber algún momento en los próximos días donde esa dirección puntual no cargue
-  — se está trabajando en eso, no requiere nada de Talency.
-- Iniciar sesión con Google (en vez de email/contraseña) todavía no está habilitado en el modo
-  real — falta un trámite en Google que no depende de código. Mientras tanto, email/contraseña
-  funciona sin problema.
+**Pendiente**
 - Los cobros reales de Mercado Pago (destacar una búsqueda pagando) todavía están en modo de
   prueba — falta la cuenta de negocio real de Talency para pasar a cobrar de verdad.
 
-Ninguno de estos tres pendientes bloquea mostrarle la plataforma a alguien ni usarla para
-gestionar candidatos/búsquedas — son los últimos pasos antes de anunciarla como 100% en vivo.
+Este es el único pendiente antes de anunciar la plataforma como 100% en vivo — no bloquea
+mostrarla ni usarla hoy para gestionar candidatos y búsquedas.
 
 ---
 
@@ -183,3 +197,5 @@ gestionar candidatos/búsquedas — son los últimos pasos antes de anunciarla c
    Candidatos.
 9. Mostrar la sección de Notificaciones y su historial, y destacar que el recordatorio semanal
    de perfil incompleto ya está funcionando solo.
+10. Compartir el link de un aviso destacado por WhatsApp y mostrar la vista previa con imagen de
+    marca, y en el portal mostrar cómo se distingue esa misma búsqueda destacada en la lista.
