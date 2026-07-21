@@ -424,11 +424,15 @@ confirma `domainStatus: {dns: complete, ssl: complete, mail: complete}`.
    código que las consuma) y `CLERK_WEBHOOK_SECRET` cargado en Railway.
 6. ⏳ **Pendiente**: recrear el usuario admin en la instancia de producción — no se puede migrar
    desde test. Correr `python seed.py` (paso D7) con las credenciales de producción cargadas.
-7. ⏳ **Pendiente, requiere al usuario**: **Google OAuth de producción** — el wizard de
-   `clerk deploy` quedó pausado ahí a propósito ("Skip for now") porque requiere credenciales
-   propias de Google Cloud Console (las compartidas de dev no son válidas en prod). El login/
-   registro con Google en producción **no va a funcionar** hasta resolver esto — retomar con
-   `clerk deploy` de nuevo cuando haya tiempo de pasar por Google Cloud Console.
+7. ✅ **Resuelto 2026-07-21**: Google OAuth de producción configurado. Proyecto nuevo en Google
+   Cloud ("BBJobs"), OAuth consent screen (ahora "Google Auth Platform" — pestañas Audience/
+   Branding/Data Access/Clients, UI distinta a la de antes) publicado en producción (no "Testing"),
+   scopes `email`/`profile`/`openid`, credencial Web application con origin
+   `https://www.bbjobs.com.ar` y redirect URI `https://clerk.www.bbjobs.com.ar/v1/oauth_callback`
+   (la URI la da Clerk, no se inventa). Client ID/Secret cargados en Clerk → Google → "Use custom
+   credentials". Verificado con `clerk deploy status --mode agent`: `oauth.complete: true`,
+   `state: complete` — **la instancia de producción de Clerk quedó 100% terminada**, nada más
+   pendiente en este bloque.
 8. 🟡 Actualizar `clerkAppearance` (`frontend/src/lib/clerk-appearance.ts`) si hace falta algo
    específico de la instancia de producción (logo, colores) — la app ya inyecta el tema BBJobs,
    sólo confirmar que se ve igual en la instancia nueva.
