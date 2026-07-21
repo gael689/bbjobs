@@ -248,7 +248,7 @@ export default function Home() {
           STRIP STATS
       ══════════════════════════════════ */}
       <div className="bg-white border-y border-[#DDE3EC]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-wrap justify-center gap-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-2 gap-x-4 gap-y-6 justify-items-center sm:flex sm:flex-wrap sm:justify-center sm:gap-10">
           {[
             { icon: BriefcaseIcon, value: `${totalActive}+`, label: "búsquedas activas" },
             { icon: ShieldCheckIcon, value: "100%", label: "empresas verificadas" },

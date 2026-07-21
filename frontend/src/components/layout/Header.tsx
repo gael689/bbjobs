@@ -30,7 +30,7 @@ export default function Header() {
 
   return (
     <div className="fixed top-6 left-0 right-0 z-50 w-full px-4 flex justify-center pointer-events-none">
-      <header className="w-full max-w-6xl bg-gradient-to-b from-white to-[#F1F5F9] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_8px_32px_rgba(30,142,163,0.15)] rounded-full pointer-events-auto">
+      <header className={`w-full max-w-6xl bg-gradient-to-b from-white to-[#F1F5F9] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_8px_32px_rgba(30,142,163,0.15)] pointer-events-auto transition-[border-radius] duration-200 ${mobileOpen ? "rounded-[32px]" : "rounded-full"}`}>
         <div className="px-8 flex h-[76px] items-center justify-between gap-4">
 
         {/* ── Logo ── */}
@@ -53,6 +53,7 @@ export default function Header() {
           >
             <span className="ai-dot w-1.5 h-1.5 rounded-full bg-[#1E8EA3] inline-block" />
             IA Matching
+            <span className="text-[9px] font-extrabold uppercase tracking-wide bg-[#D4B7A2] text-[#3D2B1F] px-1.5 py-0.5 rounded-full">Próximamente</span>
           </Link>
         </nav>
 
@@ -120,6 +121,7 @@ export default function Header() {
           ))}
           <Link href="/ia" className="flex items-center gap-2 py-2.5 font-bold text-[#1E8EA3]" onClick={() => setMobileOpen(false)}>
             <SparklesIcon className="w-4 h-4" /> IA Matching
+            <span className="text-[9px] font-extrabold uppercase tracking-wide bg-[#D4B7A2] text-[#3D2B1F] px-1.5 py-0.5 rounded-full">Próximamente</span>
           </Link>
           <div className="pt-4 flex flex-col gap-3">
             {isSignedIn ? (
@@ -128,8 +130,9 @@ export default function Header() {
               </button>
             ) : (
               <>
-                <Link href="/login" className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
-                <Link href="/register?type=company" className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar aviso</Link>
+                <Link href="/login" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
+                <Link href="/register?type=candidate" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Dejá tu CV</Link>
+                <Link href="/register?type=company" onClick={() => setMobileOpen(false)} className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar aviso</Link>
               </>
             )}
           </div>
