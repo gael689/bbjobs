@@ -22,6 +22,7 @@ async function fetchAllActiveJobs(): Promise<PublicJob[]> {
   while (page <= 20) {
     const res = await fetch(`${API_URL}/jobs?page=${page}&page_size=${pageSize}`, {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(10_000),
     }).catch(() => null);
     if (!res || !res.ok) break;
 
@@ -39,6 +40,7 @@ async function fetchAllActiveJobs(): Promise<PublicJob[]> {
 async function fetchVerifiedCompanies(): Promise<PublicCompany[]> {
   const res = await fetch(`${API_URL}/companies/verified?limit=100`, {
     next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(10_000),
   }).catch(() => null);
   if (!res || !res.ok) return [];
   return res.json();
