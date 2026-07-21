@@ -33,20 +33,22 @@ export default function Header() {
       <header className={`w-full max-w-6xl bg-gradient-to-b from-white to-[#F1F5F9] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_8px_32px_rgba(30,142,163,0.15)] pointer-events-auto overflow-hidden ${mobileOpen ? "rounded-[32px]" : "rounded-full"}`}>
         <div className="px-8 flex h-[76px] items-center justify-between gap-4">
 
-        {/* ── Logo ── */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 group">
-          <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" priority />
-          <span className="font-display font-extrabold italic text-[24px] tracking-tight leading-none text-[#1C2230]">
-            <span className="text-[#1E8EA3]">BB</span>JOBS
-          </span>
-        </Link>
+        <div className="flex items-center gap-8">
+          {/* ── Logo ── */}
+          <Link href="/" className="flex items-center gap-2 shrink-0 group">
+            <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" priority />
+            <span className="font-display font-extrabold italic text-[24px] tracking-tight leading-none text-[#1C2230]">
+              <span className="text-[#1E8EA3]">BB</span>JOBS
+            </span>
+          </Link>
 
-        {/* ── Nav links desktop ── */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#64748B]">
-          <Link href="/empleos" className="hover:text-[#1E8EA3] transition-colors">Empleos</Link>
-          <Link href="/empresas" className="hover:text-[#1E8EA3] transition-colors">Empresas</Link>
-          <Link href="/contacto" className="hover:text-[#1E8EA3] transition-colors">Contacto</Link>
-        </nav>
+          {/* ── Nav links desktop ── */}
+          <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#64748B]">
+            <Link href="/empleos" className="hover:text-[#1E8EA3] transition-colors">Empleos</Link>
+            <Link href="/empresas" className="hover:text-[#1E8EA3] transition-colors">Empresas</Link>
+            <Link href="/contacto" className="hover:text-[#1E8EA3] transition-colors">Contacto</Link>
+          </nav>
+        </div>
 
         {/* ── CTAs desktop ── */}
         <div className="hidden md:flex items-center gap-2">
