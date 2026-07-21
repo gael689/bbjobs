@@ -57,8 +57,9 @@ def verify_signature(x_signature: str, x_request_id: str, data_id: str) -> bool:
     
     if not timestamp or not v1:
         return False
-        
-    manifest = f"id:{data_id};request-id:{x_request_id};ts:{timestamp};"
+
+    # MP espera el data.id en minúsculas si es alfanumérico (numérico hoy, pero alinea con la spec).
+    manifest = f"id:{data_id.lower()};request-id:{x_request_id};ts:{timestamp};"
     hmac_obj = hmac.new(
         settings.MP_WEBHOOK_SECRET.encode(),
         manifest.encode(),

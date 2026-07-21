@@ -123,6 +123,19 @@ async def process_mp_payment(event_id: str):
             await db.commit()
             logger.error("mp_webhook_processing_failed", error=str(e), event_id=event_id)
 
+def resolve_signature_data_id(query_params, payload: dict) -> str:
+    """
+    MP firma x-signature con el `data.id` que viene en el QUERY STRING de la URL del webhook, no
+    necesariamente el mismo valor que trae el body -- pueden no coincidir en algunas variantes de
+    notificación. Usar el del body acá rompe la verificación de firma en esos casos apenas haya
+    un MP_WEBHOOK_SECRET real cargado (hoy pasa desapercibido porque sin secret no se valida nada).
+    """
+    from_query = query_params.get("data.id")
+    if from_query:
+        return str(from_query)
+    return str(payload.get("data", {}).get("id", ""))
+
+
 @router.post("/webhooks/mercado-pago")
 async def mp_webhook(
     request: Request,
@@ -133,7 +146,7 @@ async def mp_webhook(
     x_request_id = request.headers.get("x-request-id")
 
     payload = await request.json()
-    data_id = str(payload.get("data", {}).get("id", ""))
+    data_id = resolve_signature_data_id(request.query_params, payload)
 
     if x_signature and x_request_id:
         if not verify_signature(x_signature, x_request_id, data_id):
