@@ -27,12 +27,14 @@ type PersonalForm = {
   accepts_remote: boolean;
   accepts_hybrid: boolean;
   accepts_onsite: boolean;
+  visible_in_talent_pool: boolean;
 };
 
 const EMPTY_PERSONAL_FORM: PersonalForm = {
   birth_date: "", gender: "", has_own_transport: "", availability: "",
   immediate_availability: false, summary: "", location_zone_id: "",
   accepts_remote: false, accepts_hybrid: false, accepts_onsite: false,
+  visible_in_talent_pool: false,
 };
 
 const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
@@ -87,6 +89,7 @@ export default function CandidatePerfilPage() {
         accepts_remote: !!data.accepts_remote,
         accepts_hybrid: !!data.accepts_hybrid,
         accepts_onsite: !!data.accepts_onsite,
+        visible_in_talent_pool: !!(data as any).visible_in_talent_pool,
       });
       if (!stepInitialized.current) {
         stepInitialized.current = true;
@@ -121,6 +124,7 @@ export default function CandidatePerfilPage() {
         accepts_remote: personalForm.accepts_remote,
         accepts_hybrid: personalForm.accepts_hybrid,
         accepts_onsite: personalForm.accepts_onsite,
+        visible_in_talent_pool: personalForm.visible_in_talent_pool,
       });
       setProfile(r.data);
       toast("Datos personales guardados");
@@ -490,6 +494,22 @@ export default function CandidatePerfilPage() {
                   className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] resize-none"
                 />
                 <p className="text-xs text-[#64748B] mt-1">Esto lo ve la empresa cuando revisa tu postulación.</p>
+              </div>
+
+              <div className="mt-6 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={personalForm.visible_in_talent_pool}
+                    onChange={e => setPersonalForm(f => ({ ...f, visible_in_talent_pool: e.target.checked }))}
+                    className="w-5 h-5 accent-[#1E8EA3] mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-[#1C2230] mb-1">
+                      Quiero que empresas verificadas puedan encontrar mi perfil en la Base de Talento de BBJobs y contactarme por oportunidades laborales.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
           )}

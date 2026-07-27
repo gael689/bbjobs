@@ -16,11 +16,11 @@ const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const metadata: Metadata = {
   title: "BBJobs — El trabajo que buscás está en Bahía",
-  description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y matching con IA.",
+  description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y oportunidades recomendadas según tu perfil.",
   keywords: "empleo Bahía Blanca, trabajo Bahía Blanca, búsqueda laboral, Talency",
   openGraph: {
     title: "BBJobs — El trabajo que buscás está en Bahía",
-    description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y matching con IA.",
+    description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y oportunidades recomendadas según tu perfil.",
     url: SITE_URL,
     siteName: "BBJobs",
     type: "website",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "BBJobs — El trabajo que buscás está en Bahía",
-    description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y matching con IA.",
+    description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y oportunidades recomendadas según tu perfil.",
     images: [OG_IMAGE],
   },
 };

@@ -46,6 +46,7 @@ class CandidateProfile(UUIDMixin, Base):
     accepts_remote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_hybrid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_onsite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    visible_in_talent_pool: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Throttle del recordatorio "completá tu perfil" — evita mandar la notificación de nuevo
     # antes de que pase el intervalo mínimo (ver services/profile_completion.py).

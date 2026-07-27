@@ -9,6 +9,7 @@ from app.models.tests import PsychometricTest, TestQuestion, TestQuestionOption,
 from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notification
 from app.models.contact import ContactMessage, ContactTopic
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
+from app.models.landing import LandingStat
 
 __all__ = [
     "Base",
@@ -65,4 +66,5 @@ __all__ = [
     "ContactTopic",
     "ApplicationStatusHistory",
     "CandidateActivityLog",
+    "LandingStat",
 ]

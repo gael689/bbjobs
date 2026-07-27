@@ -66,7 +66,7 @@ export default function ContactoPage() {
                   href="/register?type=company"
                   className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors"
                 >
-                  Publicar búsqueda <ArrowRightIcon className="w-4 h-4" />
+                  Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
                 </Link>
                 <a
                   href="https://talency.com.ar"

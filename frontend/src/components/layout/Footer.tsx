@@ -35,7 +35,7 @@ export default function Footer() {
             </a>.
           </p>
           <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-lg px-5 py-2.5 transition-colors">
-            Publicar aviso <ArrowRightIcon className="w-4 h-4" />
+            Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
           </Link>
         </div>
 
@@ -44,8 +44,8 @@ export default function Footer() {
           <ul className="space-y-3 text-sm">
             {[
               { href: "/", label: "Ver avisos" },
-              { href: "/register?type=candidate", label: "Subir mi CV" },
-              { href: "/register?type=company", label: "Publicar búsqueda" },
+              { href: "/register?type=candidate", label: "Cargar mi cv" },
+              { href: "/register?type=company", label: "Publicar un empleo" },
               { href: "/planes", label: "Planes y precios" },
             ].map(({ href, label }) => (
               <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>

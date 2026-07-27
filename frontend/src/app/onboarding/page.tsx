@@ -100,6 +100,7 @@ export default function OnboardingPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [visibleInTalentPool, setVisibleInTalentPool] = useState(false);
 
   // Company fields
   const [legalName, setLegalName] = useState("");
@@ -150,6 +151,7 @@ export default function OnboardingPage() {
           first_name: firstName,
           last_name: lastName,
           phone,
+          visible_in_talent_pool: visibleInTalentPool,
         });
         router.push(nextPath || `/dashboard/${res.data.role}`);
       } else {
@@ -251,6 +253,25 @@ export default function OnboardingPage() {
                 <Field label="Teléfono">
                   <Input icon={PhoneIcon} required placeholder="2914 000000" value={phone} onChange={e => setPhone(e.target.value)} />
                 </Field>
+
+                <div className="mt-6 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={visibleInTalentPool}
+                      onChange={e => setVisibleInTalentPool(e.target.checked)}
+                      className="w-5 h-5 accent-[#1E8EA3] mt-0.5 shrink-0"
+                    />
+                    <div>
+                      <p className="text-sm font-bold text-[#1C2230] mb-1">
+                        Quiero que empresas verificadas puedan encontrar mi perfil en la Base de Talento de BBJobs y contactarme por oportunidades laborales.
+                      </p>
+                      <p className="text-xs text-[#64748B]">
+                        Podrás cambiar esta opción cuando quieras desde la configuración de tu perfil.
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </>
             )}
 

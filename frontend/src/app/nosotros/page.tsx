@@ -109,13 +109,13 @@ export default function NosotrosPage() {
                 href="/register?type=company"
                 className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors"
               >
-                Publicar búsqueda <ArrowRightIcon className="w-4 h-4" />
+                Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
               </Link>
               <Link
                 href="/register?type=candidate"
                 className="inline-flex items-center justify-center gap-2 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-5 py-3 text-sm hover:bg-white transition-colors"
               >
-                Subir mi CV
+                Cargar mi cv
               </Link>
             </div>
           </section>

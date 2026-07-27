@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import Image from "next/image";
 import NeuralCanvas from "@/components/ui/NeuralCanvas";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
@@ -28,6 +29,26 @@ interface JobSuggestion {
   label: string;
   type: "title" | "company";
 }
+
+interface LandingStat {
+  id: string;
+  icon: string;
+  value: string;
+  label: string;
+  sort_order: number;
+  visible: boolean;
+}
+
+const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+  BriefcaseIcon: BriefcaseIcon,
+  ShieldCheckIcon: ShieldCheckIcon,
+  UserGroupIcon: UserGroupIcon,
+  SparklesIcon: SparklesIcon,
+  ChartBarIcon: ChartBarIcon,
+  MagnifyingGlassIcon: MagnifyingGlassIcon,
+  CursorArrowRaysIcon: CursorArrowRaysIcon,
+  CheckBadgeIcon: CheckBadgeIcon,
+};
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return "";
@@ -62,6 +83,7 @@ export default function Home() {
   const [resolvedModality, setResolvedModality] = useState<string | null>(null);
   const loading = resolvedModality !== previewModality;
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
+  const [landingStats, setLandingStats] = useState<LandingStat[]>([]);
 
   // Si venimos de vuelta de /login?redirect_url=/?job=... reabrimos la misma vista previa.
   useEffect(() => {
@@ -113,6 +135,13 @@ export default function Home() {
       .finally(() => { if (!ignore) setResolvedModality(previewModality); });
     return () => { ignore = true; };
   }, [previewModality]);
+
+  // Landing stats from admin-configured indicators
+  useEffect(() => {
+    api.get("/public/landing-stats")
+      .then(r => setLandingStats(r.data))
+      .catch(() => setLandingStats([]));
+  }, []);
 
   useEffect(() => {
     if (trimmedHeroQuery.length < 2) return;
@@ -173,7 +202,7 @@ export default function Home() {
           {/* Pill IA */}
           <div className="inline-flex items-center gap-2 bg-[#E6F4F7]/80 backdrop-blur-sm text-[#1E8EA3] border border-[#9ED4DF] rounded-full px-4 py-2 text-sm font-bold mb-8 shadow-sm">
             <span className="ai-dot w-2 h-2 rounded-full bg-[#1E8EA3] inline-block" />
-            Próximamente: Matching con IA · Potenciado por Gemini
+            Próximamente: oportunidades recomendadas según tu perfil
           </div>
 
           <h1 className="font-display font-extrabold text-5xl md:text-[64px] text-[#1C2230] leading-[1.1] tracking-tight mb-6">
@@ -187,7 +216,7 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-xl text-[#64748B] max-w-2xl mx-auto mb-10">
-            Reunimos las búsquedas activas de la ciudad en un solo lugar. Empresas verificadas, postulación con un click.
+            Encontrá oportunidades laborales, postulate de manera simple y gestioná todas tus postulaciones desde un solo lugar.
           </p>
 
           {/* Buscador hero */}
@@ -205,7 +234,7 @@ export default function Home() {
                 />
               </div>
               <button type="submit" className="bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-3 text-sm transition-colors shrink-0">
-                Buscar empleos
+                Ver empleos
               </button>
             </div>
 
@@ -234,10 +263,10 @@ export default function Home() {
           {/* CTAs secundarios */}
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#E6F4F7] transition-colors shadow-sm">
-              Subir mi CV <ArrowRightIcon className="w-4 h-4" />
+              Cargar mi cv <ArrowRightIcon className="w-4 h-4" />
             </Link>
             <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#187B8E] transition-colors shadow-sm">
-              Publicar búsqueda <ArrowRightIcon className="w-4 h-4" />
+              Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -247,26 +276,26 @@ export default function Home() {
       {/* ══════════════════════════════════
           STRIP STATS
       ══════════════════════════════════ */}
-      <div className="bg-white border-y border-[#DDE3EC]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-2 gap-x-4 gap-y-6 justify-items-center sm:flex sm:flex-wrap sm:justify-center sm:gap-10">
-          {[
-            { icon: BriefcaseIcon, value: `${totalActive}+`, label: "búsquedas activas" },
-            { icon: ShieldCheckIcon, value: "100%", label: "empresas verificadas" },
-            { icon: UserGroupIcon, value: "Local", label: "Bahía Blanca y región" },
-            { icon: SparklesIcon, value: "IA", label: "matching próximamente" },
-          ].map(({ icon: Icon, value, label }) => (
-            <div key={label} className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-[#1E8EA3]" />
-              </div>
-              <div>
-                <p className="font-display font-extrabold text-[#1C2230] text-lg leading-none">{value}</p>
-                <p className="text-xs text-[#64748B] font-medium mt-0.5">{label}</p>
-              </div>
-            </div>
-          ))}
+      {landingStats.length > 0 && (
+        <div className="bg-white border-y border-[#DDE3EC]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-2 gap-x-4 gap-y-6 justify-items-center sm:flex sm:flex-wrap sm:justify-center sm:gap-10">
+            {landingStats.map((stat) => {
+              const Icon = ICON_MAP[stat.icon] || BriefcaseIcon;
+              return (
+                <div key={stat.id} className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 text-[#1E8EA3]" />
+                  </div>
+                  <div>
+                    <p className="font-display font-extrabold text-[#1C2230] text-lg leading-none">{stat.value}</p>
+                    <p className="text-xs text-[#64748B] font-medium mt-0.5">{stat.label}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ══════════════════════════════════
           AVISOS + SIDEBAR
@@ -386,12 +415,12 @@ export default function Home() {
                   <SparklesIcon className="w-5 h-5 text-[#1E8EA3]" />
                   <span className="text-xs font-bold uppercase tracking-wider text-[#1E8EA3]">Próximamente</span>
                 </div>
-                <h3 className="font-display font-bold text-[#1C2230] mb-2">Matching con IA</h3>
+                <h3 className="font-display font-bold text-[#1C2230] mb-2">Oportunidades para vos</h3>
                 <p className="text-xs text-[#64748B] mb-4 leading-relaxed">
-                  Nuestro motor de IA analizará tu perfil y te conectará con las búsquedas más afines automáticamente.
+                  BBJobs te recomendará búsquedas acordes con tu experiencia, formación e intereses laborales.
                 </p>
                 <button disabled className="w-full bg-[#1E8EA3]/20 text-[#1E8EA3] text-sm font-bold rounded-xl py-2.5 cursor-not-allowed opacity-70">
-                  Quiero ser notificado
+                  Quiero recibir novedades
                 </button>
               </div>
             </div>
@@ -404,7 +433,7 @@ export default function Home() {
                 Cada empresa en BBJobs es revisada y aprobada por el equipo de Talency.
               </p>
               <Link href="/register?type=company" className="block text-center bg-[#1E8EA3] text-white text-sm font-bold rounded-xl py-2.5 hover:bg-[#187B8E] transition-colors">
-                Publicar mi búsqueda
+                Publicar un empleo
               </Link>
             </div>
           </aside>
@@ -420,19 +449,23 @@ export default function Home() {
             <div>
               <AIBadge label="Para empresas" />
               <h2 className="font-display font-extrabold text-4xl text-[#1C2230] leading-tight mt-5 mb-6">
-                Publicá tu primera búsqueda —{" "}
-                <span className="text-[#1E8EA3]">es gratis</span>
+                Encontrá el talento que{" "}
+                <span className="text-[#1E8EA3]">tu empresa necesita</span>
               </h2>
-              <p className="text-[#64748B] text-lg mb-8">
-                Accedé al talento local de Bahía Blanca. Tu empresa será verificada por Talency antes de operar, garantizando un entorno profesional y confiable.
+              <p className="text-[#64748B] text-lg mb-4">
+                Publicá tus búsquedas y gestioná todas las postulaciones desde un solo lugar.
+              </p>
+              <p className="text-sm text-[#64748B] mb-8 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
+                <ShieldCheckIcon className="w-4 h-4 text-[#1E8EA3] inline -mt-0.5 mr-1" />
+                Talency revisa cada cuenta empresarial antes de habilitar sus publicaciones para construir un entorno más seguro y confiable.
               </p>
               <div className="space-y-3.5 mb-10">
                 {[
-                  "Publicación de búsquedas en minutos",
-                  "Candidatos pre-filtrados · IA a futuro con Gemini",
-                  "Acceso a resultados de tests psicométricos",
-                  "Panel centralizado de gestión de postulaciones",
-                  "Garantía de empresa verificada por Talency",
+                  "Publicación de búsquedas laborales en pocos minutos",
+                  "Panel centralizado para gestionar todas las postulaciones",
+                  "Herramientas de IA para filtrar y ordenar candidatos según los requisitos del puesto — Próximamente",
+                  "Evaluaciones psicométricas opcionales y acceso a resultados — Próximamente",
+                  "Verificación de la cuenta empresarial por Talency",
                 ].map(item => (
                   <div key={item} className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 mt-0.5 border border-[#9ED4DF]">
@@ -444,7 +477,7 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap gap-4">
                 <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-7 py-3 hover:bg-[#187B8E] transition-colors shadow-sm">
-                  Publicar primera búsqueda <ArrowRightIcon className="w-4 h-4" />
+                  Publicar tu búsqueda <ArrowRightIcon className="w-4 h-4" />
                 </Link>
                 <Link href="/planes" className="inline-flex items-center gap-2 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-7 py-3 hover:bg-[#E6F4F7] transition-colors">
                   Ver planes
@@ -455,10 +488,10 @@ export default function Home() {
             {/* Feature grid */}
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: ShieldCheckIcon, title: "Empresas verificadas", desc: "Talency revisa y aprueba cada empresa antes de que publique búsquedas." },
+                { icon: ShieldCheckIcon, title: "Empresas verificadas", desc: "Talency revisa cada cuenta empresarial antes de habilitar la publicación de búsquedas." },
                 { icon: CursorArrowRaysIcon, title: "Postulación 1-click", desc: "Los candidatos postulan sin repetir datos. Todo centralizado en la plataforma." },
-                { icon: ChartBarIcon, title: "Observatorio laboral", desc: "Datos del mercado laboral bahiense: sueldos, rubros y tendencias." },
-                { icon: SparklesIcon, title: "IA · Próximamente", desc: "Matching automático de perfiles usando inteligencia artificial con Gemini." },
+                { icon: ChartBarIcon, title: "Observatorio laboral", desc: "Indicadores locales generados a partir de las búsquedas publicadas en BBJobs: puestos, rubros, requisitos y rangos salariales." },
+                { icon: SparklesIcon, title: "Filtrado inteligente — Próximamente", desc: "Herramientas de IA para filtrar y ordenar candidatos según los requisitos del puesto." },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-2xl p-5 hover:border-[#1E8EA3]/30 hover:shadow-sm transition-all">
                   <div className="w-10 h-10 bg-[#E6F4F7] rounded-xl flex items-center justify-center mb-4 border border-[#9ED4DF]">
@@ -477,24 +510,41 @@ export default function Home() {
           SECCIÓN CANDIDATOS
       ══════════════════════════════════ */}
       <section className="bg-[#FAFBFD] border-t border-[#DDE3EC] py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <AIBadge label="Para candidatos" />
-          <h2 className="font-display font-extrabold text-4xl text-[#1C2230] leading-tight mt-5 mb-6">
-            Subí tu CV en 5 minutos<br />y ya estás dentro
-          </h2>
-          <p className="text-[#64748B] text-lg mb-10 max-w-2xl mx-auto">
-            Tu perfil es privado y solo lo ven las empresas a las que decidís postularte. Sin spam, sin intermediarios innecesarios.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 mb-12">
-            {["CV online privado", "Postulación 1-click", "Tests psicométricos", "Alertas de empleos", "Datos del mercado"].map(f => (
-              <span key={f} className="bg-white border border-[#DDE3EC] text-[#1C2230] font-semibold text-sm px-4 py-2 rounded-full shadow-sm">
-                ✓ {f}
-              </span>
-            ))}
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <AIBadge label="Para candidatos" />
+              <h2 className="font-display font-extrabold text-4xl text-[#1C2230] leading-tight mt-5 mb-6">
+                Creá tu perfil laboral{" "}
+                <span className="text-[#1E8EA3]">en pocos minutos</span>
+              </h2>
+              <p className="text-[#64748B] text-lg mb-8">
+                Tu información está protegida y vos decidís quién puede verla. Las empresas verificadas podrán acceder a tu perfil cuando te postules y, solo si lo autorizás, también podrán encontrarte en la Base de Talento de BBJobs.
+              </p>
+              <div className="flex flex-wrap gap-3 mb-10">
+                {["Perfil protegido", "Vos decidís tu visibilidad", "Postulaciones simples", "Alertas de empleos", "Datos del mercado laboral"].map(f => (
+                  <span key={f} className="bg-white border border-[#DDE3EC] text-[#1C2230] font-semibold text-sm px-4 py-2 rounded-full shadow-sm">
+                    ✓ {f}
+                  </span>
+                ))}
+              </div>
+              <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-4 text-lg hover:bg-[#187B8E] transition-colors shadow-sm">
+                Cargar mi cv — es gratis <ArrowRightIcon className="w-5 h-5" />
+              </Link>
+            </div>
+            <div className="hidden md:flex items-center justify-center">
+              <div className="relative w-full max-w-xl transform xl:scale-110 z-10">
+                <Image
+                  src="/candidato-panel.png"
+                  alt="Candidato revisando oportunidades laborales en BBJobs"
+                  width={700}
+                  height={850}
+                  className="rounded-2xl shadow-2xl w-full h-auto border-4 border-white"
+                  priority={false}
+                />
+              </div>
+            </div>
           </div>
-          <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-4 text-lg hover:bg-[#187B8E] transition-colors shadow-sm">
-            Subir mi CV — es gratis <ArrowRightIcon className="w-5 h-5" />
-          </Link>
         </div>
       </section>
 
@@ -503,15 +553,15 @@ export default function Home() {
       ══════════════════════════════════ */}
       <section className="bg-[#1C2230] py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-[#9ED4DF] font-bold text-sm uppercase tracking-wider mb-4">Powered by Talency</p>
+          <p className="text-[#9ED4DF] font-bold text-sm uppercase tracking-wider mb-4">SELECCIÓN DE PERSONAL POR TALENCY</p>
           <h2 className="font-display font-extrabold text-3xl text-white mb-4">
-            ¿Querés que nos encarguemos de todo?
+            ¿Preferís que nos encarguemos de la selección?
           </h2>
           <p className="text-[#94A3B8] mb-8 max-w-xl mx-auto">
-            El equipo de Talency puede gestionar tu búsqueda de principio a fin: selección, entrevistas, evaluaciones psicométricas y presentación de candidatos.
+            El equipo de Talency puede acompañarte durante todo el proceso: relevamiento del perfil, publicación de la búsqueda, revisión de postulaciones, entrevistas, evaluaciones psicométricas y presentación de candidatos.
           </p>
           <a href="https://talency.com.ar" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-3.5 hover:bg-[#187B8E] transition-colors">
-            Hablar con Talency <ArrowRightIcon className="w-4 h-4" />
+            Consultar por el servicio de selección <ArrowRightIcon className="w-4 h-4" />
           </a>
         </div>
       </section>

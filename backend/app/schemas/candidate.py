@@ -39,6 +39,7 @@ class CandidateProfileUpdate(BaseModel):
     accepts_remote: Optional[bool] = None
     accepts_hybrid: Optional[bool] = None
     accepts_onsite: Optional[bool] = None
+    visible_in_talent_pool: Optional[bool] = None
 
 class CandidateProfileResponse(BaseModel):
     id: uuid.UUID
@@ -61,6 +62,7 @@ class CandidateProfileResponse(BaseModel):
     accepts_remote: bool
     accepts_hybrid: bool
     accepts_onsite: bool
+    visible_in_talent_pool: bool = False
     completion_percent: int = 0
     missing_fields: List[ProfileMissingItem] = []
 

@@ -4,7 +4,7 @@ import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
-  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon,
+  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon
 } from "@heroicons/react/24/outline";
 
 // "Skills pendientes" se dio de baja: sin flujo de sugerencia de skills de parte de los
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon },
   { href: "/dashboard/admin/nuevo-admin", label: "Nuevo admin", icon: UserPlusIcon },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
+  { href: "/dashboard/admin/indicadores", label: "Indicadores Landing", icon: SparklesIcon },
 ];
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
