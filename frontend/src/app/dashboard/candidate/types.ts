@@ -25,6 +25,10 @@ export interface CandidateProfile {
   accepts_remote: boolean;
   accepts_hybrid: boolean;
   accepts_onsite: boolean;
+  visible_in_talent_pool: boolean;
+  /** Null = todavía no se le mostró el aviso de la Base de Talento. */
+  talent_pool_asked_at?: string | null;
+  talent_pool_decided_at?: string | null;
   completion_percent: number;
   missing_fields: ProfileMissingItem[];
 }

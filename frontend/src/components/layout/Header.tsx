@@ -63,10 +63,10 @@ export default function Header() {
               </button>
               <button
                 onClick={handleLogout}
-                className="p-2 text-[#64748B] hover:text-red-500 transition-colors"
-                title="Salir"
+                className="flex items-center gap-1.5 text-sm font-semibold text-[#64748B] hover:text-red-500 border border-[#DDE3EC] hover:border-red-200 rounded-lg px-3 py-2 transition-colors"
               >
-                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                Cerrar sesión
               </button>
             </>
           ) : (
@@ -116,9 +116,22 @@ export default function Header() {
           </div>
           <div className="pt-1 flex flex-col gap-3">
             {isSignedIn ? (
-              <button onClick={handleLogout} className="text-center font-bold border-2 border-red-200 text-red-500 rounded-lg py-2.5 hover:bg-red-50">
-                Salir
-              </button>
+              <>
+                <button
+                  onClick={() => { setMobileOpen(false); router.push("/post-login"); }}
+                  className="flex items-center justify-center gap-2 font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E] transition-colors"
+                >
+                  <UserIcon className="w-4 h-4" />
+                  Mi Panel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center justify-center gap-2 font-bold border-2 border-red-200 text-red-500 rounded-lg py-2.5 hover:bg-red-50 transition-colors"
+                >
+                  <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                  Cerrar sesión
+                </button>
+              </>
             ) : (
               <>
                 <Link href="/login" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>

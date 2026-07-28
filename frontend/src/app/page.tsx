@@ -19,6 +19,7 @@ import {
   CheckBadgeIcon,
   ChevronRightIcon,
   UserGroupIcon,
+  MapPinIcon,
 } from "@heroicons/react/24/outline";
 
 interface Job extends PreviewJob {
@@ -48,6 +49,7 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   MagnifyingGlassIcon: MagnifyingGlassIcon,
   CursorArrowRaysIcon: CursorArrowRaysIcon,
   CheckBadgeIcon: CheckBadgeIcon,
+  MapPinIcon: MapPinIcon,
 };
 
 function timeAgo(dateStr?: string) {
@@ -489,7 +491,7 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-4">
               {[
                 { icon: ShieldCheckIcon, title: "Empresas verificadas", desc: "Talency revisa cada cuenta empresarial antes de habilitar la publicación de búsquedas." },
-                { icon: CursorArrowRaysIcon, title: "Postulación 1-click", desc: "Los candidatos postulan sin repetir datos. Todo centralizado en la plataforma." },
+                { icon: CursorArrowRaysIcon, title: "Postulaciones simples y completas", desc: "Los candidatos se postulan utilizando la información de su perfil, sin volver a cargar sus datos en cada búsqueda." },
                 { icon: ChartBarIcon, title: "Observatorio laboral", desc: "Indicadores locales generados a partir de las búsquedas publicadas en BBJobs: puestos, rubros, requisitos y rangos salariales." },
                 { icon: SparklesIcon, title: "Filtrado inteligente — Próximamente", desc: "Herramientas de IA para filtrar y ordenar candidatos según los requisitos del puesto." },
               ].map(({ icon: Icon, title, desc }) => (

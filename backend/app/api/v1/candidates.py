@@ -76,6 +76,58 @@ async def update_my_candidate_profile(
     await db.refresh(profile)
     return await _build_profile_response(profile, db)
 
+class TalentPoolDecision(BaseModel):
+    accepted: bool
+
+
+@router.post("/me/candidate/talent-pool", response_model=CandidateProfileResponse)
+async def decide_talent_pool(
+    payload: TalentPoolDecision,
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Registra la respuesta del candidato al aviso de la Base de Talento.
+
+    Se separa del PATCH genérico de perfil a propósito: esto es un consentimiento sobre el
+    que después se cobra un plan a las empresas, así que queda con fecha propia y con una
+    entrada en el historial de actividad — tiene que poder auditarse."""
+    profile = await _get_candidate_profile(current_user.id, db)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    profile.visible_in_talent_pool = payload.accepted
+    profile.talent_pool_decided_at = now
+    if profile.talent_pool_asked_at is None:
+        profile.talent_pool_asked_at = now
+
+    await log_candidate_activity(
+        db, candidate_id=profile.id, event_type="talent_pool_consent",
+        summary=(
+            "Autorizó aparecer en la Base de Talento"
+            if payload.accepted
+            else "Rechazó aparecer en la Base de Talento"
+        ),
+    )
+
+    await db.commit()
+    await db.refresh(profile)
+    return await _build_profile_response(profile, db)
+
+
+@router.post("/me/candidate/talent-pool/dismiss", response_model=CandidateProfileResponse)
+async def dismiss_talent_pool_prompt(
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    """"Ahora no" — marca el aviso como mostrado sin fijar una decisión, así no lo perseguimos
+    en cada visita. Sigue pudiendo activarlo desde su perfil cuando quiera."""
+    profile = await _get_candidate_profile(current_user.id, db)
+    if profile.talent_pool_asked_at is None:
+        profile.talent_pool_asked_at = datetime.datetime.now(datetime.timezone.utc)
+    await db.commit()
+    await db.refresh(profile)
+    return await _build_profile_response(profile, db)
+
+
 @router.post("/me/candidate/cv", response_model=CandidateProfileResponse)
 async def upload_cv(
     file: UploadFile = File(...),

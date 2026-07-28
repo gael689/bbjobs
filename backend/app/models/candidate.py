@@ -46,7 +46,13 @@ class CandidateProfile(UUIDMixin, Base):
     accepts_remote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_hybrid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepts_onsite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Base de Talento — consentimiento para que empresas con plan pago puedan encontrar el
+    # perfil sin que el candidato se haya postulado a esa búsqueda. Es la base de un producto
+    # cobrado, así que no alcanza con el booleano: hace falta poder demostrar *cuándo* se
+    # preguntó y *cuándo* respondió qué. `asked_at` además evita volver a mostrar el aviso.
     visible_in_talent_pool: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    talent_pool_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    talent_pool_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Throttle del recordatorio "completá tu perfil" — evita mandar la notificación de nuevo
     # antes de que pase el intervalo mínimo (ver services/profile_completion.py).

@@ -73,11 +73,17 @@ async def onboarding_candidate(
     db.add(user)
     await db.flush()
 
+    # El registro ya le preguntó por la Base de Talento, así que la decisión queda tomada y
+    # fechada acá — el panel no le vuelve a mostrar el aviso.
+    now = datetime.now(timezone.utc)
     db.add(CandidateProfile(
         user_id=user.id,
         first_name=payload.first_name,
         last_name=payload.last_name,
         phone=payload.phone,
+        visible_in_talent_pool=payload.visible_in_talent_pool,
+        talent_pool_asked_at=now,
+        talent_pool_decided_at=now,
     ))
 
     await db.commit()

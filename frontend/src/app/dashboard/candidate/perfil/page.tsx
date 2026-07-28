@@ -89,7 +89,7 @@ export default function CandidatePerfilPage() {
         accepts_remote: !!data.accepts_remote,
         accepts_hybrid: !!data.accepts_hybrid,
         accepts_onsite: !!data.accepts_onsite,
-        visible_in_talent_pool: !!(data as any).visible_in_talent_pool,
+        visible_in_talent_pool: !!data.visible_in_talent_pool,
       });
       if (!stepInitialized.current) {
         stepInitialized.current = true;
@@ -501,12 +501,23 @@ export default function CandidatePerfilPage() {
                   <input
                     type="checkbox"
                     checked={personalForm.visible_in_talent_pool}
-                    onChange={e => setPersonalForm(f => ({ ...f, visible_in_talent_pool: e.target.checked }))}
+                    // Va por su endpoint propio, no por el PATCH general del perfil: es un
+                    // consentimiento sobre el que se cobra un plan y tiene que quedar fechado.
+                    onChange={e => {
+                      const accepted = e.target.checked;
+                      setPersonalForm(f => ({ ...f, visible_in_talent_pool: accepted }));
+                      api.post("/me/candidate/talent-pool", { accepted }).catch(() => {
+                        setPersonalForm(f => ({ ...f, visible_in_talent_pool: !accepted }));
+                      });
+                    }}
                     className="w-5 h-5 accent-[#1E8EA3] mt-0.5 shrink-0"
                   />
                   <div>
                     <p className="text-sm font-bold text-[#1C2230] mb-1">
                       Quiero que empresas verificadas puedan encontrar mi perfil en la Base de Talento de BBJobs y contactarme por oportunidades laborales.
+                    </p>
+                    <p className="text-xs text-[#64748B]">
+                      Podés cambiar esta opción cuando quieras. Se guarda al instante.
                     </p>
                   </div>
                 </label>

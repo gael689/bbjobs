@@ -19,6 +19,9 @@ export interface DashboardNavItem {
    * si no quedarían marcados como activos en cualquier subpágina (todas empiezan con ese
    * mismo prefijo). El resto de los ítems no lo necesita. */
   exact?: boolean;
+  /** Encabezado de sección que se dibuja *antes* de este ítem. Opcional: un nav sin ninguno
+   * se renderiza como lista plana, igual que antes. */
+  section?: string;
 }
 
 const ROLE_LABEL: Record<"candidate" | "company" | "admin", string> = {
@@ -45,9 +48,15 @@ function NavLinks({
 }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
-      {navItems.map(({ href, label, icon: Icon, exact }) => {
+      {navItems.map(({ href, label, icon: Icon, exact, section }) => {
         const isNotifications = href.endsWith("/notificaciones");
         return (
+          <div key={`g-${href}`}>
+          {section && (
+            <p className="px-3 pt-4 pb-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-[#5C767D]">
+              {section}
+            </p>
+          )}
           <Link
             key={href}
             href={href}
@@ -66,6 +75,7 @@ function NavLinks({
               </span>
             )}
           </Link>
+          </div>
         );
       })}
     </nav>
@@ -130,22 +140,20 @@ export default function DashboardShell({
 
         <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
           <NotificationBell variant="prominent" align="left" openUpward />
-          <div className="flex items-center justify-between px-1">
-            <Link
-              href="/"
-              className="flex items-center gap-2 py-1.5 text-[13px] font-bold text-[#A9C0C6] hover:text-white transition-colors"
-            >
-              <ArrowLeftIcon className="w-4 h-4" />
-              Volver al inicio
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 text-[#A9C0C6] hover:text-red-400 transition-colors"
-              title="Salir"
-            >
-              <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            </button>
-          </div>
+          <Link
+            href="/"
+            className="flex items-center gap-2 px-3 py-2 text-[13px] font-bold text-[#A9C0C6] hover:text-white hover:bg-white/[0.04] rounded-xl transition-colors"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+            Volver al inicio
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 text-[13px] font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+          >
+            <ArrowRightOnRectangleIcon className="w-4 h-4" />
+            Cerrar sesión
+          </button>
         </div>
       </aside>
 
@@ -192,7 +200,7 @@ export default function DashboardShell({
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
               >
                 <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                Salir
+                Cerrar sesión
               </button>
             </div>
           </div>

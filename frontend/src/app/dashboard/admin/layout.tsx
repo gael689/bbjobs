@@ -11,17 +11,24 @@ import {
 // usuarios (decisión de producto, ver FASE1.5-FILTROS-PLAN.md §7b), la pantalla quedaba
 // siempre vacía. El backend de sugerencias queda intacto por si se reusa como gestor de
 // catálogo más adelante.
+// Agrupado por lo que se viene a hacer, no por orden de construcción: primero lo que se
+// revisa todos los días (moderación), después lo que se consulta, y al final lo que se
+// configura una vez cada tanto.
 const NAV_ITEMS = [
   { href: "/dashboard/admin", label: "Inicio", icon: HomeIcon, exact: true },
-  { href: "/dashboard/admin/empresas", label: "Empresas", icon: BuildingOffice2Icon },
+
+  { href: "/dashboard/admin/empresas", label: "Empresas", icon: BuildingOffice2Icon, section: "Moderación" },
   { href: "/dashboard/admin/candidatos", label: "Candidatos", icon: UsersIcon },
   { href: "/dashboard/admin/busquedas", label: "Búsquedas y postulantes", icon: BriefcaseIcon },
-  { href: "/dashboard/admin/mensajes", label: "Mensajes", icon: ChatBubbleLeftRightIcon },
+
+  { href: "/dashboard/admin/mensajes", label: "Mensajes", icon: ChatBubbleLeftRightIcon, section: "Comunicación" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: BellIcon },
-  { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon },
-  { href: "/dashboard/admin/nuevo-admin", label: "Nuevo admin", icon: UserPlusIcon },
+
+  { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon, section: "Negocio" },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
-  { href: "/dashboard/admin/indicadores", label: "Indicadores Landing", icon: SparklesIcon },
+
+  { href: "/dashboard/admin/indicadores", label: "Indicadores de la landing", icon: SparklesIcon, section: "Configuración" },
+  { href: "/dashboard/admin/nuevo-admin", label: "Nuevo admin", icon: UserPlusIcon },
 ];
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import {
   BuildingOffice2Icon, UsersIcon, BriefcaseIcon, ChatBubbleLeftRightIcon,
   CreditCardIcon, ChartBarIcon, ArrowRightIcon, ClockIcon,
+  SparklesIcon, UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import type { Metrics } from "./types";
 
@@ -62,10 +63,20 @@ export default function AdminInicioPage() {
       meta: "Métricas generales de la plataforma",
       icon: ChartBarIcon, tint: "bg-[#E6F4F7]", fg: "text-[#187B8E]",
     },
+    {
+      href: "/dashboard/admin/indicadores", title: "Indicadores",
+      meta: "Números que se ven en la landing",
+      icon: SparklesIcon, tint: "bg-[#F7EFE9]", fg: "text-[#B98F72]",
+    },
+    {
+      href: "/dashboard/admin/nuevo-admin", title: "Nuevo admin",
+      meta: "Dar acceso al equipo de Talency",
+      icon: UserPlusIcon, tint: "bg-[#E6F4F7]", fg: "text-[#187B8E]",
+    },
   ] : [];
 
   return (
-    <div className="px-4 sm:px-6 py-8 max-w-5xl">
+    <div className="px-4 sm:px-6 py-8 max-w-6xl">
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Inicio</h1>
       <p className="text-[#64748B] text-sm mb-6">Esto necesita tu atención hoy.</p>
 
@@ -94,7 +105,7 @@ export default function AdminInicioPage() {
         </Link>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(({ href, title, meta, icon: Icon, tint, fg, pillWarn }) => (
           <Link
             key={href}

@@ -7,6 +7,8 @@ class CandidateOnboarding(BaseModel):
     first_name: str
     last_name: str
     phone: str
+    # Casilla de la Base de Talento del registro — desactivada por defecto, igual que en el UI.
+    visible_in_talent_pool: bool = False
 
 
 class CompanyOnboarding(BaseModel):

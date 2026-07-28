@@ -63,6 +63,8 @@ class CandidateProfileResponse(BaseModel):
     accepts_hybrid: bool
     accepts_onsite: bool
     visible_in_talent_pool: bool = False
+    talent_pool_asked_at: Optional[datetime] = None
+    talent_pool_decided_at: Optional[datetime] = None
     completion_percent: int = 0
     missing_fields: List[ProfileMissingItem] = []
 
