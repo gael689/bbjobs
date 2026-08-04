@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useLayoutEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BellIcon, BellSlashIcon } from "@heroicons/react/24/outline";
 import { useNotifications } from "@/hooks/useNotifications";
 import NotificationItem from "./NotificationItem";
 import type { NotificationItemData } from "@/hooks/useNotifications";
+
+const PANEL_WIDTH = 360;
+const VIEWPORT_MARGIN = 12;
+const TRIGGER_GAP = 12;
 
 export default function NotificationBell({
   align = "right",
@@ -27,13 +32,53 @@ export default function NotificationBell({
   const { items, unreadCount, loading, open, toggleOpen, close, markRead, markAllRead } =
     useNotifications();
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
+
+  // El panel se porta a document.body: algunos contenedores donde vive la campanita (la
+  // navbar pública, por ej.) tienen overflow-hidden para recortar el drawer mobile con
+  // bordes redondeados, y eso cortaba el dropdown de notificaciones. Al portarlo afuera
+  // calculamos la posición en coordenadas de viewport (fixed) a partir del botón.
+  const updatePosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const style: React.CSSProperties = { position: "fixed", width: PANEL_WIDTH, maxWidth: "90vw" };
+
+    if (align === "left") {
+      style.left = Math.min(rect.left, window.innerWidth - PANEL_WIDTH - VIEWPORT_MARGIN);
+    } else {
+      style.left = Math.max(VIEWPORT_MARGIN, rect.right - PANEL_WIDTH);
+    }
+
+    if (openUpward) {
+      style.bottom = window.innerHeight - rect.top + TRIGGER_GAP;
+    } else {
+      style.top = rect.bottom + TRIGGER_GAP;
+    }
+
+    setPanelStyle(style);
+  }, [align, openUpward]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        close();
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      close();
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -49,6 +94,7 @@ export default function NotificationBell({
     <div ref={containerRef} className="relative">
       {variant === "prominent" ? (
         <button
+          ref={triggerRef}
           onClick={toggleOpen}
           className="w-full flex items-center justify-between gap-3 bg-[#16303A] hover:bg-[#1B3A46] border border-white/[0.06] rounded-[13px] px-3.5 py-3 transition-colors"
           aria-label="Notificaciones"
@@ -72,6 +118,7 @@ export default function NotificationBell({
         </button>
       ) : (
         <button
+          ref={triggerRef}
           onClick={toggleOpen}
           className="relative p-2 text-[#64748B] hover:text-[#1E8EA3] transition-colors"
           aria-label="Notificaciones"
@@ -85,40 +132,42 @@ export default function NotificationBell({
         </button>
       )}
 
-      {open && (
-        <div
-          className={`absolute w-[360px] max-w-[90vw] bg-gradient-to-b from-white to-[#F8FAFC] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_16px_40px_rgba(30,142,163,0.18)] rounded-2xl overflow-hidden z-50 ${
-            align === "left" ? "left-0" : "right-0"
-          } ${openUpward ? "bottom-full mb-3" : "top-full mt-3"}`}
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#EEF2F7]">
-            <span className="font-display font-bold text-[#1C2230]">Notificaciones</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs font-semibold text-[#1E8EA3] hover:text-[#187B8E] transition-colors"
-              >
-                Marcar todas como leídas
-              </button>
-            )}
-          </div>
+      {open && panelStyle && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={panelStyle}
+            className="bg-gradient-to-b from-white to-[#F8FAFC] border border-white shadow-[inset_0_2px_4px_rgba(255,255,255,1),0_16px_40px_rgba(30,142,163,0.18)] rounded-2xl overflow-hidden z-50"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#EEF2F7]">
+              <span className="font-display font-bold text-[#1C2230]">Notificaciones</span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs font-semibold text-[#1E8EA3] hover:text-[#187B8E] transition-colors"
+                >
+                  Marcar todas como leídas
+                </button>
+              )}
+            </div>
 
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-[#EEF2F7]">
-            {loading && items.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-[#64748B]">Cargando…</div>
-            ) : items.length === 0 ? (
-              <div className="px-4 py-10 flex flex-col items-center gap-2 text-center">
-                <BellSlashIcon className="w-8 h-8 text-[#CBD5E1]" />
-                <span className="text-sm text-[#64748B]">No tenés notificaciones</span>
-              </div>
-            ) : (
-              items.map((n) => (
-                <NotificationItem key={n.id} notification={n} onClick={handleItemClick} />
-              ))
-            )}
-          </div>
-        </div>
-      )}
+            <div className="max-h-[420px] overflow-y-auto divide-y divide-[#EEF2F7]">
+              {loading && items.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-[#64748B]">Cargando…</div>
+              ) : items.length === 0 ? (
+                <div className="px-4 py-10 flex flex-col items-center gap-2 text-center">
+                  <BellSlashIcon className="w-8 h-8 text-[#CBD5E1]" />
+                  <span className="text-sm text-[#64748B]">No tenés notificaciones</span>
+                </div>
+              ) : (
+                items.map((n) => (
+                  <NotificationItem key={n.id} notification={n} onClick={handleItemClick} />
+                ))
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
