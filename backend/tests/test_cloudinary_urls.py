@@ -54,3 +54,18 @@ def test_no_confunde_una_imagen_con_un_raw():
 def test_url_desconocida_no_revienta():
     assert _parse("https://ejemplo.com/algo.pdf") is None
     assert _parse("") is None
+
+def test_url_privada_con_firma_no_se_come_el_public_id():
+    """La entrega privada mete `s--xxxx--/` antes de la version.
+
+    Sin saltearla quedaba adentro del public_id y Cloudinary respondia
+    "Resource not found - s--uYtng0i9--/v1786107980/bbjobs/cvs/....pdf".
+    Rompia SOLO los CV subidos como private: los `upload` no llevan firma, y
+    por eso 14 de 15 andaban y el bug parecia aleatorio.
+    """
+    url = ("https://res.cloudinary.com/dbvu6oplq/raw/private/s--uYtng0i9--/"
+           "v1786107980/bbjobs/cvs/5f4111aa-1ad9-4390-b8f5-015212d3f02a.pdf")
+    m = _RAW_URL_RE.search(url)
+    assert m is not None
+    assert m.group("delivery_type") == "private"
+    assert m.group("public_id") == "bbjobs/cvs/5f4111aa-1ad9-4390-b8f5-015212d3f02a.pdf"

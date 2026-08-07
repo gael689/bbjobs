@@ -466,7 +466,10 @@ async def add_language(
     db.add(lang)
     await log_candidate_activity(
         db, candidate_id=profile.id, event_type="language_add",
-        summary=f"Agregó idioma: {payload.language_name} ({payload.level})",
+        # `.value` y no el enum pelado: interpolado en un f-string, `LanguageLevel.basico`
+        # se imprime tal cual —con el nombre de la clase adelante— y así quedaba en la
+        # actividad que ve el admin. El valor es además el que está bien escrito ("básico").
+        summary=f"Agregó idioma: {payload.language_name} ({payload.level.value})",
     )
     await db.commit()
     await db.refresh(lang)

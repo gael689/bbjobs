@@ -22,7 +22,18 @@ PRIVATE_DELIVERY_TYPE = "private"
 
 # Los PDF viejos (subidos antes de este cambio) son `upload`. El tipo se deduce de la URL
 # guardada en vez de agregar una columna: Cloudinary lo pone en el path.
-_RAW_URL_RE = re.compile(r"/raw/(?P<delivery_type>upload|private|authenticated)/(?:v\d+/)?(?P<public_id>.+)$")
+# El `s--xxxxxxxx--/` es la firma que Cloudinary mete en la URL de entrega cuando el
+# recurso es `private` o `authenticated`. Sin saltearla queda adentro del public_id y la
+# URL firmada que se genera después apunta a un recurso inexistente: Cloudinary responde
+# "Resource not found - s--uYtng0i9--/v1786107980/bbjobs/cvs/….pdf" — con la firma y la
+# versión ahí metidas, que es la marca de este bug. Los CV subidos como `upload` no la
+# llevan y por eso parseaban bien: fallaba sólo el que se subió privado.
+_RAW_URL_RE = re.compile(
+    r"/raw/(?P<delivery_type>upload|private|authenticated)/"
+    r"(?:s--[^/]+--/)?"
+    r"(?:v\d+/)?"
+    r"(?P<public_id>.+)$"
+)
 
 
 def _configured() -> bool:
