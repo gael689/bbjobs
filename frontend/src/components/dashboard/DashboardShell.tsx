@@ -125,7 +125,15 @@ export default function DashboardShell({
   return (
     <div className="min-h-screen bg-[#FAFBFD] lg:flex">
       {/* Sidebar desktop */}
-      <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-[#0B171D] min-h-screen sticky top-0 self-start">
+      {/* `h-screen` + `overflow-y-auto` y no `min-h-screen`: con el alto mínimo,
+          el menú podía ser más largo que la ventana y no tenía scroll propio, así
+          que a los ítems de abajo sólo se llegaba scrolleando LA PÁGINA. En una
+          sección con contenido largo funcionaba; en una corta —sin scroll de
+          página— quedaban inalcanzables. De ahí que pareciera que el menú
+          scrollea o no según dónde estés parado.
+          `overscroll-contain` evita que al terminar el menú el scroll se
+          contagie al contenido de atrás. */}
+      <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-[#0B171D] h-screen overflow-y-auto overscroll-contain sticky top-0 self-start">
         <div className="px-5 py-6 border-b border-white/[0.06]">
           <Link href="/" className="flex items-center gap-2">
             <Image src="/logo.png" alt="BBJobs" width={28} height={28} className="object-contain" />
@@ -175,7 +183,11 @@ export default function DashboardShell({
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 bg-black/40" onClick={() => setMobileOpen(false)}>
           <div
-            className="w-72 max-w-[80vw] h-full bg-[#0B171D] flex flex-col"
+            /* Mismo motivo que el sidebar de escritorio: sin scroll propio, un
+               menú más alto que la pantalla deja los últimos ítems —incluido
+               "Cerrar sesión"— fuera de alcance. En un teléfono apaisado pasa
+               con cualquier rol. */
+            className="w-72 max-w-[80vw] h-full bg-[#0B171D] flex flex-col overflow-y-auto overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
