@@ -28,7 +28,10 @@ export default function PostLoginPage() {
   const [fallo, setFallo] = useState(false);
 
   const resolverDestino = useCallback(async () => {
-    setFallo(false);
+    // El `setFallo(false)` de reinicio iba acá y disparaba la regla de React
+    // sobre setState síncrono dentro de un efecto (rompía el lint del CI). No
+    // hace falta: el estado sólo se ensucia cuando falla, y el botón de
+    // reintentar lo limpia antes de volver a llamar.
     for (let intento = 1; intento <= INTENTOS; intento++) {
       try {
         const r = await api.get("/me", { timeout: 15000 });
@@ -55,6 +58,12 @@ export default function PostLoginPage() {
       router.replace("/login");
       return;
     }
+    // La regla apunta a los setState sincrónicos, que encadenan renders. Acá
+    // no hay ninguno: `resolverDestino` sólo toca el estado DESPUÉS de que la
+    // llamada a la API falla o termina, o sea después de I/O. El análisis
+    // estático no puede ver esa diferencia — sólo ve que la función llama a
+    // setState en algún lado.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     resolverDestino();
   }, [isLoaded, isSignedIn, router, resolverDestino]);
 
@@ -70,7 +79,11 @@ export default function PostLoginPage() {
             momentáneo.
           </p>
           <button
-            onClick={resolverDestino}
+            onClick={() => {
+              setFallo(false);
+              setDemorando(false);
+              resolverDestino();
+            }}
             className="mt-5 bg-[#1E8EA3] text-white font-bold rounded-lg px-5 py-2.5 text-sm hover:bg-[#187B8E] transition-colors"
           >
             Reintentar
