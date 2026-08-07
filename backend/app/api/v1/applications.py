@@ -20,12 +20,19 @@ from app.schemas.candidate import (
     SkillForCompany, LanguageForCompany, calculate_age,
 )
 from app.schemas.history import ApplicationStatusHistoryResponse
+from app.schemas.documents import SignedDocumentLink
+from app.integrations.cloudinary_client import signed_document_url
 from app.services.notifications import create_notification
 from app.services.profile_completion import (
     compute_profile_completion, compute_profile_completion_for_candidate,
     should_send_completion_reminder,
 )
-from app.services.applicant_stats import ApplicantStats, compute_applicant_stats
+from app.services.applicant_stats import (
+    ApplicantStats, compute_applicant_stats, franja_edad_de, franja_experiencia_de,
+    anios_de_experiencia, etiqueta_educacion, educacion_mas_alta,
+)
+from app.services.settings import get_setting
+from app.models.settings import SettingKey
 from app.services.history import log_application_status_change, log_candidate_activity
 
 router = APIRouter()
@@ -337,19 +344,22 @@ async def build_candidate_full_profile(db: AsyncSession, candidate_id: uuid.UUID
             level=str(e.level),
             start_date=e.start_date,
             end_date=e.end_date,
-            in_progress=e.in_progress,
+            status=str(e.status),
         )
         for e in educations_result.scalars().all()
     ]
 
+    # Ordenadas por el orden del catálogo (blandas primero, después técnicas, y dentro de cada
+    # grupo el orden que definió Talency) — así la empresa las lee siempre igual.
     skills_result = await db.execute(
-        select(CandidateSkill, Skill)
-        .join(Skill, CandidateSkill.skill_id == Skill.id)
+        select(Skill)
+        .join(CandidateSkill, CandidateSkill.skill_id == Skill.id)
         .where(CandidateSkill.candidate_id == candidate_id)
+        .order_by(Skill.category.asc(), Skill.sort_order.asc())
     )
     skills = [
-        SkillForCompany(skill_name=skill.name, level=str(cs.level))
-        for cs, skill in skills_result.all()
+        SkillForCompany(skill_name=skill.name, category=skill.category)
+        for skill in skills_result.scalars().all()
     ]
 
     languages_result = await db.execute(
@@ -387,8 +397,53 @@ async def build_candidate_full_profile(db: AsyncSession, candidate_id: uuid.UUID
         experience=experiences,
         education=educations,
         skills=skills,
+        other_skill=profile.other_skill,
         languages=languages,
     )
+
+
+async def _assert_candidate_applied_to_company(
+    db: AsyncSession, candidate_id: uuid.UUID, company: CompanyProfile
+) -> None:
+    """La empresa sólo puede ver a un candidato que se postuló a alguna de sus búsquedas.
+    Único punto de control — lo comparten el perfil completo y el link al CV."""
+    # LIMIT 1 + first(): el chequeo sólo necesita saber *si existe al menos una* postulación.
+    # Con scalar_one_or_none() sobre el JOIN sin límite, un candidato postulado a dos búsquedas
+    # de la misma empresa devolvía dos filas y SQLAlchemy tiraba MultipleResultsFound → 500
+    # ("Error al cargar el perfil del candidato" en el panel de la empresa).
+    result = await db.execute(
+        select(Application.id)
+        .join(JobPosting, Application.job_posting_id == JobPosting.id)
+        .where(
+            Application.candidate_id == candidate_id,
+            JobPosting.company_id == company.id,
+        )
+        .limit(1)
+    )
+    if not result.first():
+        raise HTTPException(status_code=403, detail="No tenés acceso al perfil de este candidato")
+
+
+@router.get("/me/company/candidates/{candidate_id}/cv/link", response_model=SignedDocumentLink)
+async def get_candidate_cv_link(
+    candidate_id: uuid.UUID,
+    attachment: bool = False,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Link firmado al CV de un postulante. Vence a los pocos minutos: si se reenvía, se muere."""
+    await _assert_candidate_applied_to_company(db, candidate_id, company)
+
+    profile = (await db.execute(
+        select(CandidateProfile).where(CandidateProfile.id == candidate_id)
+    )).scalar_one_or_none()
+    if not profile or not profile.cv_file_url:
+        raise HTTPException(status_code=404, detail="El candidato no tiene CV cargado")
+
+    url = signed_document_url(profile.cv_file_url, attachment=attachment)
+    if not url:
+        raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")
+    return SignedDocumentLink(url=url)
 
 
 @router.get("/me/company/candidates/{candidate_id}", response_model=CandidateFullProfile)
@@ -401,18 +456,7 @@ async def get_candidate_full_profile(
     Returns the full profile of a candidate only if they have applied
     to at least one of this company's job postings.
     """
-    # Security check: candidate must have applied to one of company's jobs
-    result = await db.execute(
-        select(Application)
-        .join(JobPosting, Application.job_posting_id == JobPosting.id)
-        .where(
-            Application.candidate_id == candidate_id,
-            JobPosting.company_id == company.id,
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="No tenés acceso al perfil de este candidato")
-
+    await _assert_candidate_applied_to_company(db, candidate_id, company)
     return await build_candidate_full_profile(db, candidate_id)
 
 
@@ -444,16 +488,39 @@ async def update_application_status(
         changed_by_user_id=company.user_id,
     )
 
+    # Al candidato le llega notificación en **los siete** estados (decisión de Talency,
+    # agosto/2026) — antes sólo en tres de cinco, así que quedaba a ciegas justo cuando la
+    # empresa lo miraba por primera vez.
     _CANDIDATE_NOTIF = {
-        ApplicationStatus.in_process: (
-            "application_in_process",
-            "Avanzaste en una búsqueda",
-            "Una empresa te puso en proceso de selección para '{job_title}'.",
+        ApplicationStatus.new: (
+            "application_new_status",
+            "Tu postulación quedó registrada",
+            "Registramos tu postulación a '{job_title}'.",
+        ),
+        ApplicationStatus.seen: (
+            "application_seen",
+            "Miraron tu perfil",
+            "La empresa revisó tu perfil para la búsqueda '{job_title}'.",
         ),
         ApplicationStatus.contacted: (
             "application_contacted",
             "¡Una empresa quiere contactarte!",
-            "Fuiste marcado como contactado en la búsqueda '{job_title}'.",
+            "Te marcaron como contactado en la búsqueda '{job_title}'. Estate atento al teléfono y al mail.",
+        ),
+        ApplicationStatus.in_process: (
+            "application_in_process",
+            "Avanzaste en una búsqueda",
+            "Entraste en proceso de selección para '{job_title}'.",
+        ),
+        ApplicationStatus.finalist: (
+            "application_finalist",
+            "¡Quedaste entre los finalistas!",
+            "Quedaste entre los finalistas de '{job_title}'.",
+        ),
+        ApplicationStatus.selected: (
+            "application_selected",
+            "¡Te seleccionaron!",
+            "¡Te seleccionaron para '{job_title}'! La empresa se va a contactar con vos.",
         ),
         ApplicationStatus.discarded: (
             "application_discarded",
@@ -483,3 +550,84 @@ async def update_application_status(
     await db.commit()
     await db.refresh(app)
     return app
+
+
+# ── Comparativa del candidato ─────────────────────────────────────────────────
+
+class CandidateComparison(BaseModel):
+    """Los mismos gráficos que ve la empresa, más dónde está parado el candidato.
+
+    `mi_*` es la etiqueta de la franja propia, para pintarla distinto. Se manda la etiqueta y
+    no un índice: si mañana cambian las franjas, el frontend no queda apuntando a la barra
+    equivocada en silencio."""
+    stats: ApplicantStats
+    mi_franja_edad: Optional[str] = None
+    mi_franja_experiencia: Optional[str] = None
+    mi_educacion: Optional[str] = None
+    mis_habilidades: List[str] = []
+
+
+@router.get("/me/candidate/applications/{application_id}/comparison", response_model=CandidateComparison)
+async def my_application_comparison(
+    application_id: uuid.UUID,
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cómo se compara el candidato con el resto de los postulantes **de esa misma vacante**.
+
+    Nunca contra todo el portal: Eugenia fue explícita en eso ("sólo la comparativa entre los
+    postulantes de esa vacante"). Comparar contra el portal entero mezclaría un aviso de
+    depósito con uno de sistemas y el número no querría decir nada.
+
+    Se puede apagar desde el panel de Talency mientras el volumen sea bajo: con 3 postulantes,
+    "el 33% tiene secundario" señala a una persona concreta.
+    """
+    if not await get_setting(db, SettingKey.stats_visibles_para_candidatos):
+        raise HTTPException(
+            status_code=404,
+            detail="Las estadísticas comparativas todavía no están disponibles.",
+        )
+
+    result_candidate = await db.execute(
+        select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+    )
+    candidate = result_candidate.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Perfil de candidato no encontrado")
+
+    result_app = await db.execute(
+        select(Application).where(
+            Application.id == application_id,
+            Application.candidate_id == candidate.id,
+        )
+    )
+    app = result_app.scalar_one_or_none()
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+
+    candidate_ids = (await db.execute(
+        select(Application.candidate_id).where(Application.job_posting_id == app.job_posting_id)
+    )).scalars().all()
+    stats = await compute_applicant_stats(db, candidate_ids)
+
+    experiencias = (await db.execute(
+        select(Experience).where(Experience.candidate_id == candidate.id)
+    )).scalars().all()
+    educaciones = (await db.execute(
+        select(Education).where(Education.candidate_id == candidate.id)
+    )).scalars().all()
+    mis_skills = (await db.execute(
+        select(Skill.name)
+        .join(CandidateSkill, CandidateSkill.skill_id == Skill.id)
+        .where(CandidateSkill.candidate_id == candidate.id)
+    )).scalars().all()
+
+    return CandidateComparison(
+        stats=stats,
+        mi_franja_edad=franja_edad_de(calculate_age(candidate.birth_date)),
+        mi_franja_experiencia=franja_experiencia_de(
+            anios_de_experiencia(experiencias) if experiencias else 0.0
+        ),
+        mi_educacion=etiqueta_educacion(educacion_mas_alta(educaciones)),
+        mis_habilidades=list(mis_skills),
+    )

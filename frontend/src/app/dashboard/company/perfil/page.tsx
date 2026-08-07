@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { achicarImagen } from "@/lib/imagen";
 import { BuildingOffice2Icon, CloudArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { CompanyProfile } from "../types";
 
@@ -50,8 +51,8 @@ export default function CompanyPerfilPage() {
     if (!file) return;
     setLogoUploading(true);
     const fd = new FormData();
-    fd.append("file", file);
     try {
+      fd.append("file", await achicarImagen(file));
       const r = await api.post("/me/company/logo", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setProfile(r.data);
       toast("Logo actualizado correctamente");

@@ -101,10 +101,12 @@ export interface CandidateActivityItem {
 
 export const APP_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   new: { label: "Nueva", cls: "bg-blue-100 text-blue-700" },
-  seen: { label: "Vista", cls: "bg-amber-100 text-amber-700" },
-  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  seen: { label: "Perfil revisado", cls: "bg-amber-100 text-amber-700" },
   contacted: { label: "Contactado", cls: "bg-green-100 text-green-700" },
-  discarded: { label: "Descartada", cls: "bg-red-100 text-red-700" },
+  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  finalist: { label: "Finalista", cls: "bg-[#E6F4F7] text-[#187B8E]" },
+  selected: { label: "Seleccionado", cls: "bg-[#D4B7A2]/30 text-[#8A6A54]" },
+  discarded: { label: "No avanza", cls: "bg-red-100 text-red-700" },
 };
 
 export interface CandidateFullProfile {
@@ -124,8 +126,9 @@ export interface CandidateFullProfile {
   accepts_hybrid: boolean;
   accepts_onsite: boolean;
   experience: { company_name: string; role_title: string; start_date: string; end_date?: string; description?: string }[];
-  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; in_progress: boolean }[];
-  skills: { skill_name: string; level: string }[];
+  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; status: string }[];
+  skills: { skill_name: string; category: "soft" | "technical" }[];
+  other_skill?: string | null;
   languages: { language_name: string; level: string }[];
 }
 
@@ -136,7 +139,6 @@ export interface Job {
   company_id?: string;
   title: string;
   description: string;
-  requirements: string;
   modality: string;
   company_legal_name_snapshot: string;
   status: string;

@@ -7,6 +7,7 @@ from app.api.deps import get_db, require_role, get_current_user
 from app.models.core import User, UserRole
 from app.models.company import CompanyProfile, VerificationStatus, CompanyVerificationDocument
 from app.schemas.company import CompanyProfileResponse, CompanyProfileUpdate, VerificationRequestModel
+from fastapi.concurrency import run_in_threadpool
 from app.integrations.cloudinary_client import upload_image, upload_pdf
 from app.services.notifications import notify_all_admins
 import uuid
@@ -159,7 +160,8 @@ async def upload_logo(
         raise HTTPException(status_code=404, detail="Profile not found")
 
     try:
-        url = upload_image(
+        url = await run_in_threadpool(
+            upload_image,
             content,
             folder="bbjobs/logos",
             public_id=str(profile.id),
@@ -193,14 +195,16 @@ async def upload_verification_document(
 
     try:
         if is_pdf:
-            url = upload_pdf(
+            url = await run_in_threadpool(
+                upload_pdf,
                 content,
                 folder="bbjobs/verification_docs",
                 public_id=f"{profile.id}/{file_id}",
                 content_type=file.content_type,
             )
         else:
-            url = upload_image(
+            url = await run_in_threadpool(
+                upload_image,
                 content,
                 folder="bbjobs/verification_docs",
                 public_id=f"{profile.id}/{file_id}",

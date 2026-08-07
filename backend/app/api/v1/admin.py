@@ -12,16 +12,19 @@ from app.models.company import CompanyProfile, VerificationStatus
 from app.models.candidate import CandidateProfile, Education, Gender, Availability
 from app.models.job import JobPosting, Application, JobPostingStatus, JobModerationStatus
 from app.models.alerts import AuditLog
-from app.models.catalogs import Skill, SkillStatus
 from app.models.contact import ContactMessage
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
-from app.models.payment import Payment, PaymentType, JobFeature
+from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
 from app.services.profile_completion import compute_profile_completion_for_candidate
 from app.services.applicant_stats import get_highest_education_level
 from app.services.job_features import end_active_feature_for_job
+from app.services.settings import get_all_settings, set_setting
+from app.models.settings import SettingKey
 from app.integrations.clerk_client import create_clerk_user
+from app.integrations.cloudinary_client import signed_document_url
 from app.schemas.candidate import calculate_age, CandidateFullProfile
+from app.schemas.documents import SignedDocumentLink
 from app.schemas.contact import ContactMessageResponse
 from app.schemas.history import ApplicationStatusHistoryResponse, CandidateActivityLogResponse
 from app.schemas.payment import FeatureHistoryItem
@@ -98,7 +101,6 @@ class JobAdminResponse(BaseModel):
     company_id: Optional[uuid.UUID] = None
     title: str
     description: str
-    requirements: str
     modality: str
     status: JobPostingStatus
     company_legal_name_snapshot: str
@@ -135,18 +137,6 @@ class DashboardMetrics(BaseModel):
     total_revenue_featured: float
 
 
-class SkillAdminResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-    status: SkillStatus
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class SkillActionPayload(BaseModel):
-    action: str  # "approve" | "reject"
 
 
 class CreateAdminPayload(BaseModel):
@@ -626,6 +616,30 @@ async def get_candidate_full_profile_admin(
     return await build_candidate_full_profile(db, candidate_id)
 
 
+@router.get("/admin/candidates/{candidate_id}/cv/link", response_model=SignedDocumentLink)
+async def get_candidate_cv_link_admin(
+    candidate_id: uuid.UUID,
+    attachment: bool = False,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Link firmado al CV de cualquier candidato. La URL de Cloudinary guardada no se puede
+    abrir directo: la cuenta tiene restringida la entrega de PDF y devuelve 401 (era el
+    "no se pudo cargar el documento PDF" que reportó Eugenia desde su panel)."""
+    profile = (await db.execute(
+        select(CandidateProfile).where(CandidateProfile.id == candidate_id)
+    )).scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    if not profile.cv_file_url:
+        raise HTTPException(status_code=404, detail="El candidato no tiene CV cargado")
+
+    url = signed_document_url(profile.cv_file_url, attachment=attachment)
+    if not url:
+        raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")
+    return SignedDocumentLink(url=url)
+
+
 @router.get("/admin/candidates/{candidate_id}/activity", response_model=List[CandidateActivityLogResponse])
 async def get_candidate_activity_admin(
     candidate_id: uuid.UUID,
@@ -846,70 +860,6 @@ async def delete_job_admin(
     return {"status": "ok"}
 
 
-@router.get("/admin/skills/pending", response_model=List[SkillAdminResponse])
-async def list_pending_skills(
-    _: User = Depends(require_role([UserRole.admin])),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Skill).where(Skill.status == SkillStatus.pending).order_by(Skill.created_at)
-    )
-    return result.scalars().all()
-
-
-@router.patch("/admin/skills/{skill_id}")
-async def update_skill_status(
-    skill_id: uuid.UUID,
-    payload: SkillActionPayload,
-    admin: User = Depends(require_role([UserRole.admin])),
-    db: AsyncSession = Depends(get_db),
-):
-    if payload.action not in ("approve", "reject"):
-        raise HTTPException(status_code=400, detail="action debe ser 'approve' o 'reject'")
-
-    result = await db.execute(select(Skill).where(Skill.id == skill_id))
-    skill = result.scalar_one_or_none()
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill no encontrado")
-
-    if payload.action == "approve":
-        skill.status = SkillStatus.active
-        skill.approved_by_admin_id = admin.id
-        notif_type, notif_title, notif_body = (
-            "skill_approved",
-            "Habilidad aprobada",
-            f"Tu sugerencia '{skill.name}' fue aprobada y agregada al catálogo.",
-        )
-    else:
-        skill.status = SkillStatus.rejected
-        notif_type, notif_title, notif_body = (
-            "skill_rejected",
-            "Habilidad no aprobada",
-            f"Tu sugerencia '{skill.name}' no fue incorporada al catálogo.",
-        )
-
-    if skill.created_by_user_id:
-        suggester_result = await db.execute(select(User).where(User.id == skill.created_by_user_id))
-        suggester = suggester_result.scalar_one_or_none()
-        if suggester:
-            link = (
-                "/dashboard/candidate/perfil"
-                if suggester.role == UserRole.candidate
-                else "/dashboard/company/perfil"
-            )
-            await create_notification(
-                db,
-                user_id=suggester.id,
-                type=notif_type,
-                title=notif_title,
-                body=notif_body,
-                link=link,
-            )
-
-    await db.commit()
-    return {"status": "ok", "skill_id": skill_id, "skill_status": skill.status}
-
-
 @router.post("/admin/users")
 async def create_admin_user(
     payload: CreateAdminPayload,
@@ -982,3 +932,122 @@ async def resolve_contact_message(
     msg.resolved = True
     await db.commit()
     return {"status": "ok"}
+
+
+# ── Interruptores del sitio ──────────────────────────────────────────────────
+
+class SiteSettingsResponse(BaseModel):
+    """Qué estadísticas están publicadas hoy.
+
+    Talency las ve **siempre** desde su panel; estos interruptores sólo controlan si además
+    salen al portal. La idea es no publicar gráficos con 3 postulantes y prenderlos cuando el
+    volumen los haga significativos, sin tocar código."""
+    stats_visibles_para_candidatos: bool
+    stats_visibles_en_landing: bool
+
+
+class SiteSettingsUpdate(BaseModel):
+    stats_visibles_para_candidatos: Optional[bool] = None
+    stats_visibles_en_landing: Optional[bool] = None
+
+
+@router.get("/admin/settings", response_model=SiteSettingsResponse)
+async def get_site_settings(
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    return SiteSettingsResponse(**await get_all_settings(db))
+
+
+@router.patch("/admin/settings", response_model=SiteSettingsResponse)
+async def update_site_settings(
+    payload: SiteSettingsUpdate,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    for clave, valor in payload.model_dump(exclude_unset=True).items():
+        if valor is not None:
+            await set_setting(db, SettingKey(clave), valor)
+    await db.commit()
+    return SiteSettingsResponse(**await get_all_settings(db))
+
+
+# ── Destacado manual ─────────────────────────────────────────────────────────
+
+class FeatureJobPayload(BaseModel):
+    featured: bool
+    # Por qué se destacó sin cobrar: canje, cortesía, error de un pago. Queda en el registro
+    # de auditoría — un destacado gratis tiene que poder explicarse después.
+    notes: Optional[str] = None
+
+
+@router.patch("/admin/jobs/{job_id}/feature")
+async def set_job_featured_admin(
+    job_id: uuid.UUID,
+    payload: FeatureJobPayload,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Destaca o quita el destacado de una búsqueda **sin pago asociado** (canje, cortesía).
+
+    Es un camino paralelo al de Mercado Pago, no un reemplazo: no crea `Payment` ni
+    `JobFeature`, porque no hubo plata de por medio y meter filas falsas en la tabla de pagos
+    ensuciaría el reporte de facturación. Sólo mueve el flag de la búsqueda.
+
+    Si la búsqueda ya tenía un destacado pago activo, se respeta: quitarlo desde acá apagaría
+    algo por lo que la empresa pagó. Para ese caso hay que ir por el flujo de pagos.
+    """
+    result = await db.execute(
+        select(JobPosting).where(JobPosting.id == job_id, JobPosting.deleted_at.is_(None))
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
+
+    if job.status in (JobPostingStatus.closed, JobPostingStatus.expired):
+        raise HTTPException(status_code=400, detail="No se puede destacar una búsqueda cerrada o vencida")
+
+    feature_pago = (await db.execute(
+        select(JobFeature).where(
+            JobFeature.job_posting_id == job.id,
+            JobFeature.status == JobFeatureStatus.active,
+        )
+    )).scalar_one_or_none()
+
+    if not payload.featured and feature_pago:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta búsqueda tiene un destacado pago activo — no se puede quitar a mano.",
+        )
+
+    job.is_featured = payload.featured
+    # El destacado dura lo que dure la búsqueda, igual que el pago (ver webhooks.py).
+    job.featured_until = job.expires_at if payload.featured else None
+
+    db.add(AuditLog(
+        admin_user_id=admin.id,
+        action="job_featured_manual" if payload.featured else "job_unfeatured_manual",
+        target_entity="job_posting",
+        target_id=job.id,
+        notes=payload.notes,
+    ))
+
+    company = (await db.execute(
+        select(CompanyProfile).where(CompanyProfile.id == job.company_id)
+    )).scalar_one_or_none()
+    if company:
+        await create_notification(
+            db,
+            user_id=company.user_id,
+            type="job_feature_active" if payload.featured else "job_feature_expired",
+            title="Destacado activado" if payload.featured else "Destacado desactivado",
+            body=(
+                f"Talency destacó '{job.title}' en el portal, sin cargo."
+                if payload.featured
+                else f"'{job.title}' ya no aparece destacada."
+            ),
+            link="/dashboard/company/busquedas",
+        )
+
+    await db.commit()
+    return {"status": "ok", "job_id": job_id, "is_featured": job.is_featured}

@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  CheckCircleIcon, PlusIcon, XMarkIcon, BoltIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon,
+  CheckCircleIcon, BoltIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon,
 } from "@heroicons/react/24/outline";
+import SkillPicker from "@/components/dashboard/SkillPicker";
+import type { SkillCatalog, SkillCatalogItem } from "@/app/dashboard/candidate/types";
 import {
   EMPTY_JOB_FORM, MAX_JOB_DURATION_DAYS, MODALITIES, FEATURED_JOB_PRICE,
   type Catalog, type CompanyProfile, type JobForm,
@@ -16,6 +18,21 @@ interface SelectedSkill {
   skill_name: string;
   is_required: boolean;
 }
+
+/** Ejemplo de aviso completo. Muestra el formato esperado ahora que descripción y requisitos
+ *  van juntos: responsabilidades, qué se pide y qué se ofrece, todo de corrido. */
+const PLACEHOLDER_AVISO = [
+  "Ej:",
+  "",
+  "Buscamos un/a vendedor/a para nuestro local del centro.",
+  "",
+  "Vas a atender al público, armar pedidos y manejar la caja.",
+  "",
+  "Necesitamos secundario completo y experiencia previa en atención al cliente.",
+  "Valoramos manejo de sistemas de gestión.",
+  "",
+  "Ofrecemos sueldo acorde, obra social y capacitación.",
+].join("\n");
 
 const STEPS = [
   { key: "basico", label: "Título y modalidad" },
@@ -31,9 +48,8 @@ export default function PublicarBusquedaPage() {
   const [industries, setIndustries] = useState<Catalog[]>([]);
   const [zones, setZones] = useState<Catalog[]>([]);
   const [contractTypes, setContractTypes] = useState<Catalog[]>([]);
-  const [skillsCatalog, setSkillsCatalog] = useState<Catalog[]>([]);
+  const [skillsCatalog, setSkillsCatalog] = useState<SkillCatalog | null>(null);
   const [selectedSkills, setSelectedSkills] = useState<SelectedSkill[]>([]);
-  const [skillToAdd, setSkillToAdd] = useState("");
   const [form, setForm] = useState<JobForm>(EMPTY_JOB_FORM);
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -53,28 +69,24 @@ export default function PublicarBusquedaPage() {
     setTimeout(() => setToastMsg(null), 3500);
   }
 
-  function addSelectedSkill() {
-    if (!skillToAdd) return;
-    const skill = skillsCatalog.find(s => s.id === skillToAdd);
-    if (!skill) return;
-    setSelectedSkills(prev => [...prev, { skill_id: skill.id, skill_name: skill.name, is_required: true }]);
-    setSkillToAdd("");
-  }
-
-  function removeSelectedSkill(skillId: string) {
-    setSelectedSkills(prev => prev.filter(s => s.skill_id !== skillId));
+  /** Tilda o destilda una habilidad del catálogo. Arranca como "Requisito" — es lo que la
+   *  empresa quiere decir la mayoría de las veces; bajarla a "Deseable" es un click más. */
+  function toggleSkill(skill: SkillCatalogItem) {
+    setSelectedSkills(prev =>
+      prev.some(s => s.skill_id === skill.id)
+        ? prev.filter(s => s.skill_id !== skill.id)
+        : [...prev, { skill_id: skill.id, skill_name: skill.name, is_required: true }]
+    );
   }
 
   function toggleSkillRequired(skillId: string) {
     setSelectedSkills(prev => prev.map(s => s.skill_id === skillId ? { ...s, is_required: !s.is_required } : s));
   }
 
-  const availableSkillsToAdd = skillsCatalog.filter(s => !selectedSkills.some(sel => sel.skill_id === s.id));
-
   const stepValid: boolean[] = [
     form.title.trim().length > 0 && !!form.modality,
     !!form.industry_id && !!form.zone_id && !!form.contract_type_id,
-    form.description.trim().length > 0 && form.requirements.trim().length > 0,
+    form.description.trim().length > 0,
     true, // condiciones — todo opcional (salario, habilidades, duración ya tiene default)
     true,
   ];
@@ -247,28 +259,20 @@ export default function PublicarBusquedaPage() {
 
               {/* Step 2 — Descripción y requisitos */}
               {step === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Descripción del puesto *</label>
-                    <textarea
-                      autoFocus
-                      rows={5}
-                      value={form.description}
-                      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Describí las responsabilidades, el contexto del equipo, etc."
-                      className="w-full border border-[#DDE3EC] rounded-xl px-4 py-3 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Requisitos *</label>
-                    <textarea
-                      rows={4}
-                      value={form.requirements}
-                      onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
-                      placeholder="Experiencia requerida, tecnologías, habilidades, etc."
-                      className="w-full border border-[#DDE3EC] rounded-xl px-4 py-3 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors resize-none"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-bold text-[#1C2230] mb-1.5">El aviso *</label>
+                  <p className="text-xs text-[#64748B] mb-3">
+                    Contá el puesto completo en un solo texto: qué va a hacer la persona, qué
+                    buscás y qué ofrecés. Así lo va a leer el candidato, de corrido.
+                  </p>
+                  <textarea
+                    autoFocus
+                    rows={14}
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder={PLACEHOLDER_AVISO}
+                    className="w-full border border-[#DDE3EC] rounded-xl px-4 py-3 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors leading-relaxed"
+                  />
                 </div>
               )}
 
@@ -326,44 +330,47 @@ export default function PublicarBusquedaPage() {
                       Elegí del catálogo qué sabe hacer el candidato ideal. Marcá cada una como
                       &quot;Requisito&quot; (excluyente) o &quot;Deseable&quot; (suma, no descarta).
                     </p>
-                    <div className="flex gap-2 mb-3">
-                      <select
-                        value={skillToAdd}
-                        onChange={e => setSkillToAdd(e.target.value)}
-                        className="flex-1 border border-[#DDE3EC] rounded-xl px-4 py-2.5 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors bg-white"
-                      >
-                        <option value="">Seleccionar habilidad</option>
-                        {availableSkillsToAdd.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={addSelectedSkill}
-                        disabled={!skillToAdd}
-                        className="shrink-0 inline-flex items-center gap-1 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-4 py-2.5 text-sm hover:bg-[#E6F4F7] disabled:opacity-50 transition-colors"
-                      >
-                        <PlusIcon className="w-4 h-4" /> Agregar
-                      </button>
-                    </div>
-                    {selectedSkills.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {selectedSkills.map(s => (
-                          <div key={s.skill_id} className="flex items-center gap-1.5 bg-[#FAFBFD] border border-[#DDE3EC] text-[#1C2230] text-sm font-medium pl-3 pr-2 py-1.5 rounded-full">
-                            {s.skill_name}
-                            <button
-                              type="button"
-                              onClick={() => toggleSkillRequired(s.skill_id)}
-                              className={`text-xs font-bold px-2 py-0.5 rounded-full transition-colors ${
-                                s.is_required ? "bg-[#E6F4F7] text-[#1E8EA3]" : "bg-transparent text-[#64748B]"
-                              }`}
-                            >
-                              {s.is_required ? "Requisito" : "Deseable"}
-                            </button>
-                            <button type="button" onClick={() => removeSelectedSkill(s.skill_id)} className="text-[#64748B] hover:text-red-500 transition-colors">
-                              <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
+                    {!skillsCatalog ? (
+                      <div className="py-6 flex justify-center">
+                        <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                       </div>
+                    ) : (
+                      <>
+                        <SkillPicker
+                          catalog={skillsCatalog}
+                          selectedIds={selectedSkills.map(s => s.skill_id)}
+                          onToggle={toggleSkill}
+                        />
+
+                        {selectedSkills.length > 0 && (
+                          <div className="mt-5 border-t border-[#DDE3EC] pt-4">
+                            <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2.5">
+                              ¿Cuáles son excluyentes?
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedSkills.map(s => (
+                                <button
+                                  key={s.skill_id}
+                                  type="button"
+                                  onClick={() => toggleSkillRequired(s.skill_id)}
+                                  className={`inline-flex items-center gap-1.5 text-sm font-medium pl-3 pr-2 py-1.5 rounded-full border transition-colors ${
+                                    s.is_required
+                                      ? "border-[#9ED4DF] bg-[#E6F4F7] text-[#1C2230]"
+                                      : "border-[#DDE3EC] bg-[#FAFBFD] text-[#64748B]"
+                                  }`}
+                                >
+                                  {s.skill_name}
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                    s.is_required ? "bg-white text-[#1E8EA3]" : "bg-white text-[#64748B]"
+                                  }`}>
+                                    {s.is_required ? "Requisito" : "Deseable"}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -382,7 +389,12 @@ export default function PublicarBusquedaPage() {
                       </div>
                       <button type="button" onClick={() => setStep(0)} className="text-xs font-bold text-[#1E8EA3] hover:underline shrink-0">Editar</button>
                     </div>
-                    <p className="text-sm text-[#1C2230] leading-relaxed line-clamp-3">{form.description || "—"}</p>
+                    {/* El aviso entero, sin line-clamp: Eugenia pidió poder revisar todo lo
+                        que escribió antes de mandarlo ("tendría que poder verse el aviso
+                        entero, no sólo una parte"). Con scroll propio si es largo. */}
+                    <div className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line max-h-80 overflow-y-auto border border-[#DDE3EC] rounded-lg p-3 bg-[#FAFBFD]">
+                      {form.description || "—"}
+                    </div>
                     {selectedSkills.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {selectedSkills.map(s => (

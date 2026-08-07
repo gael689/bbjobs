@@ -8,7 +8,6 @@ import {
   UserCircleIcon, XMarkIcon, ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
-import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
@@ -20,7 +19,6 @@ type FilterTab = "all" | "active" | "paused" | "closed";
 interface EditForm {
   title: string;
   description: string;
-  requirements: string;
   modality: string;
   duration_days: number;
 }
@@ -103,7 +101,6 @@ export default function CompanyBusquedasPage() {
     setEditForm({
       title: job.title,
       description: job.description,
-      requirements: job.requirements,
       modality: job.modality,
       duration_days: job.duration_days ?? 20,
     });
@@ -290,21 +287,12 @@ export default function CompanyBusquedasPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">Descripción</label>
+                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">El aviso</label>
                   <textarea
                     value={editForm.description}
                     onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                    rows={4}
-                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">Requisitos</label>
-                  <textarea
-                    value={editForm.requirements}
-                    onChange={e => setEditForm({ ...editForm, requirements: e.target.value })}
-                    rows={3}
-                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] resize-none"
+                    rows={12}
+                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] leading-relaxed"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -416,7 +404,7 @@ export default function CompanyBusquedasPage() {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
                     <p className="text-lg font-display font-extrabold text-[#1C2230]">{applicants.length}</p>
                     <p className="text-[11px] text-[#64748B]">Postulantes</p>
@@ -429,15 +417,6 @@ export default function CompanyBusquedasPage() {
                       })()}
                     </p>
                     <p className="text-[11px] text-[#64748B]">Edad promedio</p>
-                  </div>
-                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
-                    <p className="text-lg font-display font-extrabold text-[#1C2230]">
-                      {(() => {
-                        const p = applicants.map(a => a.candidate?.completion_percent).filter((p): p is number => p !== undefined);
-                        return p.length ? `${Math.round(p.reduce((s, x) => s + x, 0) / p.length)}%` : "—";
-                      })()}
-                    </p>
-                    <p className="text-[11px] text-[#64748B]">Perfil completo prom.</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
                     <p className="text-lg font-display font-extrabold text-[#1C2230]">
@@ -471,11 +450,9 @@ export default function CompanyBusquedasPage() {
                   <div className="divide-y divide-[#DDE3EC]/60">
                     {applicants.slice(0, 6).map(app => (
                       <div key={app.id} className="flex items-center gap-3 py-3">
-                        {app.candidate ? (
-                          <ProfileCompletionRing percent={app.candidate.completion_percent} size={34} strokeWidth={4} />
-                        ) : (
-                          <UserCircleIcon className="w-8 h-8 text-[#DDE3EC]" />
-                        )}
+                        {/* Sin anillo de % de perfil — mismo motivo que en Postulaciones:
+                            la empresa lo confunde con un % de ajuste al puesto. */}
+                        <UserCircleIcon className={`w-8 h-8 ${app.candidate ? "text-[#9ED4DF]" : "text-[#DDE3EC]"}`} />
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
                             {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
@@ -507,6 +484,7 @@ export default function CompanyBusquedasPage() {
         profile={viewProfile}
         loading={loadingViewProfile}
         onClose={() => setViewProfile(null)}
+        cvLinkEndpoint={viewProfile ? `/me/company/candidates/${viewProfile.id}/cv/link` : undefined}
       />
     </div>
   );

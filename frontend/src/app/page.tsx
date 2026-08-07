@@ -8,6 +8,7 @@ import Image from "next/image";
 import NeuralCanvas from "@/components/ui/NeuralCanvas";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
+import MercadoLaboral from "@/components/stats/MercadoLaboral";
 import {
   MagnifyingGlassIcon,
   BriefcaseIcon,
@@ -567,6 +568,10 @@ export default function Home() {
           </a>
         </div>
       </section>
+
+      {/* Estadísticas del mercado — no renderiza nada mientras Talency no las habilite desde
+          su panel (Indicadores de la landing → Publicación de estadísticas). */}
+      <MercadoLaboral />
 
       {previewJob && (
         <JobPreviewPanel

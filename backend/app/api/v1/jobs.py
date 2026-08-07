@@ -8,7 +8,8 @@ import uuid
 from app.api.deps import get_db, require_role, require_verified_company
 from app.models.core import UserRole
 from app.models.company import CompanyProfile
-from app.models.candidate import EducationLevel
+from app.models.candidate import EducationLevel, MAX_SKILLS_PER_CATEGORY
+from app.models.catalogs import Skill, SkillCategory
 from app.models.job import JobPosting, JobPostingStatus, JobPostingSkill, JobModerationStatus
 from app.schemas.job import (
     JobPostingResponse, JobPostingCompanyResponse, JobPostingCreate, JobPostingUpdate,
@@ -19,6 +20,37 @@ from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
 
 router = APIRouter()
+
+
+async def _validate_job_skills(db: AsyncSession, skills) -> None:
+    """Valida las habilidades pedidas en un aviso: que existan, que estén en el catálogo activo
+    y que no superen el tope de 6 por grupo."""
+    if not skills:
+        return
+
+    ids = [s.skill_id for s in skills]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(status_code=400, detail="Hay habilidades repetidas.")
+
+    result = await db.execute(select(Skill).where(Skill.id.in_(ids)))
+    catalogo = {s.id: s for s in result.scalars().all()}
+
+    faltantes = [str(i) for i in ids if i not in catalogo]
+    if faltantes:
+        raise HTTPException(status_code=400, detail=f"Habilidades inexistentes: {', '.join(faltantes)}")
+
+    inactivas = [catalogo[i].name for i in ids if not catalogo[i].is_active]
+    if inactivas:
+        raise HTTPException(status_code=400, detail=f"Habilidades fuera del catálogo: {', '.join(inactivas)}")
+
+    for categoria, etiqueta in ((SkillCategory.soft, "blandas"), (SkillCategory.technical, "técnicas")):
+        cuantas = sum(1 for i in ids if catalogo[i].category == categoria)
+        if cuantas > MAX_SKILLS_PER_CATEGORY:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Podés pedir hasta {MAX_SKILLS_PER_CATEGORY} habilidades {etiqueta}.",
+            )
+
 
 # Menor a mayor — usado para el filtro "nivel educativo mínimo" del listado público:
 # un job sin requisito (None) es el más permisivo (rank -1, matchea cualquier filtro).
@@ -40,7 +72,6 @@ async def create_job_posting(
         company_legal_name_snapshot=company.legal_name,
         title=payload.title,
         description=payload.description,
-        requirements=payload.requirements,
         industry_id=payload.industry_id,
         zone_id=payload.zone_id,
         contract_type_id=payload.contract_type_id,
@@ -63,7 +94,10 @@ async def create_job_posting(
     db.add(job)
     await db.flush()
 
-    # Add skills
+    # Add skills — mismo tope de 6 por grupo que el perfil del candidato: si el aviso pudiera
+    # pedir 20 habilidades y el candidato sólo declarar 12, la comparación entre uno y otro
+    # dejaría de tener sentido.
+    await _validate_job_skills(db, payload.skills)
     for skill in payload.skills:
         js = JobPostingSkill(job_posting_id=job.id, skill_id=skill.skill_id, is_required=skill.is_required)
         db.add(js)

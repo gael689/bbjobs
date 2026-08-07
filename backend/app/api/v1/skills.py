@@ -1,41 +1,39 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
-from app.api.deps import get_db, require_role, get_current_user
-from app.models.catalogs import Skill, SkillStatus
-from app.schemas.skill import SkillResponse, SkillSuggest
-from app.models.core import User
-from app.services.notifications import notify_all_admins
+
+from app.api.deps import get_db
+from app.data.skills_catalog import IDIOMAS
+from app.models.candidate import MAX_SKILLS_PER_CATEGORY, OTHER_SKILL_MAX_LENGTH
+from app.models.catalogs import Skill, SkillCategory
+from app.schemas.skill import SkillResponse, SkillCatalogResponse
 
 router = APIRouter()
 
-@router.get("/skills", response_model=List[SkillResponse])
+
+@router.get("/skills", response_model=SkillCatalogResponse)
 async def list_skills(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Skill).where(Skill.status == SkillStatus.active))
-    return result.scalars().all()
+    """El catálogo completo, agrupado en blandas y técnicas.
 
-@router.post("/skills/suggest", response_model=SkillResponse)
-async def suggest_skill(
-    payload: SkillSuggest,
-    current_user: User = Depends(get_current_user), # Any authenticated user can suggest
-    db: AsyncSession = Depends(get_db)
-):
-    skill = Skill(
-        name=payload.name,
-        status=SkillStatus.pending,
-        created_by_user_id=current_user.id
+    Antes devolvía una lista plana filtrando por `status == active` sobre una tabla que nunca
+    se sembró — de ahí el "no se despliegan habilidades" que reportó Eugenia.
+
+    El catálogo es cerrado y lo cura Talency: el endpoint de sugerir habilidad se eliminó en
+    agosto/2026 junto con su moderación (la pantalla del admin ya no existía desde julio y la
+    notificación que mandaba llevaba a un 404).
+    """
+    result = await db.execute(
+        select(Skill)
+        .where(Skill.is_active == True)  # noqa: E712 — SQLAlchemy necesita ==, no `is`
+        .order_by(Skill.sort_order.asc())
     )
-    db.add(skill)
+    skills: List[Skill] = list(result.scalars().all())
 
-    await notify_all_admins(
-        db,
-        type="admin_skill_suggested",
-        title="Nueva habilidad sugerida",
-        body=f"Se sugirió la habilidad '{skill.name}', esperando aprobación.",
-        link="/dashboard/admin/skills",
+    return SkillCatalogResponse(
+        soft=[SkillResponse.model_validate(s) for s in skills if s.category == SkillCategory.soft],
+        technical=[SkillResponse.model_validate(s) for s in skills if s.category == SkillCategory.technical],
+        max_per_category=MAX_SKILLS_PER_CATEGORY,
+        languages=IDIOMAS,
+        other_skill_max_length=OTHER_SKILL_MAX_LENGTH,
     )
-
-    await db.commit()
-    await db.refresh(skill)
-    return skill

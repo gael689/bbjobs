@@ -19,7 +19,6 @@ class JobPostingSkillResponse(JobPostingSkillCreate):
 class JobPostingCreate(BaseModel):
     title: str
     description: str
-    requirements: str
     industry_id: uuid.UUID
     zone_id: uuid.UUID
     contract_type_id: uuid.UUID
@@ -37,7 +36,6 @@ class JobPostingCreate(BaseModel):
 class JobPostingUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    requirements: Optional[str] = None
     modality: Optional[JobPostingModality] = None
     status: Optional[JobPostingStatus] = None
     duration_days: Optional[int] = Field(default=None, ge=1, le=MAX_JOB_DURATION_DAYS)
@@ -49,7 +47,6 @@ class JobPostingResponse(BaseModel):
     logo_url: Optional[str] = None
     title: str
     description: str
-    requirements: str
     industry_id: uuid.UUID
     zone_id: uuid.UUID
     contract_type_id: uuid.UUID

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { abrirCv } from "@/lib/cv";
 import {
   DocumentTextIcon, FunnelIcon, UserCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -237,11 +238,13 @@ export default function AdminCandidatosPage() {
                   Ver perfil
                 </button>
                 {c.cv_file_url && (
-                  <a href={c.cv_file_url} target="_blank" rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => abrirCv(`/admin/candidates/${c.id}/cv/link`)}
                     className="text-xs font-bold text-[#1E8EA3] hover:underline flex items-center gap-1">
                     <DocumentTextIcon className="w-3.5 h-3.5" />
                     Ver CV
-                  </a>
+                  </button>
                 )}
               </div>
             </div>
@@ -254,6 +257,8 @@ export default function AdminCandidatosPage() {
         loading={loadingProfile}
         onClose={() => setProfile(null)}
         activity={activity}
+        cvLinkEndpoint={profile ? `/admin/candidates/${profile.id}/cv/link` : undefined}
+        showCompletion
       />
     </div>
   );

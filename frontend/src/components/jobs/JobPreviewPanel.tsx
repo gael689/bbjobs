@@ -15,7 +15,6 @@ export interface PreviewJob {
   id: string;
   title: string;
   description: string;
-  requirements: string;
   benefits?: string;
   company_id?: string;
   company_legal_name_snapshot: string;
@@ -168,13 +167,8 @@ export default function JobPreviewPanel({
           </Link>
 
           <section>
-            <h3 className="font-display font-bold text-[#1C2230] mb-2">Descripción del puesto</h3>
+            <h3 className="font-display font-bold text-[#1C2230] mb-2">El puesto</h3>
             <p className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">{job.description}</p>
-          </section>
-
-          <section>
-            <h3 className="font-display font-bold text-[#1C2230] mb-2">Requisitos</h3>
-            <p className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">{job.requirements}</p>
           </section>
 
           {job.benefits && (

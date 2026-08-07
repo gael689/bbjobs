@@ -9,7 +9,7 @@ from app.models.core import User
 from app.models.company import CompanyProfile
 from app.models.payment import MercadoPagoWebhookEvent, Payment, JobFeature, JobFeatureStatus
 from app.models.job import JobPosting, JobModerationStatus
-from app.integrations.mercado_pago import verify_signature, get_mp_client
+from app.integrations.mercado_pago import verify_signature, get_mp_client, webhook_signature_required
 from app.services.notifications import create_notification, notify_all_admins
 import uuid
 import datetime
@@ -123,6 +123,19 @@ async def process_mp_payment(event_id: str):
             await db.commit()
             logger.error("mp_webhook_processing_failed", error=str(e), event_id=event_id)
 
+def _es_notificacion_de_pago(payload: dict) -> bool:
+    """MP manda varios tipos por el mismo endpoint. Sólo nos interesan los de pago.
+
+    `type` viene como "payment" y `action` como "payment.created"/"payment.updated"; las de
+    orden llegan como "merchant_order". Si no viene ninguno de los dos campos se asume pago,
+    que es el comportamiento que había antes."""
+    tipo = payload.get("type")
+    accion = payload.get("action")
+    if tipo is None and accion is None:
+        return True
+    return str(tipo or "").startswith("payment") or str(accion or "").startswith("payment")
+
+
 def resolve_signature_data_id(query_params, payload: dict) -> str:
     """
     MP firma x-signature con el `data.id` que viene en el QUERY STRING de la URL del webhook, no
@@ -148,12 +161,23 @@ async def mp_webhook(
     payload = await request.json()
     data_id = resolve_signature_data_id(request.query_params, payload)
 
-    if x_signature and x_request_id:
+    # Con secret configurado la firma es obligatoria. Antes se validaba sólo `if x_signature
+    # and x_request_id`: bastaba con no mandar los headers para saltear la verificación entera
+    # y postear cualquier cosa a este endpoint.
+    if webhook_signature_required():
+        if not x_signature or not x_request_id:
+            raise HTTPException(status_code=401, detail="Missing signature headers")
         if not verify_signature(x_signature, x_request_id, data_id):
             raise HTTPException(status_code=401, detail="Invalid signature")
 
     mp_event_id = str(payload.get("id"))
     topic = payload.get("action") or payload.get("type") or "payment"
+
+    # MP también notifica `merchant_order`, donde data.id es un id de orden y no de pago.
+    # Pasárselo a payment().get() fallaba y quedaba registrado como error de procesamiento,
+    # ensuciando el log con fallas que no son tales.
+    if not _es_notificacion_de_pago(payload):
+        return {"status": "ignored", "topic": topic}
 
     # Idempotency check
     result = await db.execute(select(MercadoPagoWebhookEvent).where(MercadoPagoWebhookEvent.mp_event_id == mp_event_id))

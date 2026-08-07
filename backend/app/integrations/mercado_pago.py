@@ -43,18 +43,40 @@ def create_preference(title: str, price: float, external_reference: str, success
         logger.error("mp_preference_error", error=str(e))
         raise e
 
+def webhook_signature_required() -> bool:
+    """¿Hay que exigir firma válida? Sí en cuanto haya un secret cargado.
+
+    Se separa de `verify_signature` para que el endpoint pueda rechazar un pedido que viene
+    **sin** los headers de firma: antes sólo validaba `if x_signature and x_request_id`, o sea
+    que bastaba con no mandarlos para saltear la verificación entera."""
+    return bool(settings.MP_WEBHOOK_SECRET)
+
+
 def verify_signature(x_signature: str, x_request_id: str, data_id: str) -> bool:
     """
     Verifica la firma HMAC de los webhooks de MP.
     El header x-signature tiene formato: ts=16...33,v1=9c...a3
     """
     if not settings.MP_WEBHOOK_SECRET:
-        return True # Skip validation if no secret is set in local
-        
-    parts = dict(item.split("=") for item in x_signature.split(","))
+        # Sin secret configurado no hay nada contra qué validar (entorno local). En producción
+        # el secret está cargado y este camino no se toma — ver webhook_signature_required.
+        return True
+
+    # Parseo defensivo: un header mal formado (una parte sin "=", o con más de uno) hacía
+    # explotar el dict() y devolvía un 500 en vez de un 401.
+    try:
+        parts = {}
+        for item in x_signature.split(","):
+            clave, _, valor = item.strip().partition("=")
+            if not _:
+                return False
+            parts[clave] = valor
+    except Exception:
+        return False
+
     timestamp = parts.get("ts")
     v1 = parts.get("v1")
-    
+
     if not timestamp or not v1:
         return False
 

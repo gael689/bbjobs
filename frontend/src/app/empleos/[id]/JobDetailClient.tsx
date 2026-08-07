@@ -17,7 +17,6 @@ interface Job {
   id: string;
   title: string;
   description: string;
-  requirements: string;
   company_id?: string;
   company_legal_name_snapshot: string;
   modality: string;
@@ -251,14 +250,11 @@ export default function JobDetailClient() {
 
           {/* Body */}
           <div className="px-8 py-8 space-y-8">
+            {/* Un solo bloque con el aviso entero — sin partirlo en "descripción" y
+                "requisitos" (pedido de Eugenia, agosto/2026). */}
             <section>
-              <h2 className="font-display font-bold text-xl text-[#1C2230] mb-4">Descripción del puesto</h2>
+              <h2 className="font-display font-bold text-xl text-[#1C2230] mb-4">El puesto</h2>
               <div className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">{job.description}</div>
-            </section>
-
-            <section>
-              <h2 className="font-display font-bold text-xl text-[#1C2230] mb-4">Requisitos</h2>
-              <div className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">{job.requirements}</div>
             </section>
 
             {job.benefits && (

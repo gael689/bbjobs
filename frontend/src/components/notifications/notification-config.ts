@@ -3,7 +3,6 @@ import {
   InboxIcon,
   CheckBadgeIcon,
   ExclamationTriangleIcon,
-  SparklesIcon,
   StarIcon,
   BellAlertIcon,
   BellIcon,
@@ -49,11 +48,15 @@ const WARNING: NotificationTypeConfig = {
 };
 
 export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
-  // Postulación (positivo)
+  // Postulación — el candidato recibe una notificación en cada uno de los 7 estados
+  // (decisión de Talency, agosto/2026). El color acompaña el tono de la novedad.
   application_new: TEAL,
-  application_in_process: TEAL,
+  application_new_status: MUTED,
+  application_seen: MUTED,
   application_contacted: TEAL,
-  // Postulación (neutro)
+  application_in_process: TEAL,
+  application_finalist: { ...TEAL, icon: CheckBadgeIcon },
+  application_selected: { ...SECONDARY, icon: CheckBadgeIcon },
   application_discarded: MUTED,
   job_closed_applied: MUTED,
   // Verificación (positivo)
@@ -64,8 +67,6 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   company_suspended: DESTRUCTIVE,
   job_takedown: DESTRUCTIVE,
   // Habilidad
-  skill_approved: { ...SECONDARY, icon: SparklesIcon },
-  skill_rejected: { ...SECONDARY, icon: SparklesIcon },
   // Destaque / pago
   job_feature_active: SECONDARY,
   job_feature_rejected: SECONDARY,
@@ -81,7 +82,6 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   // Admin — moderación
   admin_company_pending: { ...TEAL, icon: BellAlertIcon },
   admin_company_reapplied: { ...TEAL, icon: BellAlertIcon },
-  admin_skill_suggested: { ...TEAL, icon: BellAlertIcon },
   job_pending_review: { ...TEAL, icon: BellAlertIcon },
   // Perfil del candidato
   profile_incomplete: { ...TEAL, icon: UserCircleIcon },

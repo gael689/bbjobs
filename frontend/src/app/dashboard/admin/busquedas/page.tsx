@@ -20,7 +20,6 @@ type FilterTab = "all" | "pending_review" | "approved" | "rejected";
 interface EditForm {
   title: string;
   description: string;
-  requirements: string;
   modality: string;
   duration_days: number;
 }
@@ -129,6 +128,27 @@ export default function AdminBusquedasPage() {
     }
   }
 
+  /** Destaca o quita el destacado sin pago — para canjes y cortesías. El backend rechaza
+   *  quitarlo si hay un destacado pago activo, así no se apaga algo que la empresa pagó. */
+  async function handleFeature(jobId: string, featured: boolean) {
+    const notes = featured
+      ? prompt("¿Por qué se destaca sin cobrar? (canje, cortesía, compensación)") ?? ""
+      : "";
+    if (featured && !notes.trim()) return;
+
+    setActionLoading(jobId + "feature");
+    try {
+      await api.patch(`/admin/jobs/${jobId}/feature`, { featured, notes: notes.trim() || null });
+      toast(featured ? "Búsqueda destacada" : "Destacado quitado");
+      fetchJobs();
+    } catch (e: unknown) {
+      const detalle = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast(detalle || "Error al cambiar el destacado", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function handleTakedown(jobId: string) {
     if (!confirm("¿Dar de baja esta búsqueda por incumplimiento?")) return;
     setActionLoading(jobId + "takedown");
@@ -147,7 +167,6 @@ export default function AdminBusquedasPage() {
     setEditForm({
       title: job.title,
       description: job.description,
-      requirements: job.requirements,
       modality: job.modality,
       duration_days: job.duration_days,
     });
@@ -327,21 +346,12 @@ export default function AdminBusquedasPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">Descripción</label>
+                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">El aviso</label>
                   <textarea
                     value={editForm.description}
                     onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                    rows={4}
-                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2230] mb-1.5">Requisitos</label>
-                  <textarea
-                    value={editForm.requirements}
-                    onChange={e => setEditForm({ ...editForm, requirements: e.target.value })}
-                    rows={3}
-                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] resize-none"
+                    rows={12}
+                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] leading-relaxed"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -428,6 +438,22 @@ export default function AdminBusquedasPage() {
                     )}
                     {selectedJob.status !== "closed" && selectedJob.status !== "expired" && (
                       <button
+                        onClick={() => handleFeature(selectedJob.id, !selectedJob.is_featured)}
+                        disabled={actionLoading === selectedJob.id + "feature"}
+                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 ${
+                          selectedJob.is_featured
+                            ? "bg-[#F7EFE9] text-[#8A6A54] border border-[#D4B7A2]"
+                            : "bg-[#D4B7A2] hover:bg-[#C4A692] text-[#1C2230]"
+                        }`}
+                      >
+                        <BoltIcon className="w-3.5 h-3.5" />
+                        {actionLoading === selectedJob.id + "feature"
+                          ? "..."
+                          : selectedJob.is_featured ? "Quitar destacado" : "Destacar sin cargo"}
+                      </button>
+                    )}
+                    {selectedJob.status !== "closed" && selectedJob.status !== "expired" && (
+                      <button
                         onClick={() => handleTakedown(selectedJob.id)}
                         disabled={actionLoading === selectedJob.id + "takedown"}
                         className="text-xs font-bold bg-[#64748B] hover:bg-[#54606F] text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
@@ -485,6 +511,17 @@ export default function AdminBusquedasPage() {
                   </div>
                 </div>
 
+                {/* El aviso completo — sin esto la moderación es a ciegas: hay que poder leer
+                    lo que la empresa escribió antes de aprobar o rechazar. */}
+                <div className="border border-[#DDE3EC] rounded-xl bg-[#FAFBFD] p-5 mb-6">
+                  <h3 className="font-display font-bold text-sm text-[#1C2230] mb-2">Aviso completo</h3>
+                  <div className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">
+                    {selectedJob.description?.trim() || (
+                      <span className="text-[#64748B] italic">Esta búsqueda no tiene descripción cargada.</span>
+                    )}
+                  </div>
+                </div>
+
                 {/* Postulantes */}
                 <h3 className="font-display font-bold text-sm text-[#1C2230] mb-3">Postulantes</h3>
                 {applicantsLoading ? (
@@ -535,6 +572,8 @@ export default function AdminBusquedasPage() {
         profile={viewProfile}
         loading={loadingViewProfile}
         onClose={() => setViewProfile(null)}
+        cvLinkEndpoint={viewProfile ? `/admin/candidates/${viewProfile.id}/cv/link` : undefined}
+        showCompletion
       />
     </div>
   );

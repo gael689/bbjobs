@@ -20,7 +20,6 @@ export interface JobPosting {
   id: string;
   title: string;
   description: string;
-  requirements: string;
   status: string;
   published_at?: string;
   modality: string;
@@ -126,14 +125,28 @@ export const EMPTY_APPLICANT_FILTERS: ApplicantFilters = {
   immediate_availability: false,
 };
 
+export interface Bucket {
+  label: string;
+  count: number;
+  percent: number;
+}
+
 export interface ApplicantStats {
   total: number;
   avg_age?: number;
   avg_experience_years?: number;
+  expected_salary_min_avg?: number;
+  expected_salary_max_avg?: number;
+  expected_salary_reported: number;
+  top_education_level?: string;
+  immediate_availability_count: number;
+  age_buckets: Bucket[];
+  experience_buckets: Bucket[];
+  education_buckets: Bucket[];
+  top_skills: Bucket[];
   education_distribution: Record<string, number>;
   mobility: Record<string, number>;
   availability: Record<string, number>;
-  immediate_availability_count: number;
 }
 
 export const EDUCATION_LEVEL_LABEL: Record<string, string> = {
@@ -168,8 +181,9 @@ export interface CandidateFullProfile {
   accepts_hybrid: boolean;
   accepts_onsite: boolean;
   experience: { company_name: string; role_title: string; start_date: string; end_date?: string; description?: string }[];
-  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; in_progress: boolean }[];
-  skills: { skill_name: string; level: string }[];
+  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; status: string }[];
+  skills: { skill_name: string; category: "soft" | "technical" }[];
+  other_skill?: string | null;
   languages: { language_name: string; level: string }[];
 }
 
@@ -189,7 +203,6 @@ export const CANDIDATE_AVAILABILITY_LABEL: Record<CandidateAvailability, string>
 export interface JobForm {
   title: string;
   description: string;
-  requirements: string;
   industry_id: string;
   zone_id: string;
   contract_type_id: string;
@@ -203,7 +216,7 @@ export interface JobForm {
 export const MAX_JOB_DURATION_DAYS = 20;
 
 export const EMPTY_JOB_FORM: JobForm = {
-  title: "", description: "", requirements: "",
+  title: "", description: "",
   industry_id: "", zone_id: "", contract_type_id: "",
   modality: "presencial", salary_min: "", salary_max: "", salary_visible: false,
   duration_days: MAX_JOB_DURATION_DAYS,
@@ -215,12 +228,15 @@ export const MODALITIES = [
   { value: "híbrido", label: "Híbrido" },
 ];
 
-// Valores reales del enum ApplicationStatus del backend (app/models/job.py) —
-// no confundir con las labels de sólo-lectura que usa el panel de candidato.
+// Valores reales del enum ApplicationStatus del backend (app/models/job.py).
+// El ORDEN de este objeto es el orden del desplegable que ve la empresa: es el embudo
+// tal cual lo definió Talency (primero se contacta, después la persona entra al proceso).
 export const APP_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   new: { label: "Nueva", cls: "bg-blue-100 text-blue-700" },
-  seen: { label: "Vista", cls: "bg-amber-100 text-amber-700" },
-  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  seen: { label: "Perfil revisado", cls: "bg-amber-100 text-amber-700" },
   contacted: { label: "Contactado", cls: "bg-green-100 text-green-700" },
-  discarded: { label: "Descartada", cls: "bg-red-100 text-red-700" },
+  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  finalist: { label: "Finalista", cls: "bg-[#E6F4F7] text-[#187B8E]" },
+  selected: { label: "Seleccionado", cls: "bg-[#D4B7A2]/30 text-[#8A6A54]" },
+  discarded: { label: "No avanza", cls: "bg-red-100 text-red-700" },
 };

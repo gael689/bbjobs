@@ -28,7 +28,12 @@ def compute_profile_completion(
     """Un solo cálculo de % de perfil completo — candidato y empresa ven el mismo número.
     Ítems con igual peso; cada uno representa un dato que alimenta los filtros de Fase 1.5.
     Recibe booleanos (no listas completas) para no forzar fetches pesados en los llamadores
-    que sólo necesitan saber si el candidato cargó al menos un registro de cada tipo."""
+    que sólo necesitan saber si el candidato cargó al menos un registro de cada tipo.
+
+    Los idiomas cuentan como ítem propio **además** de existir como habilidad técnica
+    (decisión de Gael, 06/08/2026: "que esté en los 2 lados"). Ojo al efecto: para sumar este
+    ítem hay que cargar un idioma, y para cargarlo hay que tildar la habilidad "Idiomas", que
+    ocupa uno de los 6 cupos técnicos."""
     items = [
         ("photo_url", bool(profile.photo_url), "Foto de perfil"),
         ("birth_date", profile.birth_date is not None, "Fecha de nacimiento"),

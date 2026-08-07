@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, desc, asc
+from sqlalchemy import func, desc, asc, or_
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -12,6 +12,9 @@ from app.models.landing import LandingStat, LandingStatSource
 from app.models.job import JobPosting, Application, JobPostingStatus, JobModerationStatus
 from app.models.company import CompanyProfile, VerificationStatus
 from app.models.candidate import CandidateProfile
+from app.models.catalogs import Industry
+from app.models.settings import SettingKey
+from app.services.settings import get_setting
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -218,3 +221,85 @@ async def delete_landing_stat(
     await db.delete(stat)
     await db.commit()
     return {"status": "ok"}
+
+
+# ── Bloque público de estadísticas del mercado ───────────────────────────────
+
+class MarketStatsResponse(BaseModel):
+    """Estadísticas del mercado laboral local para la home.
+
+    Sale de las búsquedas publicadas, no de los candidatos: publicar distribuciones de las
+    personas registradas expondría datos de gente que no pidió aparecer en ningún ranking.
+    Acá sólo hay agregados de avisos, que ya son públicos uno por uno.
+    """
+    visible: bool
+    total_busquedas: int = 0
+    salario_promedio: Optional[float] = None
+    busquedas_con_salario: int = 0
+    por_rubro: List[dict] = []
+    por_modalidad: List[dict] = []
+
+
+@router.get("/public/market-stats", response_model=MarketStatsResponse)
+async def get_public_market_stats(db: AsyncSession = Depends(get_db)):
+    """Apagado por defecto. Talency lo prende desde su panel cuando el volumen lo justifique —
+    con 3 avisos publicados, un "salario promedio del mercado" no es un dato, es una anécdota."""
+    if not await get_setting(db, SettingKey.stats_visibles_en_landing):
+        return MarketStatsResponse(visible=False)
+
+    activas = (
+        JobPosting.status == JobPostingStatus.active,
+        JobPosting.moderation_status == JobModerationStatus.approved,
+        JobPosting.deleted_at.is_(None),
+    )
+
+    total = (await db.execute(
+        select(func.count()).select_from(JobPosting).where(*activas)
+    )).scalar() or 0
+
+    if total == 0:
+        return MarketStatsResponse(visible=True, total_busquedas=0)
+
+    # Promedio del punto medio de la banda salarial, contando sólo los avisos que la declaran
+    # y la muestran — si la empresa eligió no mostrarla, no se filtra por un promedio.
+    fila_salario = (await db.execute(
+        select(
+            func.avg((func.coalesce(JobPosting.salary_min, JobPosting.salary_max)
+                      + func.coalesce(JobPosting.salary_max, JobPosting.salary_min)) / 2),
+            func.count(),
+        ).select_from(JobPosting).where(
+            *activas,
+            JobPosting.salary_visible == True,  # noqa: E712
+            or_(JobPosting.salary_min.is_not(None), JobPosting.salary_max.is_not(None)),
+        )
+    )).one()
+
+    por_rubro = [
+        {"label": nombre, "count": cuenta}
+        for nombre, cuenta in (await db.execute(
+            select(Industry.name, func.count(JobPosting.id))
+            .join(JobPosting, JobPosting.industry_id == Industry.id)
+            .where(*activas)
+            .group_by(Industry.name)
+            .order_by(func.count(JobPosting.id).desc())
+        )).all()
+    ]
+
+    por_modalidad = [
+        {"label": str(modalidad).capitalize(), "count": cuenta}
+        for modalidad, cuenta in (await db.execute(
+            select(JobPosting.modality, func.count(JobPosting.id))
+            .where(*activas)
+            .group_by(JobPosting.modality)
+            .order_by(func.count(JobPosting.id).desc())
+        )).all()
+    ]
+
+    return MarketStatsResponse(
+        visible=True,
+        total_busquedas=total,
+        salario_promedio=round(float(fila_salario[0])) if fila_salario[0] is not None else None,
+        busquedas_con_salario=fila_salario[1] or 0,
+        por_rubro=por_rubro,
+        por_modalidad=por_modalidad,
+    )

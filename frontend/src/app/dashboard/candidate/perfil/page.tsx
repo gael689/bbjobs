@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/api";
+import { abrirCv } from "@/lib/cv";
+import { achicarImagen } from "@/lib/imagen";
 import {
   DocumentTextIcon, CloudArrowUpIcon, CheckCircleIcon,
   XMarkIcon, AcademicCapIcon, WrenchScrewdriverIcon,
@@ -10,10 +12,13 @@ import {
   BriefcaseIcon,
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import SkillPicker from "@/components/dashboard/SkillPicker";
 import {
-  GENDER_LABEL, AVAILABILITY_LABEL, SUMMARY_MAX_LENGTH, SKILL_LEVEL_LABEL,
+  GENDER_LABEL, AVAILABILITY_LABEL, SUMMARY_MAX_LENGTH, SLUG_IDIOMAS, SLUG_OTRA,
+  EDUCATION_STATUS_LABEL, type EducationStatus,
   type CandidateProfile, type Education, type Experience, type Language, type Zone,
-  type Gender, type Availability, type SkillCatalogItem, type CandidateSkillItem, type SkillLevel,
+  type Gender, type Availability, type SkillCatalog, type SkillCatalogItem,
+  type CandidateSkills,
 } from "../types";
 
 type PersonalForm = {
@@ -30,6 +35,17 @@ type PersonalForm = {
   visible_in_talent_pool: boolean;
 };
 
+/** Hoy en formato YYYY-MM-DD, para el atributo `max` de los <input type="date">.
+ *  El backend valida lo mismo: el tope del formulario se puede saltear. */
+const HOY = new Date().toISOString().slice(0, 10);
+
+/** Fecha de nacimiento más reciente admitida: hay que tener 18 años cumplidos. */
+const MAX_FECHA_NACIMIENTO = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d.toISOString().slice(0, 10);
+})();
+
 const EMPTY_PERSONAL_FORM: PersonalForm = {
   birth_date: "", gender: "", has_own_transport: "", availability: "",
   immediate_availability: false, summary: "", location_zone_id: "",
@@ -42,8 +58,10 @@ const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
   { key: "cv", label: "CV", missingKeys: ["cv_file_url"] },
   { key: "experience", label: "Experiencia", missingKeys: ["experience"] },
   { key: "education", label: "Educación", missingKeys: ["education"] },
-  { key: "skills", label: "Habilidades", missingKeys: ["skills"] },
-  { key: "languages", label: "Idiomas", missingKeys: ["languages"] },
+  // Idiomas dejó de ser un paso propio pero SIGUE contando para el % — se cargan dentro de
+  // Habilidades, al elegir la habilidad técnica "Idiomas" (pedido de Eugenia, agosto/2026).
+  // Por eso su key de completitud se resuelve en este paso.
+  { key: "skills", label: "Habilidades", missingKeys: ["skills", "languages"] },
 ];
 
 export default function CandidatePerfilPage() {
@@ -53,15 +71,16 @@ export default function CandidatePerfilPage() {
   const [educations, setEducations] = useState<Education[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
-  const [skillsCatalog, setSkillsCatalog] = useState<SkillCatalogItem[]>([]);
-  const [mySkills, setMySkills] = useState<CandidateSkillItem[]>([]);
+  const [skillsCatalog, setSkillsCatalog] = useState<SkillCatalog | null>(null);
+  const [mySkills, setMySkills] = useState<CandidateSkills>({ soft: [], technical: [], other_skill: null });
+  const [otherSkill, setOtherSkill] = useState("");
+  const [skillsError, setSkillsError] = useState<string | null>(null);
   const [cvUploading, setCvUploading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const [expForm, setExpForm] = useState({ company_name: "", role_title: "", start_date: "", end_date: "", description: "" });
-  const [eduForm, setEduForm] = useState({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", in_progress: false });
+  const [expForm, setExpForm] = useState({ company_name: "", role_title: "", start_date: "", end_date: "", description: "", trabajo_actual: false });
+  const [eduForm, setEduForm] = useState({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", status: "graduado" as EducationStatus });
   const [langForm, setLangForm] = useState({ language_name: "", level: "básico" });
-  const [skillForm, setSkillForm] = useState<{ skill_id: string; level: SkillLevel }>({ skill_id: "", level: "básico" });
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
@@ -101,13 +120,22 @@ export default function CandidatePerfilPage() {
     api.get("/me/candidate/education").then(r => setEducations(r.data)).catch(() => {});
     api.get("/me/candidate/languages").then(r => setLanguages(r.data)).catch(() => {});
     api.get("/skills").then(r => setSkillsCatalog(r.data)).catch(() => {});
-    api.get("/me/candidate/skills").then(r => setMySkills(r.data)).catch(() => {});
+    api.get("/me/candidate/skills").then(r => {
+      setMySkills(r.data);
+      setOtherSkill(r.data.other_skill || "");
+    }).catch(() => {});
     api.get("/catalogs/zones").then(r => setZones(r.data)).catch(() => {});
   }, []);
 
   function toast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
+  }
+
+  /** Vuelve a pedir el perfil para refrescar el % de completitud y los ítems que faltan.
+   *  No toca `step`: `stepInitialized` ya está en true, así que no salta de paso solo. */
+  function refreshProfile() {
+    api.get("/me/candidate/profile").then(r => setProfile(r.data)).catch(() => {});
   }
 
   async function savePersonalData(): Promise<boolean> {
@@ -142,9 +170,11 @@ export default function CandidatePerfilPage() {
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast("Solo se permiten imágenes"); return; }
     setPhotoUploading(true);
+    // Se achica en el navegador antes de subirla: una foto de celular pesa 4-6 MB y el tope
+    // del backend son 2 MB.
     const fd = new FormData();
-    fd.append("file", file);
     try {
+      fd.append("file", await achicarImagen(file));
       const r = await api.post("/me/candidate/photo", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setProfile(r.data);
       toast("Foto de perfil actualizada");
@@ -177,9 +207,15 @@ export default function CandidatePerfilPage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const r = await api.post("/me/candidate/experience", expForm);
+      // `trabajo_actual` es sólo del formulario: al backend le llega end_date vacío, que es
+      // como se representa "sigo trabajando acá".
+      const { trabajo_actual, ...datos } = expForm;
+      const r = await api.post("/me/candidate/experience", {
+        ...datos,
+        end_date: trabajo_actual ? null : (datos.end_date || null),
+      });
       setExperiences(prev => [...prev, r.data]);
-      setExpForm({ company_name: "", role_title: "", start_date: "", end_date: "", description: "" });
+      setExpForm({ company_name: "", role_title: "", start_date: "", end_date: "", description: "", trabajo_actual: false });
       toast("Experiencia agregada");
     } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
   }
@@ -198,7 +234,7 @@ export default function CandidatePerfilPage() {
     try {
       const r = await api.post("/me/candidate/education", eduForm);
       setEducations(prev => [...prev, r.data]);
-      setEduForm({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", in_progress: false });
+      setEduForm({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", status: "graduado" });
       toast("Educación agregada");
     } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
   }
@@ -230,28 +266,46 @@ export default function CandidatePerfilPage() {
     } catch { toast("Error al eliminar"); }
   }
 
-  async function addSkill(e: React.FormEvent) {
-    e.preventDefault();
-    if (!skillForm.skill_id) return;
+  const selectedSkillIds = [...mySkills.soft, ...mySkills.technical].map(s => s.skill_id);
+  const eligioIdiomas = mySkills.technical.some(s => s.slug === SLUG_IDIOMAS);
+  const eligioOtra = mySkills.technical.some(s => s.slug === SLUG_OTRA);
+
+  /** Tilda o destilda una habilidad. Sólo toca el estado local: se guarda con "Guardar
+   *  habilidades", porque el backend recibe la selección completa de una (el tope de 6 no se
+   *  puede validar de a una habilidad por vez). */
+  function toggleSkill(skill: SkillCatalogItem) {
+    setSkillsError(null);
+    setMySkills(prev => {
+      const grupo = skill.category === "soft" ? prev.soft : prev.technical;
+      const yaEsta = grupo.some(s => s.skill_id === skill.id);
+      const nuevoGrupo = yaEsta
+        ? grupo.filter(s => s.skill_id !== skill.id)
+        : [...grupo, { skill_id: skill.id, skill_name: skill.name, slug: skill.slug, category: skill.category }];
+      return skill.category === "soft"
+        ? { ...prev, soft: nuevoGrupo }
+        : { ...prev, technical: nuevoGrupo };
+    });
+  }
+
+  async function saveSkills() {
     setSavingProfile(true);
+    setSkillsError(null);
     try {
-      await api.post("/me/candidate/skills", skillForm);
-      const skill = skillsCatalog.find(s => s.id === skillForm.skill_id);
-      setMySkills(prev => [...prev, { skill_id: skillForm.skill_id, skill_name: skill?.name || "", level: skillForm.level }]);
-      setSkillForm({ skill_id: "", level: "básico" });
-      toast("Habilidad agregada");
-    } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
+      const r = await api.put("/me/candidate/skills", {
+        skill_ids: selectedSkillIds,
+        other_skill: otherSkill.trim() || null,
+      });
+      setMySkills(r.data);
+      setOtherSkill(r.data.other_skill || "");
+      refreshProfile();
+      toast("Habilidades guardadas");
+    } catch (e: unknown) {
+      const detalle = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSkillsError(detalle || "No pudimos guardar tus habilidades.");
+    } finally {
+      setSavingProfile(false);
+    }
   }
-
-  async function deleteSkill(skillId: string) {
-    try {
-      await api.delete(`/me/candidate/skills/${skillId}`);
-      setMySkills(prev => prev.filter(s => s.skill_id !== skillId));
-      toast("Habilidad eliminada");
-    } catch { toast("Error al eliminar"); }
-  }
-
-  const availableSkillsForPicker = skillsCatalog.filter(s => !mySkills.some(ms => ms.skill_id === s.id));
 
   function stepComplete(i: number) {
     if (!profile) return false;
@@ -391,6 +445,7 @@ export default function CandidatePerfilPage() {
                   <label className="text-xs font-bold text-[#64748B] mb-1 block">Fecha de nacimiento</label>
                   <input
                     type="date"
+                    max={MAX_FECHA_NACIMIENTO}
                     value={personalForm.birth_date}
                     onChange={e => setPersonalForm(f => ({ ...f, birth_date: e.target.value }))}
                     className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
@@ -544,10 +599,12 @@ export default function CandidatePerfilPage() {
                       {profile.cv_uploaded_at && `Subido el ${new Date(profile.cv_uploaded_at).toLocaleDateString("es-AR")}`}
                     </p>
                     <div className="flex items-center justify-center gap-3">
-                      <a href={profile.cv_file_url} target="_blank" rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => abrirCv("/me/candidate/cv/link").catch(() => toast("No pudimos abrir tu CV"))}
                         className="text-sm font-bold text-[#1E8EA3] hover:underline flex items-center gap-1">
                         <DocumentTextIcon className="w-4 h-4" /> Ver CV
-                      </a>
+                      </button>
                     </div>
                   </>
                 ) : (
@@ -618,15 +675,23 @@ export default function CandidatePerfilPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-[#64748B] mb-1 block">Inicio *</label>
-                    <input required type="date" value={expForm.start_date} onChange={e => setExpForm(f => ({ ...f, start_date: e.target.value }))}
+                    <input required type="date" max={HOY} value={expForm.start_date} onChange={e => setExpForm(f => ({ ...f, start_date: e.target.value }))}
                       className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Fin (vacío = actual)</label>
-                    <input type="date" value={expForm.end_date} onChange={e => setExpForm(f => ({ ...f, end_date: e.target.value }))}
-                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]" />
+                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Fin</label>
+                    <input type="date" max={HOY} value={expForm.end_date}
+                      onChange={e => setExpForm(f => ({ ...f, end_date: e.target.value }))}
+                      disabled={expForm.trabajo_actual}
+                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] disabled:opacity-50" />
                   </div>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-[#64748B]">
+                  <input type="checkbox" checked={expForm.trabajo_actual}
+                    onChange={e => setExpForm(f => ({ ...f, trabajo_actual: e.target.checked, end_date: e.target.checked ? "" : f.end_date }))}
+                    className="w-4 h-4 accent-[#1E8EA3]" />
+                  Trabajo actualmente acá
+                </label>
                 <div>
                   <label className="text-xs font-bold text-[#64748B] mb-1 block">Descripción</label>
                   <textarea value={expForm.description} onChange={e => setExpForm(f => ({ ...f, description: e.target.value }))} rows={2}
@@ -654,7 +719,7 @@ export default function CandidatePerfilPage() {
                     <div key={edu.id} className="flex items-start justify-between border border-[#DDE3EC] rounded-xl p-4">
                       <div>
                         <p className="font-bold text-[#1C2230]">{edu.degree || edu.level}</p>
-                        <p className="text-sm text-[#64748B]">{edu.institution} · {edu.start_date?.slice(0, 7)} – {edu.in_progress ? "En curso" : edu.end_date?.slice(0, 7) || "—"}</p>
+                        <p className="text-sm text-[#64748B]">{edu.institution} · {edu.start_date?.slice(0, 7)} · {EDUCATION_STATUS_LABEL[edu.status] || edu.status}{edu.end_date ? ` · ${edu.end_date.slice(0, 7)}` : ""}</p>
                       </div>
                       <button onClick={() => deleteEducation(edu.id)} className="ml-3 p-1.5 text-[#64748B] hover:text-red-500 transition-colors shrink-0">
                         <TrashIcon className="w-4 h-4" />
@@ -691,20 +756,40 @@ export default function CandidatePerfilPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-[#64748B] mb-1 block">Inicio *</label>
-                    <input required type="date" value={eduForm.start_date} onChange={e => setEduForm(f => ({ ...f, start_date: e.target.value }))}
+                    <input required type="date" max={HOY} value={eduForm.start_date} onChange={e => setEduForm(f => ({ ...f, start_date: e.target.value }))}
                       className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-[#64748B] mb-1 block">Fin</label>
-                    <input type="date" value={eduForm.end_date} onChange={e => setEduForm(f => ({ ...f, end_date: e.target.value }))}
-                      disabled={eduForm.in_progress}
+                    <input type="date" max={HOY} value={eduForm.end_date} onChange={e => setEduForm(f => ({ ...f, end_date: e.target.value }))}
+                      disabled={eduForm.status === "en_curso"}
                       className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] disabled:opacity-50" />
                   </div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-[#64748B]">
-                  <input type="checkbox" checked={eduForm.in_progress} onChange={e => setEduForm(f => ({ ...f, in_progress: e.target.checked }))} className="w-4 h-4 accent-[#1E8EA3]" />
-                  En curso
-                </label>
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block">Estado *</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(EDUCATION_STATUS_LABEL) as EducationStatus[]).map(estado => (
+                      <button
+                        key={estado}
+                        type="button"
+                        onClick={() => setEduForm(f => ({
+                          ...f,
+                          status: estado,
+                          // "En curso" no lleva fecha de egreso.
+                          end_date: estado === "en_curso" ? "" : f.end_date,
+                        }))}
+                        className={`text-sm font-medium px-3.5 py-1.5 rounded-full border-2 transition-colors ${
+                          eduForm.status === estado
+                            ? "border-[#1E8EA3] bg-[#E6F4F7] text-[#1C2230]"
+                            : "border-[#DDE3EC] text-[#64748B] hover:border-[#9ED4DF]"
+                        }`}
+                      >
+                        {EDUCATION_STATUS_LABEL[estado]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <button type="submit" disabled={savingProfile}
                   className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-60 transition-colors">
                   {savingProfile ? "Guardando..." : "Agregar educación"}
@@ -713,105 +798,115 @@ export default function CandidatePerfilPage() {
             </div>
           )}
 
-          {/* Step 4 — Habilidades */}
+          {/* Step 4 — Habilidades (blandas + técnicas, con idiomas y "Otra" adentro) */}
           {step === 4 && (
             <div>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-1.5">
                 <WrenchScrewdriverIcon className="w-5 h-5 text-[#1E8EA3]" />
                 <h3 className="font-display font-bold text-[#1C2230]">Habilidades</h3>
               </div>
+              <p className="text-xs text-[#64748B] mb-5">
+                Elegí hasta {skillsCatalog?.max_per_category ?? 6} de cada grupo — las que mejor
+                te representen. Las empresas filtran por estas.
+              </p>
 
-              {mySkills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {mySkills.map(sk => (
-                    <div key={sk.skill_id} className="flex items-center gap-1.5 bg-[#E6F4F7] text-[#1C2230] text-sm font-medium px-3 py-1.5 rounded-full">
-                      {sk.skill_name} · {SKILL_LEVEL_LABEL[sk.level]}
-                      <button onClick={() => deleteSkill(sk.skill_id)} className="ml-1 text-[#64748B] hover:text-red-500 transition-colors">
-                        <XMarkIcon className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+              {!skillsCatalog ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                 </div>
+              ) : (
+                <>
+                  <SkillPicker
+                    catalog={skillsCatalog}
+                    selectedIds={selectedSkillIds}
+                    onToggle={toggleSkill}
+                    renderAfterGroup={category => {
+                      if (category !== "technical") return null;
+                      return (
+                        <>
+                          {eligioIdiomas && (
+                            <div className="mt-4 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <LanguageIcon className="w-4 h-4 text-[#1E8EA3]" />
+                                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">
+                                  ¿Qué idiomas y en qué nivel?
+                                </p>
+                              </div>
+
+                              {languages.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {languages.map(lang => (
+                                    <div key={lang.id} className="flex items-center gap-1.5 bg-[#E6F4F7] text-[#1C2230] text-sm font-medium px-3 py-1.5 rounded-full">
+                                      {lang.language_name} · {lang.level}
+                                      <button onClick={() => deleteLanguage(lang.id)} className="ml-1 text-[#64748B] hover:text-red-500 transition-colors">
+                                        <XMarkIcon className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <form onSubmit={addLanguage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+                                <select required value={langForm.language_name}
+                                  onChange={e => setLangForm(f => ({ ...f, language_name: e.target.value }))}
+                                  className="border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] bg-white">
+                                  <option value="">Elegí un idioma</option>
+                                  {skillsCatalog.languages.map(idioma => (
+                                    <option key={idioma} value={idioma}>{idioma}</option>
+                                  ))}
+                                </select>
+                                <select required value={langForm.level}
+                                  onChange={e => setLangForm(f => ({ ...f, level: e.target.value }))}
+                                  className="border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] bg-white">
+                                  <option value="básico">Básico</option>
+                                  <option value="intermedio">Intermedio</option>
+                                  <option value="avanzado">Avanzado</option>
+                                  <option value="nativo">Nativo</option>
+                                </select>
+                                <button type="submit" disabled={!langForm.language_name}
+                                  className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-50 transition-colors">
+                                  Agregar
+                                </button>
+                              </form>
+                            </div>
+                          )}
+
+                          {eligioOtra && (
+                            <div className="mt-4 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">
+                              <label className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2 block">
+                                ¿Cuál es esa otra habilidad?
+                              </label>
+                              <input
+                                value={otherSkill}
+                                onChange={e => setOtherSkill(e.target.value)}
+                                maxLength={skillsCatalog.other_skill_max_length}
+                                placeholder="Ej: manejo de drones, tornería"
+                                className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+                              />
+                              <p className="text-[11px] text-[#64748B] mt-1.5">
+                                {otherSkill.length}/{skillsCatalog.other_skill_max_length} caracteres
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    }}
+                  />
+
+                  {skillsError && (
+                    <p className="text-sm text-red-600 mt-4">{skillsError}</p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={saveSkills}
+                    disabled={savingProfile}
+                    className="mt-6 inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-5 py-2.5 text-sm hover:bg-[#187B8E] disabled:opacity-60 transition-colors"
+                  >
+                    {savingProfile ? "Guardando..." : "Guardar habilidades"}
+                  </button>
+                </>
               )}
-
-              <form onSubmit={addSkill} className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">Agregar habilidad</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Habilidad *</label>
-                    <select required value={skillForm.skill_id} onChange={e => setSkillForm(f => ({ ...f, skill_id: e.target.value }))}
-                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] bg-white">
-                      <option value="">Seleccionar</option>
-                      {availableSkillsForPicker.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Nivel *</label>
-                    <select required value={skillForm.level} onChange={e => setSkillForm(f => ({ ...f, level: e.target.value as SkillLevel }))}
-                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] bg-white">
-                      {Object.entries(SKILL_LEVEL_LABEL).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <p className="text-xs text-[#64748B]">
-                  ¿No encontrás tu habilidad? Contala en tu descripción personal o en el CV.
-                </p>
-                <button type="submit" disabled={savingProfile || !skillForm.skill_id}
-                  className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-60 transition-colors">
-                  {savingProfile ? "Guardando..." : "Agregar habilidad"}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Step 5 — Idiomas */}
-          {step === 5 && (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <LanguageIcon className="w-5 h-5 text-[#1E8EA3]" />
-                <h3 className="font-display font-bold text-[#1C2230]">Idiomas</h3>
-              </div>
-
-              {languages.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {languages.map(lang => (
-                    <div key={lang.id} className="flex items-center gap-1.5 bg-[#E6F4F7] text-[#1C2230] text-sm font-medium px-3 py-1.5 rounded-full">
-                      <LanguageIcon className="w-3.5 h-3.5 text-[#1E8EA3]" />
-                      {lang.language_name} · {lang.level}
-                      <button onClick={() => deleteLanguage(lang.id)} className="ml-1 text-[#64748B] hover:text-red-500 transition-colors">
-                        <XMarkIcon className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <form onSubmit={addLanguage} className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">Agregar idioma</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Idioma *</label>
-                    <input required value={langForm.language_name} onChange={e => setLangForm(f => ({ ...f, language_name: e.target.value }))}
-                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]" placeholder="Inglés, Portugués..." />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-[#64748B] mb-1 block">Nivel *</label>
-                    <select required value={langForm.level} onChange={e => setLangForm(f => ({ ...f, level: e.target.value }))}
-                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] bg-white">
-                      <option value="básico">Básico</option>
-                      <option value="intermedio">Intermedio</option>
-                      <option value="avanzado">Avanzado</option>
-                      <option value="nativo">Nativo</option>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" disabled={savingProfile}
-                  className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-60 transition-colors">
-                  {savingProfile ? "Guardando..." : "Agregar idioma"}
-                </button>
-              </form>
             </div>
           )}
         </div>

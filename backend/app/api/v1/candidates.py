@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -6,17 +7,20 @@ from pydantic import BaseModel
 from app.api.deps import get_db, require_role
 from app.models.core import User, UserRole
 from app.models.candidate import (
-    CandidateProfile, Experience, Education, CandidateSkill, Language, SkillLevel
+    CandidateProfile, Experience, Education, CandidateSkill, Language,
+    MAX_SKILLS_PER_CATEGORY,
 )
-from app.models.catalogs import Skill
+from app.models.catalogs import Skill, SkillCategory, SKILL_SLUG_OTRA
 from app.schemas.candidate import (
     CandidateProfileResponse, CandidateProfileUpdate,
     ExperienceCreate, ExperienceResponse,
     EducationCreate, EducationResponse,
-    CandidateSkillCreate, CandidateSkillResponse,
+    CandidateSkillItem, CandidateSkillsUpdate, CandidateSkillsResponse,
     LanguageCreate, LanguageResponse,
 )
-from app.integrations.cloudinary_client import upload_pdf, upload_image
+from fastapi.concurrency import run_in_threadpool
+from app.schemas.documents import SignedDocumentLink
+from app.integrations.cloudinary_client import upload_pdf, upload_image, signed_document_url
 from app.services.profile_completion import compute_profile_completion_for_candidate
 from app.services.history import log_candidate_activity
 import uuid
@@ -144,7 +148,12 @@ async def upload_cv(
     profile = await _get_candidate_profile(current_user.id, db)
 
     try:
-        url = upload_pdf(
+        # run_in_threadpool: el SDK de Cloudinary es sincrónico y, llamado directo desde un
+        # `async def`, bloquea el event loop — o sea que mientras alguien sube un archivo la
+        # API entera deja de responderle a todo el mundo. Era la causa del "se tilda bastante"
+        # que reportó Eugenia al cargar la foto de perfil.
+        url = await run_in_threadpool(
+            upload_pdf,
             content,
             folder="bbjobs/cvs",
             public_id=str(profile.id),
@@ -180,7 +189,8 @@ async def upload_photo(
     profile = await _get_candidate_profile(current_user.id, db)
 
     try:
-        url = upload_image(
+        url = await run_in_threadpool(
+            upload_image,
             content,
             folder="bbjobs/candidate_photos",
             public_id=str(profile.id),
@@ -198,6 +208,25 @@ async def upload_photo(
     await db.commit()
     await db.refresh(profile)
     return await _build_profile_response(profile, db)
+
+
+@router.get("/me/candidate/cv/link", response_model=SignedDocumentLink)
+async def get_my_cv_link(
+    attachment: bool = False,
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Link firmado al CV propio. La URL de Cloudinary guardada en `cv_file_url` no se puede
+    abrir directo (la cuenta tiene restringida la entrega de PDF y devuelve 401) — este endpoint
+    es la única puerta."""
+    profile = await _get_candidate_profile(current_user.id, db)
+    if not profile.cv_file_url:
+        raise HTTPException(status_code=404, detail="Todavía no subiste tu CV")
+
+    url = signed_document_url(profile.cv_file_url, attachment=attachment)
+    if not url:
+        raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")
+    return SignedDocumentLink(url=url)
 
 
 # ── Experience ────────────────────────────────────────────────────────────────
@@ -281,7 +310,7 @@ async def add_education(
         level=payload.level,
         start_date=payload.start_date,
         end_date=payload.end_date,
-        in_progress=payload.in_progress,
+        status=payload.status,
     )
     db.add(edu)
     await log_candidate_activity(
@@ -313,88 +342,101 @@ async def delete_education(
 
 # ── Skills ────────────────────────────────────────────────────────────────────
 
-class CandidateSkillWithName(BaseModel):
-    skill_id: uuid.UUID
-    skill_name: str
-    level: SkillLevel
+async def _build_skills_response(db: AsyncSession, profile: CandidateProfile) -> CandidateSkillsResponse:
+    """Las habilidades del candidato, ya separadas en los dos grupos y en el orden del catálogo."""
+    result = await db.execute(
+        select(Skill)
+        .join(CandidateSkill, CandidateSkill.skill_id == Skill.id)
+        .where(CandidateSkill.candidate_id == profile.id)
+        .order_by(Skill.sort_order.asc())
+    )
+    elegidas = [
+        CandidateSkillItem(
+            skill_id=s.id, skill_name=s.name, slug=s.slug, category=s.category
+        )
+        for s in result.scalars().all()
+    ]
+    return CandidateSkillsResponse(
+        soft=[s for s in elegidas if s.category == SkillCategory.soft],
+        technical=[s for s in elegidas if s.category == SkillCategory.technical],
+        other_skill=profile.other_skill,
+    )
 
-    class Config:
-        from_attributes = True
-
-
-@router.get("/me/candidate/skills", response_model=List[CandidateSkillWithName])
+@router.get("/me/candidate/skills", response_model=CandidateSkillsResponse)
 async def list_my_skills(
     current_user: User = Depends(require_role([UserRole.candidate])),
     db: AsyncSession = Depends(get_db)
 ):
     profile = await _get_candidate_profile(current_user.id, db)
-    result = await db.execute(
-        select(CandidateSkill, Skill.name)
-        .join(Skill, CandidateSkill.skill_id == Skill.id)
-        .where(CandidateSkill.candidate_id == profile.id)
-    )
-    return [
-        CandidateSkillWithName(skill_id=cs.skill_id, skill_name=name, level=cs.level)
-        for cs, name in result.all()
-    ]
+    return await _build_skills_response(db, profile)
 
 
-@router.post("/me/candidate/skills", response_model=CandidateSkillResponse)
-async def add_skill(
-    payload: CandidateSkillCreate,
+@router.put("/me/candidate/skills", response_model=CandidateSkillsResponse)
+async def set_my_skills(
+    payload: CandidateSkillsUpdate,
     current_user: User = Depends(require_role([UserRole.candidate])),
     db: AsyncSession = Depends(get_db)
 ):
+    """Reemplaza la selección completa de habilidades.
+
+    Es un PUT del conjunto entero y no un alta/baja de a una porque el tope de 6 por grupo sólo
+    se puede validar mirando la selección completa: con endpoints de a uno, dos pedidos en
+    paralelo pueden pasar el chequeo por separado y dejar 7 guardadas.
+    """
     profile = await _get_candidate_profile(current_user.id, db)
 
-    # Check if skill already added
-    existing = await db.execute(
-        select(CandidateSkill).where(
-            CandidateSkill.candidate_id == profile.id,
-            CandidateSkill.skill_id == payload.skill_id
+    pedidas = list(dict.fromkeys(payload.skill_ids))  # sin duplicados, preservando el orden
+    catalogo = {}
+    if pedidas:
+        result = await db.execute(select(Skill).where(Skill.id.in_(pedidas)))
+        catalogo = {s.id: s for s in result.scalars().all()}
+
+    desconocidas = [str(sid) for sid in pedidas if sid not in catalogo]
+    if desconocidas:
+        raise HTTPException(status_code=400, detail=f"Habilidades inexistentes: {', '.join(desconocidas)}")
+
+    inactivas = [catalogo[sid].name for sid in pedidas if not catalogo[sid].is_active]
+    if inactivas:
+        raise HTTPException(status_code=400, detail=f"Habilidades fuera del catálogo: {', '.join(inactivas)}")
+
+    for categoria, etiqueta in ((SkillCategory.soft, "blandas"), (SkillCategory.technical, "técnicas")):
+        cuantas = sum(1 for sid in pedidas if catalogo[sid].category == categoria)
+        if cuantas > MAX_SKILLS_PER_CATEGORY:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Podés elegir hasta {MAX_SKILLS_PER_CATEGORY} habilidades {etiqueta}.",
+            )
+
+    # El texto libre sólo tiene sentido si eligió "Otra"; si la destildó, se limpia solo para
+    # que no quede un dato huérfano que la empresa ve sin contexto.
+    eligio_otra = any(catalogo[sid].slug == SKILL_SLUG_OTRA for sid in pedidas)
+    other_skill = (payload.other_skill or "").strip() or None
+    if not eligio_otra:
+        other_skill = None
+    elif not other_skill:
+        raise HTTPException(status_code=400, detail="Contanos cuál es esa otra habilidad.")
+
+    previas = set((await db.execute(
+        select(CandidateSkill.skill_id).where(CandidateSkill.candidate_id == profile.id)
+    )).scalars().all())
+    nuevas = set(pedidas)
+
+    if nuevas != previas or profile.other_skill != other_skill:
+        await db.execute(
+            delete(CandidateSkill).where(CandidateSkill.candidate_id == profile.id)
         )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Skill already added")
+        for sid in pedidas:
+            db.add(CandidateSkill(candidate_id=profile.id, skill_id=sid))
+        profile.other_skill = other_skill
 
-    cs = CandidateSkill(
-        candidate_id=profile.id,
-        skill_id=payload.skill_id,
-        level=payload.level,
-    )
-    db.add(cs)
-
-    skill_result = await db.execute(select(Skill.name).where(Skill.id == payload.skill_id))
-    skill_name = skill_result.scalar_one_or_none() or "una habilidad"
-    await log_candidate_activity(
-        db, candidate_id=profile.id, event_type="skill_add",
-        summary=f"Agregó la habilidad '{skill_name}' a su perfil",
-    )
+        await log_candidate_activity(
+            db, candidate_id=profile.id, event_type="skill_update",
+            summary=f"Actualizó sus habilidades ({len(pedidas)} seleccionadas)",
+        )
 
     await db.commit()
-    await db.refresh(cs)
-    return cs
-
-@router.delete("/me/candidate/skills/{skill_id}", status_code=204)
-async def remove_skill(
-    skill_id: uuid.UUID,
-    current_user: User = Depends(require_role([UserRole.candidate])),
-    db: AsyncSession = Depends(get_db)
-):
-    profile = await _get_candidate_profile(current_user.id, db)
-
-    result = await db.execute(
-        select(CandidateSkill).where(
-            CandidateSkill.candidate_id == profile.id,
-            CandidateSkill.skill_id == skill_id
-        )
-    )
-    cs = result.scalar_one_or_none()
-    if not cs:
-        raise HTTPException(status_code=404, detail="Skill not found")
-
-    await db.delete(cs)
-    await db.commit()
+    await db.refresh(profile)
+    return await _build_skills_response(db, profile)
 
 
 # ── Languages ─────────────────────────────────────────────────────────────────

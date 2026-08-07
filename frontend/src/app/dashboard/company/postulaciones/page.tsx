@@ -6,11 +6,11 @@ import {
   UsersIcon, UserCircleIcon, CheckCircleIcon,
   BriefcaseIcon, FunnelIcon, ChartBarIcon,
 } from "@heroicons/react/24/outline";
-import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
   APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
-  EDUCATION_LEVEL_LABEL, EMPTY_APPLICANT_FILTERS,
+  EMPTY_APPLICANT_FILTERS,
   type Application, type ApplicantFilters, type ApplicantStats, type CandidateFullProfile, type JobPosting,
 } from "../types";
 
@@ -145,7 +145,7 @@ export default function CompanyPostulacionesPage() {
             </button>
           </div>
 
-          <div className={`grid grid-cols-1 gap-5 mb-5 ${showStats && stats ? "lg:grid-cols-[1fr_340px]" : ""}`}>
+          <div className="mb-5">
             <form onSubmit={applyFilters} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 h-fit">
               <div className="flex items-center gap-2 mb-3">
                 <FunnelIcon className="w-4 h-4 text-[#1E8EA3]" />
@@ -211,60 +211,13 @@ export default function CompanyPostulacionesPage() {
               </div>
             </form>
 
-            {showStats && stats && (
-              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6 h-fit">
-                <h3 className="text-sm font-bold text-[#1C2230] mb-4">Perfil de los postulantes ({stats.total})</h3>
-                {stats.total === 0 ? (
-                  <p className="text-sm text-[#64748B]">Todavía no hay postulaciones para calcular estadísticas.</p>
-                ) : (
-                  <div className="grid grid-cols-3 lg:grid-cols-1 gap-3 mb-4">
-                    <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center lg:flex lg:items-center lg:justify-between lg:text-left lg:px-4">
-                      <p className="text-xl font-display font-extrabold text-[#1E8EA3]">
-                        {stats.avg_age != null ? stats.avg_age : "—"}
-                      </p>
-                      <p className="text-xs text-[#64748B] font-medium mt-0.5 lg:mt-0">Edad promedio</p>
-                    </div>
-                    <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center lg:flex lg:items-center lg:justify-between lg:text-left lg:px-4">
-                      <p className="text-xl font-display font-extrabold text-[#1E8EA3]">
-                        {stats.avg_experience_years != null ? `${stats.avg_experience_years}a` : "—"}
-                      </p>
-                      <p className="text-xs text-[#64748B] font-medium mt-0.5 lg:mt-0">Experiencia prom.</p>
-                    </div>
-                    <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center lg:flex lg:items-center lg:justify-between lg:text-left lg:px-4">
-                      <p className="text-xl font-display font-extrabold text-[#1E8EA3]">{stats.immediate_availability_count}</p>
-                      <p className="text-xs text-[#64748B] font-medium mt-0.5 lg:mt-0">Disp. inmediata</p>
-                    </div>
-                  </div>
-                )}
-                {Object.keys(stats.education_distribution).length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2">Título alcanzado</p>
-                    <div className="space-y-1.5">
-                      {Object.entries(stats.education_distribution).map(([level, count]) => (
-                        <div key={level} className="flex items-center gap-2">
-                          <span className="text-xs text-[#1C2230] w-24 shrink-0">{EDUCATION_LEVEL_LABEL[level] || level}</span>
-                          <div className="flex-1 h-2 bg-[#EEF2F7] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#1E8EA3] rounded-full" style={{ width: `${(count / stats.total) * 100}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-[#1C2230] w-6 text-right">{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {stats.total > 0 && (
-                  <div>
-                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2">Movilidad propia</p>
-                    <div className="flex gap-4 text-xs text-[#64748B] flex-wrap">
-                      <span>Sí: <strong className="text-[#1C2230]">{stats.mobility.yes || 0}</strong></span>
-                      <span>No: <strong className="text-[#1C2230]">{stats.mobility.no || 0}</strong></span>
-                      <span>Sin dato: <strong className="text-[#1C2230]">{stats.mobility.unknown || 0}</strong></span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
+
+          {showStats && stats && (
+            <div className="mb-5">
+              <PanelEstadisticas stats={stats} />
+            </div>
+          )}
 
           <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
             {loadingApps ? (
@@ -281,13 +234,13 @@ export default function CompanyPostulacionesPage() {
                 {currentApps.map(app => (
                   <div key={app.id} className="px-6 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
-                      {app.candidate ? (
-                        <ProfileCompletionRing percent={app.candidate.completion_percent} size={36} strokeWidth={4} />
-                      ) : (
-                        <div className="w-9 h-9 rounded-lg bg-[#E6F4F7] flex items-center justify-center shrink-0">
-                          <UsersIcon className="w-4 h-4 text-[#1E8EA3]" />
-                        </div>
-                      )}
+                      {/* Sin anillo de % de perfil: la empresa lo leía como "% de ajuste al
+                          puesto" cuando en realidad mide cuánto cargó el candidato de su propio
+                          perfil (pedido de Eugenia, agosto/2026). Sigue visible en el panel de
+                          Talency, que sabe qué mide. */}
+                      <div className="w-9 h-9 rounded-lg bg-[#E6F4F7] flex items-center justify-center shrink-0">
+                        <UsersIcon className="w-4 h-4 text-[#1E8EA3]" />
+                      </div>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-[#1C2230]">
                           {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
@@ -348,6 +301,7 @@ export default function CompanyPostulacionesPage() {
         profile={candidateProfile}
         loading={loadingCandidate}
         onClose={() => setCandidateProfile(null)}
+        cvLinkEndpoint={candidateProfile ? `/me/company/candidates/${candidateProfile.id}/cv/link` : undefined}
       />
     </div>
   );

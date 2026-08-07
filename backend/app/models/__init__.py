@@ -1,8 +1,9 @@
 from app.models.base import Base, UUIDMixin
 from app.models.core import User, AdminProfile, PasswordResetToken, EmailVerificationToken, RefreshToken, UserRole
-from app.models.catalogs import Industry, Zone, ContractType, Skill, SkillStatus
+from app.models.settings import SiteSetting, SettingKey
+from app.models.catalogs import Industry, Zone, ContractType, Skill, SkillCategory
 from app.models.company import CompanyProfile, CompanyVerificationDocument, VerificationStatus
-from app.models.candidate import CandidateProfile, Experience, Education, CandidateSkill, Language, EducationLevel, SkillLevel, LanguageLevel
+from app.models.candidate import CandidateProfile, Experience, Education, CandidateSkill, Language, EducationLevel, LanguageLevel
 from app.models.job import JobPosting, JobPostingSkill, Application, JobPostingModality, JobPostingStatus, ApplicationStatus
 from app.models.payment import Plan, Subscription, JobFeature, Payment, MercadoPagoWebhookEvent, SubscriptionStatus, JobFeatureStatus, PaymentType
 from app.models.tests import PsychometricTest, TestQuestion, TestQuestionOption, TestSubmission, TestAnswer, ScoringMethod, QuestionType, TestSubmissionStatus
@@ -24,7 +25,9 @@ __all__ = [
     "Zone",
     "ContractType",
     "Skill",
-    "SkillStatus",
+    "SkillCategory",
+    "SiteSetting",
+    "SettingKey",
     "CompanyProfile",
     "CompanyVerificationDocument",
     "VerificationStatus",
@@ -34,7 +37,6 @@ __all__ = [
     "CandidateSkill",
     "Language",
     "EducationLevel",
-    "SkillLevel",
     "LanguageLevel",
     "JobPosting",
     "JobPostingSkill",

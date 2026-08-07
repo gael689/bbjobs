@@ -91,7 +91,7 @@ export interface Education {
   level: string;
   start_date: string;
   end_date?: string;
-  in_progress: boolean;
+  status: EducationStatus;
 }
 
 export interface Language {
@@ -100,24 +100,46 @@ export interface Language {
   level: string;
 }
 
-export type SkillLevel = "básico" | "intermedio" | "avanzado" | "experto";
+export type SkillCategory = "soft" | "technical";
 
 export interface SkillCatalogItem {
   id: string;
   name: string;
+  slug: string;
+  category: SkillCategory;
+}
+
+/** El catálogo llega ya agrupado y con sus reglas — el tope, los idiomas disponibles y el
+ *  largo del texto libre los define el backend, que es el que después los valida. */
+export interface SkillCatalog {
+  soft: SkillCatalogItem[];
+  technical: SkillCatalogItem[];
+  max_per_category: number;
+  languages: string[];
+  other_skill_max_length: number;
 }
 
 export interface CandidateSkillItem {
   skill_id: string;
   skill_name: string;
-  level: SkillLevel;
+  slug: string;
+  category: SkillCategory;
 }
 
-export const SKILL_LEVEL_LABEL: Record<SkillLevel, string> = {
-  "básico": "Básico",
-  intermedio: "Intermedio",
-  avanzado: "Avanzado",
-  experto: "Experto",
+export interface CandidateSkills {
+  soft: CandidateSkillItem[];
+  technical: CandidateSkillItem[];
+  other_skill?: string | null;
+}
+
+/** Habilidades con comportamiento propio en el formulario. Se identifican por slug y no por
+ *  nombre porque el nombre lo puede editar Talency sin que se rompa nada. */
+export const SLUG_IDIOMAS = "idiomas";
+export const SLUG_OTRA = "otra";
+
+export const SKILL_CATEGORY_LABEL: Record<SkillCategory, string> = {
+  soft: "Habilidades blandas",
+  technical: "Habilidades técnicas",
 };
 
 export const MODALITY_LABEL: Record<string, string> = {
@@ -126,10 +148,22 @@ export const MODALITY_LABEL: Record<string, string> = {
   "híbrido": "Híbrido",
 };
 
+// El candidato ve exactamente los mismos nombres que la empresa (decisión de Talency,
+// agosto/2026) y recibe una notificación en cada cambio de estado.
 export const APP_STATUS: Record<string, { label: string; cls: string }> = {
-  new: { label: "Enviada", cls: "bg-blue-100 text-blue-700" },
-  seen: { label: "Vista", cls: "bg-amber-100 text-amber-700" },
-  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  new: { label: "Nueva", cls: "bg-blue-100 text-blue-700" },
+  seen: { label: "Perfil revisado", cls: "bg-amber-100 text-amber-700" },
   contacted: { label: "Contactado", cls: "bg-green-100 text-green-700" },
-  discarded: { label: "Descartada", cls: "bg-red-100 text-red-700" },
+  in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
+  finalist: { label: "Finalista", cls: "bg-[#E6F4F7] text-[#187B8E]" },
+  selected: { label: "Seleccionado", cls: "bg-[#D4B7A2]/30 text-[#8A6A54]" },
+  discarded: { label: "No avanza", cls: "bg-red-100 text-red-700" },
+};
+
+export type EducationStatus = "graduado" | "en_curso" | "abandonado";
+
+export const EDUCATION_STATUS_LABEL: Record<EducationStatus, string> = {
+  graduado: "Graduado",
+  en_curso: "En curso",
+  abandonado: "Abandonado",
 };

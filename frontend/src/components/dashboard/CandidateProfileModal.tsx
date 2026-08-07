@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import {
   XMarkIcon, BriefcaseIcon, AcademicCapIcon, WrenchScrewdriverIcon,
-  LanguageIcon, ArrowDownTrayIcon, ClockIcon, UserCircleIcon,
+  LanguageIcon, ArrowDownTrayIcon, ClockIcon, UserCircleIcon, EyeIcon,
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import { abrirCv } from "@/lib/cv";
 
 type Gender = "masculino" | "femenino" | "otro" | "no_declara";
 type Availability = "full_time" | "part_time" | "ambos";
@@ -12,6 +14,11 @@ type Availability = "full_time" | "part_time" | "ambos";
 const GENDER_LABEL: Record<Gender, string> = {
   masculino: "Masculino", femenino: "Femenino", otro: "Otro", no_declara: "Prefiero no decirlo",
 };
+/** Cómo terminó cada estudio. Reemplazó al "en curso" sí/no en agosto/2026. */
+const ESTADO_EDU: Record<string, string> = {
+  graduado: "Graduado", en_curso: "En curso", abandonado: "Abandonado",
+};
+
 const AVAILABILITY_LABEL: Record<Availability, string> = {
   full_time: "Full-time", part_time: "Part-time", ambos: "Full-time o part-time",
 };
@@ -33,8 +40,9 @@ export interface CandidateProfileModalData {
   accepts_hybrid: boolean;
   accepts_onsite: boolean;
   experience: { company_name: string; role_title: string; start_date: string; end_date?: string; description?: string }[];
-  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; in_progress: boolean }[];
-  skills: { skill_name: string; level: string }[];
+  education: { institution: string; degree: string; level: string; start_date: string; end_date?: string; status: string }[];
+  skills: { skill_name: string; category: "soft" | "technical" }[];
+  other_skill?: string | null;
   languages: { language_name: string; level: string }[];
 }
 
@@ -49,13 +57,23 @@ interface Props {
   loading: boolean;
   onClose: () => void;
   activity?: CandidateProfileActivityItem[];
+  /** Endpoint del link firmado al CV — cambia según quién mira (empresa o admin). Sin esto el
+   *  botón no se muestra: la URL cruda de Cloudinary da 401 y no sirve como link directo. */
+  cvLinkEndpoint?: string;
+  /** Mostrar el % de perfil completo. **Sólo para el panel de admin.**
+   *  A la empresa no se le muestra: lo lee como "% de ajuste al puesto" cuando en realidad
+   *  mide cuánto cargó el candidato de su propio perfil, y termina descartando buenos
+   *  candidatos con el perfil a medio llenar (pedido de Eugenia, agosto/2026). */
+  showCompletion?: boolean;
 }
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("es-AR", { month: "short", year: "numeric" });
 }
 
-export default function CandidateProfileModal({ profile, loading, onClose, activity = [] }: Props) {
+export default function CandidateProfileModal({ profile, loading, onClose, activity = [], cvLinkEndpoint, showCompletion = false }: Props) {
+  const [cvError, setCvError] = useState(false);
+
   if (!profile && !loading) return null;
 
   const hasContent = profile && (
@@ -83,11 +101,17 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
           <div className="p-6 sm:p-8">
             {/* Identity bar — full width */}
             <div className="flex flex-col sm:flex-row sm:items-start gap-5 pb-6 border-b border-[#DDE3EC]">
-              <ProfileCompletionRing percent={profile.completion_percent} size={64} strokeWidth={5} />
+              {showCompletion ? (
+                <ProfileCompletionRing percent={profile.completion_percent} size={64} strokeWidth={5} />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0">
+                  <UserCircleIcon className="w-8 h-8 text-[#1E8EA3]" />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h3 className="text-2xl font-display font-bold text-[#1C2230]">{profile.first_name} {profile.last_name}</h3>
                 <p className="text-sm text-[#64748B] mt-0.5">{profile.phone}</p>
-                {profile.completion_percent < 100 && (
+                {showCompletion && profile.completion_percent < 100 && (
                   <p className="text-xs text-[#64748B] mt-1">Perfil {profile.completion_percent}% completo</p>
                 )}
                 <div className="flex flex-wrap gap-1.5 mt-3">
@@ -105,16 +129,34 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
                   {profile.immediate_availability && <span className="text-xs font-bold bg-[#D4B7A2]/25 text-[#1C2230] border border-[#D4B7A2] px-2 py-0.5 rounded-full">Disponibilidad inmediata</span>}
                 </div>
               </div>
-              {profile.cv_file_url && (
-                <a
-                  href={profile.cv_file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-4 py-2.5 rounded-lg transition-colors"
-                >
-                  <ArrowDownTrayIcon className="w-4 h-4" />
-                  Descargar CV
-                </a>
+              {profile.cv_file_url && cvLinkEndpoint && (
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCvError(false);
+                        abrirCv(cvLinkEndpoint).catch(() => setCvError(true));
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] bg-[#E6F4F7] hover:bg-[#D5EBF1] px-4 py-2.5 rounded-lg transition-colors"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                      Ver CV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCvError(false);
+                        abrirCv(cvLinkEndpoint, { descargar: true }).catch(() => setCvError(true));
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-4 py-2.5 rounded-lg transition-colors"
+                    >
+                      <ArrowDownTrayIcon className="w-4 h-4" />
+                      Descargar CV
+                    </button>
+                  </div>
+                  {cvError && <span className="text-[11px] text-red-600">No pudimos abrir el CV. Probá de nuevo.</span>}
+                </div>
               )}
             </div>
 
@@ -167,7 +209,7 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
                             <p className="font-bold text-sm text-[#1C2230]">{edu.degree}</p>
                             <p className="text-sm text-[#1E8EA3] font-medium">{edu.institution}</p>
                             <p className="text-xs text-[#64748B] mt-0.5 capitalize">
-                              {edu.level} · {fmtDate(edu.start_date)} — {edu.in_progress ? "En curso" : edu.end_date ? fmtDate(edu.end_date) : ""}
+                              {edu.level} · {ESTADO_EDU[edu.status] || edu.status}{edu.end_date ? ` · ${fmtDate(edu.end_date)}` : ""}
                             </p>
                           </div>
                         ))}
@@ -178,19 +220,36 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
 
                 {/* Right column */}
                 <div className="space-y-6">
-                  {profile.skills.length > 0 && (
+                  {(profile.skills.length > 0 || profile.other_skill) && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <WrenchScrewdriverIcon className="w-4 h-4 text-[#1E8EA3]" />
                         <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Habilidades</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {profile.skills.map((sk, i) => (
-                          <span key={i} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#E6F4F7] text-[#1C2230] border border-[#9ED4DF] px-3 py-1.5 rounded-full">
-                            {sk.skill_name}<span className="text-[#64748B] font-normal">· {sk.level}</span>
-                          </span>
-                        ))}
-                      </div>
+                      {([
+                        { key: "technical", label: "Técnicas" },
+                        { key: "soft", label: "Blandas" },
+                      ] as const).map(({ key, label }) => {
+                        const delGrupo = profile.skills.filter(sk => sk.category === key);
+                        if (delGrupo.length === 0) return null;
+                        return (
+                          <div key={key} className="mb-3 last:mb-0">
+                            <p className="text-[11px] font-bold text-[#94A3B8] mb-1.5">{label}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {delGrupo.map((sk, i) => (
+                                <span key={i} className="text-xs font-semibold bg-[#E6F4F7] text-[#1C2230] border border-[#9ED4DF] px-3 py-1.5 rounded-full">
+                                  {sk.skill_name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {profile.other_skill && (
+                        <p className="text-xs text-[#64748B] mt-2">
+                          Otra habilidad: <span className="text-[#1C2230] font-medium">{profile.other_skill}</span>
+                        </p>
+                      )}
                     </div>
                   )}
 

@@ -1,8 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date, datetime
 import uuid
-from app.models.candidate import EducationLevel, SkillLevel, LanguageLevel, Gender, Availability
+from app.models.candidate import (
+    EducationLevel, EducationStatus, LanguageLevel, Gender, Availability, OTHER_SKILL_MAX_LENGTH,
+    MIN_CANDIDATE_AGE_YEARS,
+)
+from app.models.catalogs import SkillCategory
 
 
 def calculate_age(birth_date: Optional[date]) -> Optional[int]:
@@ -41,6 +45,20 @@ class CandidateProfileUpdate(BaseModel):
     accepts_onsite: Optional[bool] = None
     visible_in_talent_pool: Optional[bool] = None
 
+    @field_validator("birth_date")
+    @classmethod
+    def _validar_fecha_de_nacimiento(cls, v: Optional[date]) -> Optional[date]:
+        """Antes no se validaba nada y se podía declarar haber nacido en 2027.
+        El tope del formulario no alcanza: se puede mandar el PATCH sin pasar por la UI."""
+        if v is None:
+            return v
+        if v > date.today():
+            raise ValueError("La fecha de nacimiento no puede ser futura.")
+        if calculate_age(v) < MIN_CANDIDATE_AGE_YEARS:
+            raise ValueError(f"Tenés que ser mayor de {MIN_CANDIDATE_AGE_YEARS} años para registrarte.")
+        return v
+
+
 class CandidateProfileResponse(BaseModel):
     id: uuid.UUID
     first_name: str
@@ -71,45 +89,96 @@ class CandidateProfileResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class ExperienceCreate(BaseModel):
+class ExperienceBase(BaseModel):
+    """Los campos, sin reglas.
+
+    La respuesta hereda de acá y **no** de `ExperienceCreate` a propósito: las validaciones de
+    fecha se agregaron en agosto/2026, y en la base ya había registros cargados antes con
+    fechas futuras. Si el schema de salida las heredara, esos perfiles reventarían con un 500
+    al abrirlos — se validan los datos que entran, no los que ya están guardados."""
     company_name: str
     role_title: str
     start_date: date
+    # None = "trabajo actualmente acá". Es el único significado que tiene un fin vacío.
     end_date: Optional[date] = None
     description: Optional[str] = None
 
-class ExperienceResponse(ExperienceCreate):
+
+class ExperienceCreate(ExperienceBase):
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _sin_futuro(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v > date.today():
+            raise ValueError("No se puede cargar una fecha futura.")
+        return v
+
+    @model_validator(mode="after")
+    def _fin_despues_del_inicio(self):
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio.")
+        return self
+
+
+class ExperienceResponse(ExperienceBase):
     id: uuid.UUID
     candidate_id: uuid.UUID
 
     class Config:
         from_attributes = True
 
-class EducationCreate(BaseModel):
+class EducationBase(BaseModel):
+    """Campos sin reglas — mismo motivo que `ExperienceBase`."""
     institution: str
     degree: str
     level: EducationLevel
     start_date: date
     end_date: Optional[date] = None
-    in_progress: bool = False
+    status: EducationStatus = EducationStatus.graduado
 
-class EducationResponse(EducationCreate):
+
+class EducationCreate(EducationBase):
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _sin_futuro(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v > date.today():
+            raise ValueError("No se puede cargar una fecha futura.")
+        return v
+
+    @model_validator(mode="after")
+    def _coherencia_de_fechas(self):
+        # "En curso" no lleva fecha de egreso: nada de fecha estimada a futuro (decisión de
+        # Talency, 06/08/2026) — es un dato que nadie vuelve a actualizar cuando se recibe.
+        if self.status == EducationStatus.en_curso and self.end_date:
+            raise ValueError("Si está en curso, no corresponde cargar fecha de fin.")
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio.")
+        return self
+
+class EducationResponse(EducationBase):
     id: uuid.UUID
     candidate_id: uuid.UUID
 
     class Config:
         from_attributes = True
 
-class CandidateSkillCreate(BaseModel):
+class CandidateSkillItem(BaseModel):
     skill_id: uuid.UUID
-    level: SkillLevel
+    skill_name: str
+    slug: str
+    category: SkillCategory
 
-class CandidateSkillResponse(BaseModel):
-    skill_id: uuid.UUID
-    level: SkillLevel
 
-    class Config:
-        from_attributes = True
+class CandidateSkillsUpdate(BaseModel):
+    """La selección completa, no un alta suelta — el tope de 6 por grupo sólo se puede validar
+    mirando el conjunto entero (ver PUT /me/candidate/skills)."""
+    skill_ids: List[uuid.UUID] = []
+    other_skill: Optional[str] = Field(default=None, max_length=OTHER_SKILL_MAX_LENGTH)
+
+
+class CandidateSkillsResponse(BaseModel):
+    soft: List[CandidateSkillItem] = []
+    technical: List[CandidateSkillItem] = []
+    other_skill: Optional[str] = None
 
 class LanguageCreate(BaseModel):
     language_name: str
@@ -140,14 +209,14 @@ class EducationForCompany(BaseModel):
     level: str
     start_date: date
     end_date: Optional[date] = None
-    in_progress: bool
+    status: str
 
     class Config:
         from_attributes = True
 
 class SkillForCompany(BaseModel):
     skill_name: str
-    level: str
+    category: SkillCategory
 
 class LanguageForCompany(BaseModel):
     language_name: str
@@ -175,4 +244,5 @@ class CandidateFullProfile(BaseModel):
     experience: List[ExperienceForCompany]
     education: List[EducationForCompany]
     skills: List[SkillForCompany]
+    other_skill: Optional[str] = None
     languages: List[LanguageForCompany]

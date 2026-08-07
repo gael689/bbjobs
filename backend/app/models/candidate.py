@@ -6,6 +6,18 @@ from sqlalchemy.sql import func
 from app.models.base import Base, UUIDMixin
 import uuid
 
+# Tope de habilidades por grupo — lo pidió Eugenia explícitamente ("que no le permita
+# seleccionar más de 6 blandas ni más de 6 técnicas"). Se valida en el backend, no sólo en la UI.
+MAX_SKILLS_PER_CATEGORY = 6
+
+# Largo del texto libre de la habilidad "Otra".
+OTHER_SKILL_MAX_LENGTH = 80
+
+# Edad mínima para tener perfil de candidato (decisión de Talency, 06/08/2026).
+# Antes no se validaba nada: se podía declarar una fecha de nacimiento futura.
+MIN_CANDIDATE_AGE_YEARS = 18
+
+
 class Gender(str, enum.Enum):
     masculino = "masculino"
     femenino = "femenino"
@@ -39,7 +51,11 @@ class CandidateProfile(UUIDMixin, Base):
     currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
     
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
+    # Texto libre que se habilita al elegir la habilidad técnica "Otra". Corto a propósito:
+    # es para nombrar un oficio que no está en el catálogo, no para una segunda descripción.
+    other_skill: Mapped[str | None] = mapped_column(String(OTHER_SKILL_MAX_LENGTH), nullable=True)
+
     cv_file_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     cv_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
@@ -78,6 +94,16 @@ class EducationLevel(str, enum.Enum):
     universitario = "universitario"
     posgrado = "posgrado"
 
+class EducationStatus(str, enum.Enum):
+    """Cómo terminó (o no) ese estudio.
+
+    Reemplazó al booleano `in_progress` en agosto/2026: Eugenia pidió poder distinguir
+    "Abandonado" en las estadísticas de nivel educativo, y con un sí/no no se podía."""
+    graduado = "graduado"
+    en_curso = "en_curso"
+    abandonado = "abandonado"
+
+
 class Education(UUIDMixin, Base):
     __tablename__ = "educations"
 
@@ -87,20 +113,18 @@ class Education(UUIDMixin, Base):
     level: Mapped[EducationLevel] = mapped_column(String(50), nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    in_progress: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
-class SkillLevel(str, enum.Enum):
-    basico = "básico"
-    intermedio = "intermedio"
-    avanzado = "avanzado"
-    experto = "experto"
+    status: Mapped[EducationStatus] = mapped_column(String(50), default=EducationStatus.graduado, nullable=False)
 
 class CandidateSkill(Base):
+    """El candidato tilda la habilidad y listo — sin nivel.
+
+    Tenía un nivel autoevaluado (básico → experto) que se eliminó en agosto/2026: declararse
+    "experto en trabajo en equipo" no le sirve a nadie para decidir, y eran 12 selectores más
+    en un formulario que se completa mayormente desde el celular."""
     __tablename__ = "candidate_skills"
 
     candidate_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("candidate_profiles.id", ondelete="CASCADE"), primary_key=True)
     skill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True)
-    level: Mapped[SkillLevel] = mapped_column(String(50), nullable=False)
 
 class LanguageLevel(str, enum.Enum):
     basico = "básico"

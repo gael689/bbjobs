@@ -33,8 +33,9 @@ class JobPosting(UUIDMixin, Base):
     company_legal_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    # El aviso completo en un solo campo. `requirements` se fusionó acá en agosto/2026
+    # (migración c3e7b1d5a92f): la empresa escribe un texto y el portal lo muestra entero.
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    requirements: Mapped[str] = mapped_column(Text, nullable=False)
     
     industry_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("industries.id", ondelete="RESTRICT"), nullable=False)
     zone_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("zones.id", ondelete="RESTRICT"), nullable=False)
@@ -91,11 +92,19 @@ class JobPostingSkill(Base):
     is_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 class ApplicationStatus(str, enum.Enum):
-    new = "new"
-    seen = "seen"
-    in_process = "in_process"
-    discarded = "discarded"
-    contacted = "contacted"
+    """El embudo de selección, en el orden que definió Talency.
+
+    La columna es String(50) y no un ENUM de Postgres, así que sumar valores no necesita
+    migración de tipo. `finalist` y `selected` se agregaron en agosto/2026; el resto sólo
+    cambió de etiqueta en la UI (`seen` pasó a mostrarse como "Perfil revisado" y `discarded`
+    como "No avanza"), sin tocar los datos ya guardados."""
+    new = "new"                  # Nueva
+    seen = "seen"                # Perfil revisado
+    contacted = "contacted"      # Contactado
+    in_process = "in_process"    # En proceso
+    finalist = "finalist"        # Finalista
+    selected = "selected"        # Seleccionado
+    discarded = "discarded"      # No avanza
 
 class Application(UUIDMixin, Base):
     __tablename__ = "applications"

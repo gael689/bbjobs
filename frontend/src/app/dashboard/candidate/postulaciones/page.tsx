@@ -3,8 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import { APP_STATUS, type Application, type ApplicationHistoryItem, type Job } from "../types";
+import type { ApplicantStats } from "@/app/dashboard/company/types";
+
+/** Lo que devuelve /me/candidate/applications/{id}/comparison: los mismos gráficos que ve la
+ *  empresa, más las franjas propias para resaltarlas. */
+interface Comparativa {
+  stats: ApplicantStats;
+  mi_franja_edad?: string | null;
+  mi_franja_experiencia?: string | null;
+  mi_educacion?: string | null;
+  mis_habilidades: string[];
+}
 
 export default function CandidatePostulacionesPage() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -12,11 +24,24 @@ export default function CandidatePostulacionesPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, ApplicationHistoryItem[]>>({});
   const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
+  const [comparativas, setComparativas] = useState<Record<string, Comparativa | null>>({});
+  const [cargandoComparativa, setCargandoComparativa] = useState<string | null>(null);
 
   useEffect(() => {
     api.get("/me/candidate/applications").then(r => setApplications(r.data)).catch(() => {});
     api.get("/jobs?page_size=100").then(r => setJobs(r.data.items)).catch(() => {});
   }, []);
+
+  /** Pide la comparativa una sola vez por postulación. Si el backend responde 404 es porque
+   *  Talency todavía no publicó las estadísticas — se cachea el null y no se vuelve a pedir. */
+  function cargarComparativa(appId: string) {
+    if (appId in comparativas) return;
+    setCargandoComparativa(appId);
+    api.get(`/me/candidate/applications/${appId}/comparison`)
+      .then(r => setComparativas(prev => ({ ...prev, [appId]: r.data })))
+      .catch(() => setComparativas(prev => ({ ...prev, [appId]: null })))
+      .finally(() => setCargandoComparativa(null));
+  }
 
   function toggleHistory(appId: string) {
     if (expanded === appId) {
@@ -24,6 +49,7 @@ export default function CandidatePostulacionesPage() {
       return;
     }
     setExpanded(appId);
+    cargarComparativa(appId);
     if (!history[appId]) {
       setLoadingHistory(appId);
       api.get(`/me/candidate/applications/${appId}/history`)
@@ -96,6 +122,31 @@ export default function CandidatePostulacionesPage() {
                           })}
                         </div>
                       )}
+
+                      {/* Comparativa contra el resto de los postulantes de ESTA vacante.
+                          Nunca contra todo el portal: mezclar un aviso de depósito con uno de
+                          sistemas haría que el número no signifique nada. */}
+                      {cargandoComparativa === app.id ? (
+                        <div className="py-6 flex justify-center">
+                          <div className="w-4 h-4 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : comparativas[app.id] ? (
+                        <div className="pt-5 mt-4 border-t border-[#DDE3EC]">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ChartBarIcon className="w-4 h-4 text-[#1E8EA3]" />
+                            <p className="text-sm font-bold text-[#1C2230]">Cómo te comparás con los demás postulantes</p>
+                          </div>
+                          <PanelEstadisticas
+                            stats={comparativas[app.id]!.stats}
+                            mio={{
+                              franjaEdad: comparativas[app.id]!.mi_franja_edad,
+                              franjaExperiencia: comparativas[app.id]!.mi_franja_experiencia,
+                              educacion: comparativas[app.id]!.mi_educacion,
+                              habilidades: comparativas[app.id]!.mis_habilidades,
+                            }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
