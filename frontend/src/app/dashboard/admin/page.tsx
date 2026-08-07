@@ -64,8 +64,8 @@ export default function AdminInicioPage() {
       icon: ChartBarIcon, tint: "bg-[#E6F4F7]", fg: "text-[#187B8E]",
     },
     {
-      href: "/dashboard/admin/indicadores", title: "Indicadores",
-      meta: "Números que se ven en la landing",
+      href: "/dashboard/admin/indicadores", title: "Indicadores y estadísticas",
+      meta: "Números de la landing y perfil de los postulantes",
       icon: SparklesIcon, tint: "bg-[#F7EFE9]", fg: "text-[#B98F72]",
     },
     {

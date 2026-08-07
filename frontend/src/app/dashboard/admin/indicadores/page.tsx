@@ -168,9 +168,24 @@ export default function IndicadoresPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+      {/* El título de la página engloba las DOS cosas que viven acá, y cada una
+          se presenta después con su propio encabezado. Antes la página se
+          llamaba "Indicadores de la landing" y abajo aparecían las estadísticas
+          de los postulantes, que no tienen nada que ver con la landing: leído de
+          corrido parecía todo lo mismo. */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Indicadores y estadísticas</h1>
+        <p className="text-[#64748B] text-sm">
+          Dos cosas distintas: los números que se muestran en la página principal,
+          y las estadísticas de la gente que se postula.
+        </p>
+      </div>
+
+      {/* ── 1 · Landing ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6 pb-4 border-b-2 border-[#1C2230]">
         <div>
-          <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Indicadores de la landing</h1>
+          <p className="text-[11px] font-extrabold text-[#1E8EA3] uppercase tracking-wider mb-1">Parte 1</p>
+          <h2 className="text-xl font-display font-bold text-[#1C2230] mb-1">Indicadores de la landing</h2>
           <p className="text-[#64748B] text-sm">
             La barra de números que ve cualquier visitante en la página principal.
           </p>
@@ -429,17 +444,28 @@ export default function IndicadoresPage() {
         </div>
       )}
 
-      {/* Los indicadores, y arriba del interruptor a propósito: primero se mira
-          lo que hay, después se decide si sale al portal. Al revés se aprueba a
-          ciegas, que es lo que pasaba mientras esta vista no existió. */}
-      <div className="mt-10">
-        <PanelIndicadoresAdmin />
-      </div>
+      {/* ── 2 · Postulantes ─────────────────────────────────────────────────
+          Nada que ver con la parte de arriba: esos son números del portal, y
+          estos son de la gente que se postula. La separación es visual y
+          explícita —franja de corte, "Parte 2", y un texto que dice qué es cada
+          cosa— porque leído de corrido se confundían. */}
+      <div className="mt-14 pt-8 border-t-4 border-[#1C2230]">
+        <p className="text-[11px] font-extrabold text-[#1E8EA3] uppercase tracking-wider mb-1">Parte 2</p>
+        <h2 className="text-xl font-display font-bold text-[#1C2230] mb-1">Estadísticas de los postulantes</h2>
+        <p className="text-[#64748B] text-sm mb-6">
+          Quiénes se están postulando: edad, experiencia, estudios, pretensión de
+          sueldo y habilidades. Esto no sale de los avisos sino de los perfiles, y
+          es tuyo para mirar aunque no lo publiques.
+        </p>
 
-      {/* Qué estadísticas se publican — Talency las ve siempre desde su panel; esto sólo
-          decide si además salen al portal. */}
-      <div className="mt-8">
-        <InterruptoresEstadisticas />
+        {/* El panel arriba del interruptor a propósito: primero se mira lo que
+            hay, después se decide si sale al portal. Al revés se aprueba a
+            ciegas, que es lo que pasaba mientras esta vista no existió. */}
+        <PanelIndicadoresAdmin />
+
+        <div className="mt-8">
+          <InterruptoresEstadisticas />
+        </div>
       </div>
     </div>
   );

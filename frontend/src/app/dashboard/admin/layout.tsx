@@ -27,7 +27,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon, section: "Negocio" },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
 
-  { href: "/dashboard/admin/indicadores", label: "Indicadores de la landing", icon: SparklesIcon, section: "Configuración" },
+  // "de la landing" se quedó corto: la pantalla tiene además las estadísticas de
+  // los postulantes, que no son de la landing. Con el nombre viejo no había forma
+  // de adivinar que estaban ahí.
+  { href: "/dashboard/admin/indicadores", label: "Indicadores y estadísticas", icon: SparklesIcon, section: "Configuración" },
   { href: "/dashboard/admin/nuevo-admin", label: "Nuevo admin", icon: UserPlusIcon },
 ];
 
