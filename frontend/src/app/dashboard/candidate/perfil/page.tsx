@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/api";
@@ -79,9 +79,11 @@ const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
   { key: "cv", label: "CV", missingKeys: ["cv_file_url"] },
   { key: "experience", label: "Experiencia", missingKeys: ["experience"] },
   { key: "education", label: "Educación", missingKeys: ["education"] },
-  // Idiomas dejó de ser un paso propio pero SIGUE contando para el % — se cargan dentro de
-  // Habilidades, al elegir la habilidad técnica "Idiomas" (pedido de Eugenia, agosto/2026).
-  // Por eso su key de completitud se resuelve en este paso.
+  // Idiomas no es un paso propio pero SIGUE contando para el % — se cargan dentro de
+  // Habilidades, en su propia sección. Estuvieron escondidos detrás de tildar la
+  // habilidad técnica "Idiomas", y así el paso era imposible de completar para
+  // quien no la marcaba: guardaba, no veía la tilde y no tenía forma de saber
+  // qué faltaba.
   { key: "skills", label: "Habilidades", missingKeys: ["skills", "languages"] },
 ];
 
@@ -309,7 +311,23 @@ export default function CandidatePerfilPage() {
   }
 
   const selectedSkillIds = [...mySkills.soft, ...mySkills.technical].map(s => s.skill_id);
-  const eligioIdiomas = mySkills.technical.some(s => s.slug === SLUG_IDIOMAS);
+  // `eligioIdiomas` ya no existe: los idiomas dejaron de estar detrás de una
+  // tilde del listado técnico y tienen su propia sección. La habilidad "Idiomas"
+  // se saca del catálogo que se ofrece, para no dejar dos lugares que parecen
+  // hacer lo mismo. Lo que un candidato ya tenga tildado NO se toca: sigue
+  // guardado y sigue contando, sólo deja de ofrecerse a los que vienen.
+  //
+  // Con `useMemo` y no un objeto suelto: el picker recibe `catalog` por prop y
+  // recrearlo en cada render lo haría re-renderizar de más al tildar cualquier
+  // habilidad.
+  const catalogoVisible = useMemo(
+    () =>
+      skillsCatalog && {
+        ...skillsCatalog,
+        technical: skillsCatalog.technical.filter(s => s.slug !== SLUG_IDIOMAS),
+      },
+    [skillsCatalog],
+  );
   const eligioOtra = mySkills.technical.some(s => s.slug === SLUG_OTRA);
 
   /** Tilda o destilda una habilidad. Sólo toca el estado local: se guarda con "Guardar
@@ -340,7 +358,14 @@ export default function CandidatePerfilPage() {
       setMySkills(r.data);
       setOtherSkill(r.data.other_skill || "");
       refreshProfile();
-      toast("Habilidades guardadas");
+      // Si el paso queda incompleto igual, se dice acá y no al final del
+      // recorrido. Guardar y que después te manden de vuelta al primer paso
+      // sin explicación es lo que hacía parecer que el guardado había fallado.
+      toast(
+        languages.length === 0
+          ? "Habilidades guardadas. Falta cargar los idiomas para completar este paso."
+          : "Habilidades guardadas",
+      );
     } catch (e: unknown) {
       const detalle = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setSkillsError(detalle || "No pudimos guardar tus habilidades.");
@@ -379,10 +404,21 @@ export default function CandidatePerfilPage() {
       if (faltan === -1) {
         toast("¡Perfil completo! Te llevamos a los empleos.");
         router.push("/empleos");
-      } else {
-        toast(`Te falta completar ${STEPS[faltan].label.toLowerCase()}.`);
-        goToStep(faltan);
+        return;
       }
+      // Se nombran los CAMPOS que faltan, no la sección. "Te falta completar
+      // datos personales" a alguien que acaba de llenar esa pantalla se lee
+      // como un error del sistema; "te falta: Sexo, Zona" se entiende y se
+      // arregla. Los labels vienen del backend ya escritos para leer.
+      const pendientes = (profile?.missing_fields ?? [])
+        .filter(m => STEPS[faltan].missingKeys.includes(m.key))
+        .map(m => m.label);
+      toast(
+        pendientes.length
+          ? `Te falta: ${pendientes.join(", ")}.`
+          : `Te falta completar ${STEPS[faltan].label.toLowerCase()}.`,
+      );
+      goToStep(faltan);
       return;
     }
     goToStep(step + 1);
@@ -898,21 +934,30 @@ export default function CandidatePerfilPage() {
               ) : (
                 <>
                   <SkillPicker
-                    catalog={skillsCatalog}
+                    catalog={catalogoVisible!}
                     selectedIds={selectedSkillIds}
                     onToggle={toggleSkill}
                     renderAfterGroup={category => {
                       if (category !== "technical") return null;
                       return (
                         <>
-                          {eligioIdiomas && (
-                            <div className="mt-4 bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4">
-                              <div className="flex items-center gap-2 mb-3">
+                          {/* Los idiomas son su propia sección y ya no dependen de
+                              tildar la habilidad "Idiomas" en la lista técnica.
+                              Con aquel diseño el cuadro para cargarlos estaba
+                              escondido detrás de una tilde: el que no la marcaba
+                              guardaba, no veía completarse el paso y no tenía cómo
+                              saber por qué — y los idiomas cuentan para el 100%.
+                              Tampoco son una habilidad técnica más: llevan nivel
+                              por idioma, que ninguna otra tiene. */}
+                          {(
+                            <div className="mt-6 pt-5 border-t-2 border-[#DDE3EC]">
+                              <div className="flex items-center gap-2 mb-1">
                                 <LanguageIcon className="w-4 h-4 text-[#1E8EA3]" />
-                                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">
-                                  ¿Qué idiomas y en qué nivel?
-                                </p>
+                                <p className="text-sm font-bold text-[#1C2230]">Idiomas</p>
                               </div>
+                              <p className="text-[13px] text-[#64748B] mb-3">
+                                Cuáles hablás y en qué nivel. Cuenta para completar tu perfil.
+                              </p>
 
                               {languages.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mb-3">
