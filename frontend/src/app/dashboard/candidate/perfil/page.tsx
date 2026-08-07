@@ -232,11 +232,30 @@ export default function CandidatePerfilPage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const r = await api.post("/me/candidate/education", eduForm);
+      // `end_date` vacío tiene que viajar como null y no como "": el schema lo
+      // declara `Optional[date]` y Pydantic rechaza la cadena vacía con un 422.
+      // Pasaba con cualquier título sin fecha de egreso — que es el caso normal
+      // de "en curso" y también el de quien no se acuerda del mes exacto.
+      // `addExperience` ya lo hacía; acá se había quedado sin hacer.
+      const r = await api.post("/me/candidate/education", {
+        ...eduForm,
+        end_date: eduForm.end_date || null,
+      });
       setEducations(prev => [...prev, r.data]);
       setEduForm({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", status: "graduado" });
       toast("Educación agregada");
-    } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
+    } catch (err) {
+      // El mensaje del backend explica QUÉ está mal ("si está en curso, no
+      // corresponde cargar fecha de fin"). Tragarlo y decir "Error al guardar"
+      // deja al candidato sin saber qué corregir, y fue exactamente lo que
+      // pasó: se reintentó a ciegas y se avanzó de paso creyendo que guardó.
+      const detalle = (err as { response?: { data?: { detail?: unknown } } })
+        ?.response?.data?.detail;
+      const msg = Array.isArray(detalle)
+        ? (detalle[0] as { msg?: string })?.msg
+        : typeof detalle === "string" ? detalle : null;
+      toast(msg ? `No se pudo guardar: ${msg}` : "Error al guardar");
+    } finally { setSavingProfile(false); }
   }
 
   async function deleteEducation(id: string) {
@@ -641,6 +660,16 @@ export default function CandidatePerfilPage() {
                 <h3 className="font-display font-bold text-[#1C2230]">Experiencia laboral</h3>
               </div>
 
+              {/* Siempre se pudieron cargar varias —el formulario acumula y se limpia—
+                  pero la lista sólo aparece con la primera cargada, así que el que
+                  entra ve un formulario suelto y asume que va una sola. El renglón
+                  lo dice antes de que tenga que descubrirlo. */}
+              <p className="text-sm text-[#64748B] mb-4">
+                Podés cargar todas las que quieras: completá una, tocá{" "}
+                <span className="font-bold">Agregar experiencia</span> y se suma a la
+                lista. Después seguís con la siguiente.
+              </p>
+
               {experiences.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {experiences.map(exp => (
@@ -659,7 +688,9 @@ export default function CandidatePerfilPage() {
               )}
 
               <form onSubmit={addExperience} className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">Agregar experiencia</p>
+                <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide">
+                  {experiences.length > 0 ? "Agregar otra experiencia" : "Agregar experiencia"}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-[#64748B] mb-1 block">Empresa *</label>
@@ -699,7 +730,9 @@ export default function CandidatePerfilPage() {
                 </div>
                 <button type="submit" disabled={savingProfile}
                   className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-60 transition-colors">
-                  {savingProfile ? "Guardando..." : "Agregar experiencia"}
+                  {savingProfile
+                    ? "Guardando..."
+                    : experiences.length > 0 ? "Agregar otra" : "Agregar experiencia"}
                 </button>
               </form>
             </div>
