@@ -17,7 +17,9 @@ from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
 from app.services.profile_completion import compute_profile_completion_for_candidate
-from app.services.applicant_stats import get_highest_education_level
+from app.services.applicant_stats import (
+    ApplicantStats, compute_applicant_stats, get_highest_education_level,
+)
 from app.services.job_features import end_active_feature_for_job
 from app.services.settings import get_all_settings, set_setting
 from app.models.settings import SettingKey
@@ -562,6 +564,30 @@ async def list_company_jobs(
         .order_by(desc(JobPosting.published_at))
     )
     return result.scalars().all()
+
+
+@router.get("/admin/jobs/{job_id}/applications/stats", response_model=ApplicantStats)
+async def job_applicant_stats_admin(
+    job_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Las mismas estadísticas del aviso que ve la empresa, para el admin.
+
+    Existía sólo bajo `/me/company/...` con `require_verified_company`, así que
+    el admin podía decidir si estas estadísticas se publican —el interruptor de
+    Indicadores— pero no ver lo que estaba publicando. Es el mismo cálculo, sin
+    duplicarlo: cambia únicamente quién puede pedirlo y que no se exige ser el
+    dueño del aviso.
+    """
+    job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    candidate_ids = (
+        await db.execute(select(Application.candidate_id).where(Application.job_posting_id == job.id))
+    ).scalars().all()
+    return await compute_applicant_stats(db, candidate_ids)
 
 
 @router.get("/admin/jobs/{job_id}/applications", response_model=List[ApplicationWithCandidateResponse])

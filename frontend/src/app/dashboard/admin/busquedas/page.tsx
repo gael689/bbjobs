@@ -9,11 +9,15 @@ import {
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
+import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
   MODERATION_CLS, MODERATION_LABEL, MODALITY_LABEL,
   CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   type Job, type AdminApplication,
 } from "../types";
+// El tipo vive en los types de empresa porque nació ahí; se reusa tal cual en vez
+// de duplicar la forma, que es lo que hace que las dos vistas se separen con el tiempo.
+import { type ApplicantStats } from "../../company/types";
 
 type FilterTab = "all" | "pending_review" | "approved" | "rejected";
 
@@ -37,6 +41,8 @@ export default function AdminBusquedasPage() {
   const [editForm, setEditForm] = useState<EditForm | null>(null);
 
   const [applicantsByJob, setApplicantsByJob] = useState<Record<string, AdminApplication[]>>({});
+  const [statsByJob, setStatsByJob] = useState<Record<string, ApplicantStats | null>>({});
+  const [showStats, setShowStats] = useState(false);
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
   // Sin flag de loading aparte — "está cargando" se deriva de que selectedId todavía no tiene
@@ -81,6 +87,19 @@ export default function AdminBusquedasPage() {
       api.get(`/admin/jobs/${selectedId}/applications`)
         .then(r => setApplicantsByJob(prev => ({ ...prev, [selectedId]: r.data })))
         .catch(() => setApplicantsByJob(prev => ({ ...prev, [selectedId]: [] })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Las mismas estadísticas que ve la empresa. El admin decide si se publican
+  // —el interruptor de Indicadores— y hasta ahora no tenía dónde ver lo que
+  // estaba publicando. Mismo esquema que los postulantes: cacheado por id, una
+  // sola llamada por aviso.
+  useEffect(() => {
+    if (selectedId && !statsByJob[selectedId]) {
+      api.get(`/admin/jobs/${selectedId}/applications/stats`)
+        .then(r => setStatsByJob(prev => ({ ...prev, [selectedId]: r.data })))
+        .catch(() => setStatsByJob(prev => ({ ...prev, [selectedId]: null })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -521,6 +540,35 @@ export default function AdminBusquedasPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Estadísticas del aviso — las mismas que ve la empresa.
+                    Van plegadas: lo primero que el admin viene a hacer acá es
+                    moderar y mirar postulantes, no leer gráficos. Pero tiene
+                    que poder abrirlas, porque es quien decide si se publican. */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display font-bold text-sm text-[#1C2230]">Estadísticas de los postulantes</h3>
+                  <button
+                    onClick={() => setShowStats(v => !v)}
+                    className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] transition-colors"
+                  >
+                    {showStats ? "Ocultar" : "Ver estadísticas"}
+                  </button>
+                </div>
+                {showStats && (
+                  selectedId && statsByJob[selectedId] === undefined ? (
+                    <div className="py-8 flex justify-center">
+                      <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : selectedId && statsByJob[selectedId] ? (
+                    <div className="mb-6">
+                      <PanelEstadisticas stats={statsByJob[selectedId]!} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#64748B] mb-6">
+                      No pudimos cargar las estadísticas de esta búsqueda.
+                    </p>
+                  )
+                )}
 
                 {/* Postulantes */}
                 <h3 className="font-display font-bold text-sm text-[#1C2230] mb-3">Postulantes</h3>

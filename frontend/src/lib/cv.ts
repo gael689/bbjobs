@@ -25,12 +25,32 @@ export async function abrirCv(endpoint: string, opts?: { descargar?: boolean }) 
     const url: string = r.data.url;
 
     if (descargar) {
+      // Una descarga no reemplaza lo que estás mirando: el navegador baja el
+      // archivo y la página queda donde estaba.
       window.location.href = url;
-    } else if (pestana) {
-      pestana.location.href = url;
-    } else {
-      window.location.href = url;
+      return;
     }
+
+    if (pestana) {
+      pestana.location.href = url;
+      return;
+    }
+
+    // El bloqueador de popups mató la pestaña. Acá antes iba
+    // `window.location.href = url`, que se llevaba puesta la pantalla en la que
+    // estabas —el listado de postulantes, la búsqueda a medio revisar— y para
+    // volver había que apretar atrás. Ver un CV nunca debería costar el lugar
+    // donde estabas.
+    //
+    // Un <a target="_blank"> disparado con click sí conserva la relación con el
+    // gesto del usuario, así que pasa donde `window.open` diferido no pasa.
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   } catch (e) {
     pestana?.close();
     throw e;
