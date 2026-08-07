@@ -136,6 +136,9 @@ export interface CandidateSkills {
  *  nombre porque el nombre lo puede editar Talency sin que se rompa nada. */
 export const SLUG_IDIOMAS = "idiomas";
 export const SLUG_OTRA = "otra";
+/** Opción del selector de idiomas para escribir uno que no está en la lista.
+ *  Tiene que coincidir con `OTRO_IDIOMA` de `backend/app/data/skills_catalog.py`. */
+export const OTRO_IDIOMA = "Otro";
 
 export const SKILL_CATEGORY_LABEL: Record<SkillCategory, string> = {
   soft: "Habilidades blandas",

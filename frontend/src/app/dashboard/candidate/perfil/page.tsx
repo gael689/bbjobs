@@ -16,6 +16,7 @@ import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import SkillPicker from "@/components/dashboard/SkillPicker";
 import {
   GENDER_LABEL, AVAILABILITY_LABEL, SUMMARY_MAX_LENGTH, SLUG_IDIOMAS, SLUG_OTRA,
+  OTRO_IDIOMA,
   EDUCATION_STATUS_LABEL, type EducationStatus,
   type CandidateProfile, type Education, type Experience, type Language, type Zone,
   type Gender, type Availability, type SkillCatalog, type SkillCatalogItem,
@@ -105,6 +106,9 @@ export default function CandidatePerfilPage() {
   const [expForm, setExpForm] = useState({ company_name: "", role_title: "", start_date: "", end_date: "", description: "", trabajo_actual: false });
   const [eduForm, setEduForm] = useState({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", status: "graduado" as EducationStatus });
   const [langForm, setLangForm] = useState({ language_name: "", level: "básico" });
+  // El idioma escrito a mano cuando se elige "Otro" en el selector.
+  const [otroIdioma, setOtroIdioma] = useState("");
+  const esOtroIdioma = langForm.language_name === OTRO_IDIOMA;
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
@@ -291,10 +295,18 @@ export default function CandidatePerfilPage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const r = await api.post("/me/candidate/languages", langForm);
+      // Con "Otro" viaja lo que escribió, no la palabra "Otro". El backend
+      // guarda el nombre como texto libre, así que no hay nada que agregar
+      // de su lado.
+      const nombre = esOtroIdioma ? otroIdioma.trim() : langForm.language_name;
+      const r = await api.post("/me/candidate/languages", {
+        ...langForm,
+        language_name: nombre,
+      });
       setLanguages(prev => [...prev, r.data]);
       refreshProfile();
       setLangForm({ language_name: "", level: "básico" });
+      setOtroIdioma("");
       toast("Idioma agregado");
     } catch (err) {
       toast(motivoDelError(err, "No pudimos guardar el idioma."));
@@ -980,6 +992,13 @@ export default function CandidatePerfilPage() {
                                   {skillsCatalog.languages.map(idioma => (
                                     <option key={idioma} value={idioma}>{idioma}</option>
                                   ))}
+                                  {/* La lista no puede cubrir todos los idiomas y el
+                                      backend guarda el nombre como texto libre, así que
+                                      el que hable algo que no está lo escribe. La lista
+                                      igual manda para la mayoría: sin ella entran
+                                      "ingles", "Ingles" e "INGLÉS" como tres idiomas
+                                      distintos y después nada se puede filtrar. */}
+                                  <option value={OTRO_IDIOMA}>Otro…</option>
                                 </select>
                                 <select required value={langForm.level}
                                   onChange={e => setLangForm(f => ({ ...f, level: e.target.value }))}
@@ -989,10 +1008,22 @@ export default function CandidatePerfilPage() {
                                   <option value="avanzado">Avanzado</option>
                                   <option value="nativo">Nativo</option>
                                 </select>
-                                <button type="submit" disabled={!langForm.language_name}
+                                <button type="submit"
+                                  disabled={!langForm.language_name || (esOtroIdioma && !otroIdioma.trim())}
                                   className="text-sm bg-[#1E8EA3] text-white font-bold rounded-lg px-4 py-2 hover:bg-[#187B8E] disabled:opacity-50 transition-colors">
                                   Agregar
                                 </button>
+
+                                {esOtroIdioma && (
+                                  <input
+                                    value={otroIdioma}
+                                    onChange={e => setOtroIdioma(e.target.value)}
+                                    maxLength={40}
+                                    autoFocus
+                                    placeholder="¿Cuál? Por ejemplo: Sueco"
+                                    className="sm:col-span-3 border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+                                  />
+                                )}
                               </form>
                             </div>
                           )}

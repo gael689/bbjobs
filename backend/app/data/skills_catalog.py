@@ -79,4 +79,18 @@ IDIOMAS = [
     "Alemán",
     "Chino mandarín",
     "Lengua de señas argentina",
+    # Segunda tanda, corta a propósito: sólo los que tienen colectividad o
+    # inmigración real en la zona. Una lista larga de idiomas que nadie va a
+    # elegir hace más lento encontrar el propio, y para el resto está "Otro".
+    "Ruso",
+    "Ucraniano",
+    "Árabe",
+    "Guaraní",
 ]
+
+# Se ofrece al final del selector: el que hable algo que no está en la lista lo
+# escribe. El backend guarda `language_name` como texto libre —nunca validó
+# contra esta lista— así que esto es sólo darle una puerta al que la necesita,
+# sin tocar el modelo. La lista igual sigue existiendo para que la mayoría elija
+# y no escriba "ingles", "Ingles" e "INGLÉS" como tres idiomas distintos.
+OTRO_IDIOMA = "Otro"
