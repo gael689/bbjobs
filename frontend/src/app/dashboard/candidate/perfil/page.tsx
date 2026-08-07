@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { abrirCv } from "@/lib/cv";
@@ -53,6 +54,26 @@ const EMPTY_PERSONAL_FORM: PersonalForm = {
   visible_in_talent_pool: false,
 };
 
+/** El motivo real de un error de la API, listo para mostrarle al candidato.
+ *
+ * FastAPI devuelve el detalle en `detail`: una cadena cuando lo levanta el
+ * endpoint, o una lista de errores de Pydantic cuando es validación (422).
+ * Todos los `catch` de esta pantalla decían "Error al guardar" a secas y se
+ * tragaban ese texto — que es justo el que explica QUÉ corregir ("si está en
+ * curso, no corresponde cargar fecha de fin"). Sin él, el candidato reintenta
+ * a ciegas, se rinde y avanza de paso creyendo que guardó.
+ */
+function motivoDelError(err: unknown, porDefecto: string): string {
+  const detalle = (err as { response?: { data?: { detail?: unknown } } })
+    ?.response?.data?.detail;
+  if (typeof detalle === "string" && detalle.trim()) return detalle;
+  if (Array.isArray(detalle)) {
+    const msg = (detalle[0] as { msg?: string })?.msg;
+    if (msg) return msg.replace(/^Value error,\s*/, "");
+  }
+  return porDefecto;
+}
+
 const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
   { key: "personal", label: "Datos personales", missingKeys: ["photo_url", "birth_date", "gender", "location_zone_id", "has_own_transport", "availability", "summary", "modality_pref"] },
   { key: "cv", label: "CV", missingKeys: ["cv_file_url"] },
@@ -66,6 +87,7 @@ const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
 
 export default function CandidatePerfilPage() {
   const { user } = useUser();
+  const router = useRouter();
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [educations, setEducations] = useState<Education[]>([]);
@@ -215,15 +237,19 @@ export default function CandidatePerfilPage() {
         end_date: trabajo_actual ? null : (datos.end_date || null),
       });
       setExperiences(prev => [...prev, r.data]);
+      refreshProfile();
       setExpForm({ company_name: "", role_title: "", start_date: "", end_date: "", description: "", trabajo_actual: false });
       toast("Experiencia agregada");
-    } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
+    } catch (err) {
+      toast(motivoDelError(err, "No pudimos guardar la experiencia."));
+    } finally { setSavingProfile(false); }
   }
 
   async function deleteExperience(id: string) {
     try {
       await api.delete(`/me/candidate/experience/${id}`);
       setExperiences(prev => prev.filter(e => e.id !== id));
+      refreshProfile();
       toast("Experiencia eliminada");
     } catch { toast("Error al eliminar"); }
   }
@@ -242,19 +268,11 @@ export default function CandidatePerfilPage() {
         end_date: eduForm.end_date || null,
       });
       setEducations(prev => [...prev, r.data]);
+      refreshProfile();
       setEduForm({ institution: "", degree: "", level: "secundario", start_date: "", end_date: "", status: "graduado" });
       toast("Educación agregada");
     } catch (err) {
-      // El mensaje del backend explica QUÉ está mal ("si está en curso, no
-      // corresponde cargar fecha de fin"). Tragarlo y decir "Error al guardar"
-      // deja al candidato sin saber qué corregir, y fue exactamente lo que
-      // pasó: se reintentó a ciegas y se avanzó de paso creyendo que guardó.
-      const detalle = (err as { response?: { data?: { detail?: unknown } } })
-        ?.response?.data?.detail;
-      const msg = Array.isArray(detalle)
-        ? (detalle[0] as { msg?: string })?.msg
-        : typeof detalle === "string" ? detalle : null;
-      toast(msg ? `No se pudo guardar: ${msg}` : "Error al guardar");
+      toast(motivoDelError(err, "No pudimos guardar la educación."));
     } finally { setSavingProfile(false); }
   }
 
@@ -262,6 +280,7 @@ export default function CandidatePerfilPage() {
     try {
       await api.delete(`/me/candidate/education/${id}`);
       setEducations(prev => prev.filter(e => e.id !== id));
+      refreshProfile();
       toast("Educación eliminada");
     } catch { toast("Error al eliminar"); }
   }
@@ -272,15 +291,19 @@ export default function CandidatePerfilPage() {
     try {
       const r = await api.post("/me/candidate/languages", langForm);
       setLanguages(prev => [...prev, r.data]);
+      refreshProfile();
       setLangForm({ language_name: "", level: "básico" });
       toast("Idioma agregado");
-    } catch { toast("Error al guardar"); } finally { setSavingProfile(false); }
+    } catch (err) {
+      toast(motivoDelError(err, "No pudimos guardar el idioma."));
+    } finally { setSavingProfile(false); }
   }
 
   async function deleteLanguage(id: string) {
     try {
       await api.delete(`/me/candidate/languages/${id}`);
       setLanguages(prev => prev.filter(l => l.id !== id));
+      refreshProfile();
       toast("Idioma eliminado");
     } catch { toast("Error al eliminar"); }
   }
@@ -341,7 +364,25 @@ export default function CandidatePerfilPage() {
       if (!ok) return;
     }
     if (step === STEPS.length - 1) {
-      toast("¡Recorriste todo tu perfil!");
+      // Antes acá sólo salía un toast y el candidato se quedaba parado en
+      // Habilidades sin saber si había terminado, si faltaba algo o adónde ir.
+      // "Recorriste todo tu perfil" encima no era cierto cuando quedaban
+      // secciones sin completar: sonaba a felicitación y el perfil estaba a
+      // medias.
+      //
+      // Ahora el botón hace lo que corresponde según el estado real:
+      //  · perfil completo  → a buscar empleos, que es para lo que vino;
+      //  · perfil incompleto → al primer paso que falta, diciendo cuál es.
+      const faltan = STEPS.findIndex(
+        s => profile?.missing_fields.some(m => s.missingKeys.includes(m.key)),
+      );
+      if (faltan === -1) {
+        toast("¡Perfil completo! Te llevamos a los empleos.");
+        router.push("/empleos");
+      } else {
+        toast(`Te falta completar ${STEPS[faltan].label.toLowerCase()}.`);
+        goToStep(faltan);
+      }
       return;
     }
     goToStep(step + 1);
@@ -366,17 +407,24 @@ export default function CandidatePerfilPage() {
           <ProfileCompletionRing percent={profile.completion_percent} size={92} />
           <div className="flex-1 text-center sm:text-left">
             {profile.completion_percent >= 100 ? (
+              /* Los dos textos hablaban de lo que "ven las empresas" sobre el
+                 estado del perfil. Dejó de ser cierto cuando se sacó el % de la
+                 vista de empresa (pedido de Eugenia, agosto/2026): el candidato
+                 leía una advertencia sobre algo que ya no pasa. Ahora hablan de
+                 lo único que sigue siendo verdad y además le importa más — sus
+                 chances de quedar seleccionado. */
               <>
                 <p className="font-display font-bold text-[#16A34A]">¡Perfil completo!</p>
                 <p className="text-sm text-[#64748B] mt-1">
-                  Las empresas ven tu perfil al 100% — es el mejor momento para postularte.
+                  Ya está todo cargado. Es el mejor momento para postularte.
                 </p>
               </>
             ) : (
               <>
                 <p className="font-display font-bold text-[#1C2230]">Tu perfil está {profile.completion_percent}% completo</p>
                 <p className="text-sm text-[#64748B] mt-1">
-                  Las empresas ven cuando tu perfil está incompleto. Completalo para destacar frente a otros candidatos.
+                  Cuanto más completo esté, más chances tenés de quedar seleccionado:
+                  quien decide te elige por lo que puede leer de vos.
                 </p>
               </>
             )}

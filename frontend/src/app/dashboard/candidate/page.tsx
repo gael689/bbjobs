@@ -128,11 +128,15 @@ export default function CandidateInicioPage() {
             {percent >= 100 ? "¡Tu perfil está completo!" : `Tu perfil está al ${percent}%`}
           </p>
           <p className="text-[13px] text-[#64748B] mt-1">
+            {/* Nada de "las empresas ven tu porcentaje": el % se sacó de la vista
+                de empresa en agosto/2026 y estos textos quedaron afirmando algo
+                que ya no pasa. Se habla de las chances del candidato, que es lo
+                que sigue siendo cierto y lo que de verdad le importa. */}
             {percent >= 100
-              ? "Las empresas ven tu perfil al 100% — seguí así."
+              ? "Ya está todo cargado — seguí así."
               : nextMissing
-              ? `Te falta: ${nextMissing.label}. Las empresas ven este número al revisar tu postulación.`
-              : "Completá los datos que faltan para que las empresas te vean mejor."}
+              ? `Te falta: ${nextMissing.label}. Cuanto más completo, más chances de quedar seleccionado.`
+              : "Completá los datos que faltan: un perfil completo tiene más chances de quedar seleccionado."}
           </p>
         </div>
         <span className="hidden sm:flex items-center gap-1 text-[13px] font-bold text-[#1E8EA3] shrink-0">
