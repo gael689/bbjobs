@@ -566,6 +566,30 @@ async def list_company_jobs(
     return result.scalars().all()
 
 
+@router.get("/admin/applications/stats", response_model=ApplicantStats)
+async def applicant_stats_admin(
+    job_id: Optional[uuid.UUID] = Query(None, description="Acotar a una búsqueda"),
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Los indicadores de los postulantes, de todo el sistema o de una búsqueda.
+
+    Sin `job_id` toma a todos los que se postularon a algo — que es el panel que
+    la administradora necesita para mirar el conjunto: cuánta gente se postula,
+    qué pretensión declara, qué nivel educativo predomina, cómo se reparten edad
+    y experiencia, qué habilidades aparecen más.
+
+    Se cuenta cada candidato UNA vez aunque tenga varias postulaciones: sin el
+    distinct, alguien que se postuló a seis búsquedas pesaba seis veces en el
+    promedio de sueldo y en cada gráfico.
+    """
+    consulta = select(Application.candidate_id).distinct()
+    if job_id is not None:
+        consulta = consulta.where(Application.job_posting_id == job_id)
+    candidate_ids = (await db.execute(consulta)).scalars().all()
+    return await compute_applicant_stats(db, candidate_ids)
+
+
 @router.get("/admin/jobs/{job_id}/applications/stats", response_model=ApplicantStats)
 async def job_applicant_stats_admin(
     job_id: uuid.UUID,

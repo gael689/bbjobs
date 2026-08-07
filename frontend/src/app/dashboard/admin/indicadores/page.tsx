@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import InterruptoresEstadisticas from "@/components/dashboard/InterruptoresEstadisticas";
+import PanelIndicadoresAdmin from "@/components/dashboard/PanelIndicadoresAdmin";
 import {
   PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon,
   BriefcaseIcon, ShieldCheckIcon, UserGroupIcon, SparklesIcon, ChartBarIcon,
@@ -427,6 +428,13 @@ export default function IndicadoresPage() {
           </div>
         </div>
       )}
+
+      {/* Los indicadores, y arriba del interruptor a propósito: primero se mira
+          lo que hay, después se decide si sale al portal. Al revés se aprueba a
+          ciegas, que es lo que pasaba mientras esta vista no existió. */}
+      <div className="mt-10">
+        <PanelIndicadoresAdmin />
+      </div>
 
       {/* Qué estadísticas se publican — Talency las ve siempre desde su panel; esto sólo
           decide si además salen al portal. */}
