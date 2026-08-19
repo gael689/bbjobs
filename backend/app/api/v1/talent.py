@@ -41,6 +41,7 @@ from app.schemas.payment import (
 )
 from app.services.applicant_stats import anios_de_experiencia
 from app.services.notifications import create_notification
+from app.services.profile_completion import compute_profile_completion
 
 router = APIRouter()
 
@@ -99,6 +100,9 @@ class TalentProfile(BaseModel):
     accepts_onsite: bool = False
     years_of_experience: float = 0.0
     has_cv: bool = False
+    # Qué tan cargado está el perfil. No identifica a nadie y le dice a la empresa cuánta
+    # información va a encontrar del otro lado antes de gastar el desbloqueo.
+    completion_percent: int = 0
     experience: List[BlindExperience] = []
     education: List[BlindEducation] = []
     skills: List[str] = []
@@ -241,6 +245,13 @@ async def _armar_perfil(
         accepts_onsite=profile.accepts_onsite,
         years_of_experience=round(anios_de_experiencia(experiencias), 1) if experiencias else 0.0,
         has_cv=bool(profile.cv_file_url),
+        completion_percent=compute_profile_completion(
+            profile,
+            has_experience=bool(experiencias),
+            has_education=bool(educaciones),
+            has_skills=bool(habilidades),
+            has_languages=bool(idiomas),
+        ).percent,
         experience=[
             BlindExperience(
                 role_title=e.role_title,

@@ -25,6 +25,7 @@ type TalentProfile = {
   accepts_onsite: boolean;
   years_of_experience: number;
   has_cv: boolean;
+  completion_percent: number;
   experience: BlindExperience[];
   education: BlindEducation[];
   skills: string[];
@@ -353,12 +354,24 @@ function TarjetaPerfil({
             ].filter(Boolean).join(" · ")}
           </p>
         </div>
-        {perfil.unlocked && (
-          <span className="text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] border border-[#9ED4DF] px-2 py-0.5 rounded-full shrink-0">
-            Desbloqueado
-          </span>
-        )}
+        {/* Cuán cargado está el perfil. Le dice a la empresa cuánta información va a encontrar
+            del otro lado ANTES de gastar el desbloqueo — y no identifica a nadie. */}
+        <div className="shrink-0 text-right">
+          <p className={`font-display font-extrabold text-sm leading-none ${
+            perfil.completion_percent >= 80 ? "text-[#1E8EA3]"
+              : perfil.completion_percent >= 50 ? "text-[#1C2230]" : "text-[#94A3B8]"
+          }`}>
+            {perfil.completion_percent}%
+          </p>
+          <p className="text-[9px] text-[#94A3B8] uppercase tracking-wide mt-0.5">completo</p>
+        </div>
       </div>
+
+      {perfil.unlocked && (
+        <span className="self-start text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] border border-[#9ED4DF] px-2 py-0.5 rounded-full mb-2">
+          Desbloqueado
+        </span>
+      )}
 
       <div className="space-y-1.5 text-xs text-[#1C2230] mb-3">
         <p className="flex items-center gap-1.5">
