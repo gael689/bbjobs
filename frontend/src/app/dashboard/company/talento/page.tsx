@@ -462,8 +462,24 @@ function ModalPerfil({
         className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-4">
-          <div>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          {/* La foto faltaba acá: estaba en la tarjeta del buscador pero no en el modal, así
+              que al desbloquear aparecían el contacto y el CV pero no la cara — que es
+              justamente lo que la empresa quiere ver primero. Bloqueado sigue sin mostrarse:
+              el backend directamente no manda la URL. */}
+          <div className="w-14 h-14 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 overflow-hidden">
+            {perfil.unlocked && perfil.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={perfil.photo_url} alt="" className="w-full h-full object-cover" />
+            ) : perfil.unlocked ? (
+              <span className="font-display font-extrabold text-[#1E8EA3]">
+                {`${perfil.first_name?.[0] ?? ""}${perfil.last_name?.[0] ?? ""}`.toUpperCase() || "?"}
+              </span>
+            ) : (
+              <LockClosedIcon className="w-6 h-6 text-[#9ED4DF]" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
             <h2 className="font-display font-extrabold text-xl text-[#1C2230]">
               {perfil.unlocked ? `${perfil.first_name} ${perfil.last_name}` : `Candidato ${perfil.reference}`}
             </h2>
