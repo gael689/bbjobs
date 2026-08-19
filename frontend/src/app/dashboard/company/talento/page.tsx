@@ -166,7 +166,9 @@ export default function BaseDeTalentoPage() {
   const sinCreditos = !credits || credits.credits_available === 0;
 
   return (
-    <div>
+    // El <main> del DashboardShell no trae padding: cada pantalla se lo pone. Sin esto queda
+    // pegada al menú lateral y al borde de arriba.
+    <div className="px-4 sm:px-6 py-8 max-w-7xl">
       <h1 className="font-display font-extrabold text-2xl text-[#1C2230] mb-1">Base de Talento</h1>
       <p className="text-[#64748B] text-sm mb-6">
         Buscá entre todos los candidatos que autorizaron aparecer acá, aunque no se hayan postulado

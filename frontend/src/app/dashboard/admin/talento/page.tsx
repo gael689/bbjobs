@@ -91,11 +91,12 @@ export default function AdminTalentoPage() {
     .reduce((a, p) => a + p.credits_total, 0);
 
   if (loading) {
-    return <div className="text-[#64748B] text-sm">Cargando…</div>;
+    return <div className="px-4 sm:px-6 py-8 text-[#64748B] text-sm">Cargando…</div>;
   }
 
   return (
-    <div>
+    // Igual que el resto del panel: el <main> del shell no trae padding propio.
+    <div className="px-4 sm:px-6 py-8 max-w-7xl">
       <h1 className="font-display font-extrabold text-2xl text-[#1C2230] mb-1">Base de Talento</h1>
       <p className="text-[#64748B] text-sm mb-6">
         Quién compró desbloqueos y a quién accedió.

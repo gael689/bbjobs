@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CheckIcon, StarIcon, UserGroupIcon, BriefcaseIcon } from "@heroicons/react/24/outline";
+import CtaPlan from "@/components/planes/CtaPlan";
 
 export const metadata: Metadata = {
   title: "Planes y precios",
@@ -26,6 +27,8 @@ type Plan = {
   incluye: string[];
   destacado?: boolean;
   cta: string;
+  /** A dónde va si ya inició sesión. Sin esto, va siempre a /register. */
+  ctaLogueado?: string;
 };
 
 const PLANES: Plan[] = [
@@ -43,6 +46,7 @@ const PLANES: Plan[] = [
       "Estadísticas de tus búsquedas",
     ],
     cta: "Crear cuenta de empresa",
+    ctaLogueado: "/dashboard/company/publicar",
   },
   {
     nombre: "Destacar",
@@ -58,6 +62,7 @@ const PLANES: Plan[] = [
       "Pago único, sin renovaciones",
     ],
     cta: "Destacar búsqueda",
+    ctaLogueado: "/dashboard/company/busquedas",
   },
   {
     nombre: "Base de Talento",
@@ -76,6 +81,7 @@ const PLANES: Plan[] = [
       `Tus ${TALENT_PACK_CREDITS} contactos no vencen`,
     ],
     cta: "Acceder a la base",
+    ctaLogueado: "/dashboard/company/talento",
   },
 ];
 
@@ -157,8 +163,9 @@ export default function PlanesPage() {
                 </ul>
 
                 <div className="px-7 pb-7 space-y-1">
-                  <Link
+                  <CtaPlan
                     href="/register"
+                    hrefLogueado={plan.ctaLogueado}
                     className={`block text-center text-sm font-bold px-5 py-3.5 rounded-xl transition-colors ${
                       plan.destacado
                         ? "text-white bg-[#1E8EA3] hover:bg-[#187B8E]"
@@ -166,7 +173,7 @@ export default function PlanesPage() {
                     }`}
                   >
                     {plan.cta}
-                  </Link>
+                  </CtaPlan>
                   {/* El detalle del perfil en gris vive en su propia página, no en un modal:
                       no entraba en pantalla chica, y así además se puede linkear y compartir. */}
                   {plan.destacado && (

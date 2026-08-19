@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import {
   BriefcaseIcon, UsersIcon, PlusCircleIcon, ArrowRightIcon,
   CheckCircleIcon, ClockIcon, XCircleIcon, BuildingOffice2Icon, ChartBarIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import type { CompanyProfile, JobPosting, ApplicantStats } from "./types";
 
@@ -75,6 +76,34 @@ export default function CompanyInicioPage() {
           </div>
           <span className="hidden sm:flex items-center gap-1 text-[13px] font-bold text-[#1E8EA3] shrink-0">
             Publicar <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </span>
+        </Link>
+      )}
+
+      {/* Acceso a la Base de Talento.
+          Sólo para empresa verificada: es el mismo requisito que exige el backend, y mostrar
+          una puerta que después da 403 es peor que no mostrarla. Va acá arriba porque es lo
+          único del panel que la empresa no descubre sola — publicar y postulaciones son
+          obvios, "buscar candidatos que no se postularon" no. */}
+      {isVerified && (
+        <Link
+          href="/dashboard/company/talento"
+          className="group flex items-center gap-5 sm:gap-6 bg-white border border-[#DDE3EC] rounded-2xl p-6 mb-6 hover:border-[#1E8EA3] transition-colors"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-[#E6F4F7] flex items-center justify-center shrink-0">
+            <UserGroupIcon className="w-7 h-7 text-[#1E8EA3]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-display font-bold text-[#1C2230] text-[16.5px]">
+              Buscá en la Base de Talento
+            </p>
+            <p className="text-[13px] text-[#64748B] mt-1">
+              No esperes a que se postulen. Explorá los perfiles gratis y usá un contacto sólo
+              cuando quieras los datos de alguien.
+            </p>
+          </div>
+          <span className="hidden sm:flex items-center gap-1 text-[13px] font-bold text-[#1E8EA3] shrink-0">
+            Explorar <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </Link>
       )}
