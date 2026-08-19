@@ -120,13 +120,12 @@ Además, el candidato se identifica con una **referencia corta derivada de su UU
 no con un número correlativo: un contador filtraría cuánta gente hay en la base y en qué orden
 se cargó.
 
-### P3 · ¿El pack vence? — **falta confirmar**
+### P3 · ~~¿El pack vence?~~ — **RESUELTO (19/08)**
 
-Se construye con la columna `expires_at` presente y en `NULL`: **arranca sin vencer**, y si
-después se quiere poner un plazo es cambiar un valor, no migrar.
+**No vence.** Los 15 créditos duran hasta que se usen, sin plazo.
 
-Recomiendo dejarlo sin vencimiento. La empresa recompra cuando necesita gente, que es cuando
-quiere pagar; un reloj corriendo sólo genera el reclamo de "pagué y no llegué a usarlos".
+La columna `expires_at` queda igual, en `NULL`: si algún día se quiere un pack con vencimiento
+(una promo, un plan distinto), es cargarle una fecha y no migrar la tabla.
 
 ### Ya decidido, no hace falta preguntar
 

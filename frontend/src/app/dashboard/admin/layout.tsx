@@ -4,7 +4,8 @@ import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
-  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon
+  UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon,
+  MagnifyingGlassCircleIcon
 } from "@heroicons/react/24/outline";
 
 // "Skills pendientes" se dio de baja: sin flujo de sugerencia de skills de parte de los
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: BellIcon },
 
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon, section: "Negocio" },
+  { href: "/dashboard/admin/talento", label: "Base de Talento", icon: MagnifyingGlassCircleIcon },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
 
   // "de la landing" se quedó corto: la pantalla tiene además las estadísticas de

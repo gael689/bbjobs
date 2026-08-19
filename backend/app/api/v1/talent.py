@@ -22,15 +22,16 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.api.deps import get_db, require_verified_company
+from app.api.deps import get_current_user, get_db, require_role, require_verified_company
 from app.core.config import settings
 from app.integrations.mercado_pago import create_preference
+from app.models.alerts import AuditLog
 from app.models.candidate import (
     Availability, CandidateProfile, CandidateSkill, Education, Experience, Gender, Language,
 )
 from app.models.catalogs import Skill, Zone
 from app.models.company import CompanyProfile
-from app.models.core import User
+from app.models.core import User, UserRole
 from app.models.payment import (
     Payment, PaymentType, TalentCreditPack, TalentPackStatus, TalentUnlock,
 )
@@ -39,6 +40,7 @@ from app.schemas.payment import (
     TALENT_PACK_CREDITS, TALENT_PACK_CURRENCY, TALENT_PACK_PRICE,
 )
 from app.services.applicant_stats import anios_de_experiencia
+from app.services.notifications import create_notification
 
 router = APIRouter()
 
@@ -550,3 +552,205 @@ async def unlock_talent_profile(
 
     await db.commit()
     return await _armar_perfil(db, profile, unlocked=True)
+
+
+# ─────────────────────── admin: seguimiento y canjes ────────────────────
+
+class AdminPackRow(BaseModel):
+    id: uuid.UUID
+    company_id: uuid.UUID
+    company_name: str
+    credits_total: int
+    credits_used: int
+    status: TalentPackStatus
+    purchased_at: datetime.datetime
+    activated_at: Optional[datetime.datetime] = None
+    was_granted: bool
+
+
+class AdminUnlockRow(BaseModel):
+    id: uuid.UUID
+    company_name: str
+    candidate_name: str
+    candidate_id: uuid.UUID
+    unlocked_at: datetime.datetime
+
+
+class GrantPackPayload(BaseModel):
+    company_id: uuid.UUID
+    credits: int = TALENT_PACK_CREDITS
+    notes: Optional[str] = None
+
+
+@router.get("/admin/talent/packs", response_model=List[AdminPackRow])
+async def admin_list_talent_packs(
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Todos los packs, con cuánto se consumió de cada uno."""
+    filas = (
+        await db.execute(
+            select(TalentCreditPack, CompanyProfile.legal_name)
+            .join(CompanyProfile, CompanyProfile.id == TalentCreditPack.company_id)
+            .order_by(TalentCreditPack.purchased_at.desc())
+        )
+    ).all()
+    if not filas:
+        return []
+
+    usados = dict(
+        (
+            await db.execute(
+                select(TalentUnlock.pack_id, func.count(TalentUnlock.id))
+                .where(TalentUnlock.pack_id.in_([p.id for p, _n in filas]))
+                .group_by(TalentUnlock.pack_id)
+            )
+        ).all()
+    )
+    return [
+        AdminPackRow(
+            id=p.id,
+            company_id=p.company_id,
+            company_name=nombre,
+            credits_total=p.credits_total,
+            credits_used=int(usados.get(p.id, 0)),
+            status=p.status,
+            purchased_at=p.purchased_at,
+            activated_at=p.activated_at,
+            was_granted=p.granted_by_admin_id is not None,
+        )
+        for p, nombre in filas
+    ]
+
+
+@router.get("/admin/talent/unlocks", response_model=List[AdminUnlockRow])
+async def admin_list_talent_unlocks(
+    limit: int = Query(100, ge=1, le=500),
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Quién desbloqueó a quién. Es el registro que permite responderle a un candidato que
+    pregunte qué empresa accedió a sus datos — y esa pregunta va a llegar."""
+    filas = (
+        await db.execute(
+            select(TalentUnlock, CompanyProfile.legal_name, CandidateProfile)
+            .join(CompanyProfile, CompanyProfile.id == TalentUnlock.company_id)
+            .join(CandidateProfile, CandidateProfile.id == TalentUnlock.candidate_id)
+            .order_by(TalentUnlock.unlocked_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        AdminUnlockRow(
+            id=u.id,
+            company_name=empresa,
+            candidate_name=f"{cand.first_name} {cand.last_name}",
+            candidate_id=cand.id,
+            unlocked_at=u.unlocked_at,
+        )
+        for u, empresa, cand in filas
+    ]
+
+
+@router.post("/admin/talent/packs", response_model=AdminPackRow)
+async def admin_grant_talent_pack(
+    payload: GrantPackPayload,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Regala un pack sin cobrar (canje, prueba, compensación).
+
+    Nace `active` porque no hay pago que esperar. Queda en `audit_logs` con quién lo dio: es
+    plata que no entró, así que tiene que poder rastrearse."""
+    company = (
+        await db.execute(select(CompanyProfile).where(CompanyProfile.id == payload.company_id))
+    ).scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    if payload.credits < 1:
+        raise HTTPException(status_code=400, detail="Los créditos tienen que ser al menos 1")
+
+    ahora = datetime.datetime.now(datetime.timezone.utc)
+    pack = TalentCreditPack(
+        company_id=company.id,
+        credits_total=payload.credits,
+        status=TalentPackStatus.active,
+        activated_at=ahora,
+        granted_by_admin_id=admin.id,
+    )
+    db.add(pack)
+    await db.flush()
+
+    db.add(
+        AuditLog(
+            admin_user_id=admin.id,
+            action="talent_pack_granted",
+            target_entity="talent_credit_pack",
+            target_id=pack.id,
+            notes=payload.notes or f"{payload.credits} desbloqueos a {company.legal_name}",
+        )
+    )
+    await create_notification(
+        db, user_id=company.user_id, type="talent_pack_active",
+        title="Te asignamos acceso a la Base de Talento",
+        body=f"Tenés {payload.credits} desbloqueos para usar con los perfiles que quieras.",
+        link="/dashboard/company/talento",
+    )
+
+    await db.commit()
+    return AdminPackRow(
+        id=pack.id,
+        company_id=company.id,
+        company_name=company.legal_name,
+        credits_total=pack.credits_total,
+        credits_used=0,
+        status=pack.status,
+        purchased_at=pack.purchased_at,
+        activated_at=pack.activated_at,
+        was_granted=True,
+    )
+
+
+# ────────────────── candidato: quién accedió a sus datos ─────────────────
+
+class QuienMeVio(BaseModel):
+    company_name: str
+    unlocked_at: datetime.datetime
+
+
+class MiVisibilidadResponse(BaseModel):
+    visible_in_talent_pool: bool
+    total_unlocks: int
+    companies: List[QuienMeVio]
+
+
+@router.get("/me/candidate/talent-pool/visibility", response_model=MiVisibilidadResponse)
+async def my_talent_pool_visibility(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Le muestra al candidato qué empresas accedieron a su contacto.
+
+    No estaba pedido, pero es lo que convierte el consentimiento en algo que el candidato
+    quiere dar en vez de tolerar: si dejás que paguen por sus datos, lo mínimo es que él pueda
+    ver quién los tiene. Y si algún día pregunta, la respuesta ya está en pantalla."""
+    profile = (
+        await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == user.id))
+    ).scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil de candidato no encontrado")
+
+    filas = (
+        await db.execute(
+            select(CompanyProfile.legal_name, TalentUnlock.unlocked_at)
+            .join(TalentUnlock, TalentUnlock.company_id == CompanyProfile.id)
+            .where(TalentUnlock.candidate_id == profile.id)
+            .order_by(TalentUnlock.unlocked_at.desc())
+        )
+    ).all()
+
+    return MiVisibilidadResponse(
+        visible_in_talent_pool=profile.visible_in_talent_pool,
+        total_unlocks=len(filas),
+        companies=[QuienMeVio(company_name=n, unlocked_at=f) for n, f in filas],
+    )

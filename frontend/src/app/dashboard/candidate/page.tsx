@@ -18,17 +18,26 @@ interface RecentJob {
   modality?: string;
 }
 
+/** Espejo de MiVisibilidadResponse en app/api/v1/talent.py */
+interface TalentVisibility {
+  visible_in_talent_pool: boolean;
+  total_unlocks: number;
+  companies: { company_name: string; unlocked_at: string }[];
+}
+
 export default function CandidateInicioPage() {
   const { user } = useUser();
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
   const [talentSaving, setTalentSaving] = useState(false);
+  const [visibility, setVisibility] = useState<TalentVisibility | null>(null);
 
   useEffect(() => {
     api.get("/me/candidate/profile").then(r => setProfile(r.data)).catch(() => {});
     api.get("/me/candidate/applications").then(r => setApplications(r.data)).catch(() => {});
     api.get("/jobs?page=1&page_size=4").then(r => setRecentJobs(r.data.items)).catch(() => {});
+    api.get("/me/candidate/talent-pool/visibility").then(r => setVisibility(r.data)).catch(() => {});
   }, []);
 
   const firstName = profile?.first_name || (user?.firstName ?? "");
@@ -112,6 +121,47 @@ export default function CandidateInicioPage() {
                   Decidir después
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quién accedió a mis datos —
+          Sólo aparece si alguna empresa desbloqueó el perfil. Si dejamos que las empresas
+          paguen por acceder a sus datos, lo mínimo es que el candidato pueda ver quién los
+          tiene: es lo que convierte el consentimiento en algo que quiere dar y no que tolera. */}
+      {visibility && visibility.total_unlocks > 0 && (
+        <div className="bg-white border border-[#9ED4DF] rounded-2xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="w-11 h-11 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0">
+              <EyeIcon className="w-6 h-6 text-[#1E8EA3]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-bold text-[#1C2230] text-[16.5px] mb-1.5">
+                {visibility.total_unlocks === 1
+                  ? "Una empresa accedió a tu perfil"
+                  : `${visibility.total_unlocks} empresas accedieron a tu perfil`}
+              </p>
+              <p className="text-[13.5px] text-[#64748B] leading-relaxed mb-3">
+                Te encontraron en la Base de Talento y accedieron a tus datos de contacto y tu CV.
+                Puede que te escriban.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {visibility.companies.map((c, i) => (
+                  <span
+                    key={i}
+                    className="text-xs font-medium bg-[#FAFBFD] text-[#1C2230] border border-[#DDE3EC] px-3 py-1.5 rounded-full"
+                  >
+                    {c.company_name}
+                    <span className="text-[#94A3B8] ml-1.5">
+                      {new Date(c.unlocked_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <p className="text-[12.5px] text-[#94A3B8] mt-3">
+                Podés dejar de aparecer en la Base de Talento cuando quieras, desde tu perfil.
+              </p>
             </div>
           </div>
         </div>
