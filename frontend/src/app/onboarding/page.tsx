@@ -292,7 +292,7 @@ export default function OnboardingPage() {
                       title="CUIT o DNI, con o sin guiones"
                     />
                   </Field>
-                  <Field label="Industria">
+                  <Field label="Sector">
                     <select
                       required
                       value={industryId}

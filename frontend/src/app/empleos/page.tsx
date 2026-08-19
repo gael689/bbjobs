@@ -214,7 +214,7 @@ export default function EmpleosPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Industria</label>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Sector</label>
                   <select
                     value={industryId}
                     onChange={e => setIndustryId(e.target.value)}
