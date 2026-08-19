@@ -15,7 +15,7 @@ from app.core.scheduler import start_scheduler
 from app.core.limiter import limiter
 from app.api.v1 import (
     health, companies, candidates, skills, catalogs,
-    jobs, applications, tests, plans, subscriptions, payments, webhooks,
+    jobs, applications, tests, plans, subscriptions, payments, talent, webhooks,
     admin, notifications, account, me, onboarding, contact, landing
 )
 
@@ -84,6 +84,7 @@ app.include_router(tests.router, prefix="/api/v1", tags=["tests"])
 app.include_router(plans.router, prefix="/api/v1", tags=["plans"])
 app.include_router(subscriptions.router, prefix="/api/v1", tags=["subscriptions"])
 app.include_router(payments.router, prefix="/api/v1", tags=["payments"])
+app.include_router(talent.router, prefix="/api/v1", tags=["talent"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["webhooks"])
 app.include_router(catalogs.router, prefix="/api/v1", tags=["catalogs"])
 app.include_router(admin.router, prefix="/api/v1", tags=["admin"])

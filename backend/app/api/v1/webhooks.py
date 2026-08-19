@@ -7,7 +7,10 @@ from app.core.config import settings
 from app.db.session import async_session_maker
 from app.models.core import User
 from app.models.company import CompanyProfile
-from app.models.payment import MercadoPagoWebhookEvent, Payment, JobFeature, JobFeatureStatus
+from app.models.payment import (
+    MercadoPagoWebhookEvent, Payment, PaymentType, JobFeature, JobFeatureStatus,
+    TalentCreditPack, TalentPackStatus,
+)
 from app.models.job import JobPosting, JobModerationStatus
 from app.integrations.mercado_pago import verify_signature, get_mp_client, webhook_signature_required
 from app.services.notifications import create_notification, notify_all_admins
@@ -54,6 +57,13 @@ async def process_mp_payment(event_id: str):
                 if payment:
                     payment.mp_payment_id = str(data_id)
                     payment.mp_status = mp_status
+
+                    # Pack de la Base de Talento. Va antes del bloque del destacado y no lo
+                    # interfiere: para un pago de pack no existe ningún JobFeature con este
+                    # payment_id, así que `feature` queda en None y las dos ramas de abajo —
+                    # que exigen `feature` — no hacen nada.
+                    if payment.type == PaymentType.talent_pack:
+                        await _procesar_pack_de_talento(db, payment, mp_status)
 
                     res_feat = await db.execute(select(JobFeature).where(JobFeature.payment_id == payment.id))
                     feature = res_feat.scalar_one_or_none()
@@ -122,6 +132,68 @@ async def process_mp_payment(event_id: str):
             event.processing_error = str(e)
             await db.commit()
             logger.error("mp_webhook_processing_failed", error=str(e), event_id=event_id)
+
+async def _procesar_pack_de_talento(db, payment: Payment, mp_status: str) -> None:
+    """Activa (o cancela) el pack de créditos según lo que confirme MP.
+
+    El webhook es la **única** vía por la que un pack pasa a `active`: el frontend nunca lo
+    activa, igual que con el destacado. Y es idempotente — MP reintenta la misma notificación
+    varias veces, así que un pack ya activo no se vuelve a tocar ni se re-notifica."""
+    if not payment.related_talent_pack_id:
+        return
+
+    pack = (
+        await db.execute(
+            select(TalentCreditPack).where(TalentCreditPack.id == payment.related_talent_pack_id)
+        )
+    ).scalar_one_or_none()
+    if not pack:
+        return
+
+    ahora = datetime.datetime.now(datetime.timezone.utc)
+    company = (
+        await db.execute(select(CompanyProfile).where(CompanyProfile.id == pack.company_id))
+    ).scalar_one_or_none()
+
+    if mp_status == "approved" and pack.status == TalentPackStatus.pending_payment:
+        payment.paid_at = ahora
+        pack.status = TalentPackStatus.active
+        pack.activated_at = ahora
+
+        if company:
+            await create_notification(
+                db, user_id=company.user_id, type="talent_pack_active",
+                title="Ya tenés acceso a la Base de Talento",
+                body=(
+                    f"Se acreditó tu pago. Tenés {pack.credits_total} desbloqueos para usar "
+                    "con los perfiles que quieras."
+                ),
+                link="/dashboard/company/talento",
+            )
+        await notify_all_admins(
+            db, type="admin_payment_received",
+            title="Nuevo pago recibido",
+            body=(
+                f"Se acreditaron ${payment.amount:.0f} {payment.currency} por un pack de la "
+                "Base de Talento."
+            ),
+            link="/dashboard/admin/pagos",
+        )
+
+    elif mp_status in ("rejected", "cancelled") and pack.status == TalentPackStatus.pending_payment:
+        pack.status = TalentPackStatus.canceled
+        if company:
+            await create_notification(
+                db, user_id=company.user_id, type="talent_pack_rejected",
+                title="El pago no se acreditó",
+                body=(
+                    "Tu pago del pack de la Base de Talento fue rechazado o cancelado. "
+                    "Podés volver a intentarlo desde tu panel."
+                ),
+                link="/dashboard/company/talento",
+            )
+    # pending/in_process: no se toca el pack. MP reintenta mientras procesa.
+
 
 def _es_notificacion_de_pago(payload: dict) -> bool:
     """MP manda varios tipos por el mismo endpoint. Sólo nos interesan los de pago.

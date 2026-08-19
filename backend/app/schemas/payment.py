@@ -10,6 +10,13 @@ from app.models.payment import SubscriptionStatus, PaymentType, JobFeatureStatus
 FEATURED_JOB_PRICE: float = 5000.0
 FEATURED_JOB_CURRENCY: str = "ARS"
 
+# Pack de la Base de Talento: pago único que acredita N desbloqueos de perfil. Mismo mecanismo
+# de cobro que el destacado (preferencia de Checkout Pro), no una suscripción — ver
+# BASE-TALENTO-Y-PLANES-PLAN.md §5. Espejo en el frontend: dashboard/company/types.ts.
+TALENT_PACK_PRICE: float = 49900.0
+TALENT_PACK_CREDITS: int = 15
+TALENT_PACK_CURRENCY: str = "ARS"
+
 class PlanCreate(BaseModel):
     code: str
     name: str
