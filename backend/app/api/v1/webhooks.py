@@ -13,6 +13,7 @@ from app.models.payment import (
 )
 from app.models.job import JobPosting, JobModerationStatus
 from app.integrations.mercado_pago import verify_signature, get_mp_client, webhook_signature_required
+from app.schemas.payment import TALENT_PACK_CREDITS
 from app.services.notifications import create_notification, notify_all_admins
 import uuid
 import datetime
@@ -155,18 +156,35 @@ async def _procesar_pack_de_talento(db, payment: Payment, mp_status: str) -> Non
         await db.execute(select(CompanyProfile).where(CompanyProfile.id == pack.company_id))
     ).scalar_one_or_none()
 
-    if mp_status == "approved" and pack.status == TalentPackStatus.pending_payment:
+    # `payment.paid_at` es el candado: MP reintenta la misma notificación varias veces y un
+    # pago ya acreditado no se vuelve a contar.
+    if mp_status == "approved" and payment.paid_at is None:
         payment.paid_at = ahora
-        pack.status = TalentPackStatus.active
-        pack.activated_at = ahora
+
+        if pack.status == TalentPackStatus.pending_payment:
+            pack.status = TalentPackStatus.active
+            pack.activated_at = ahora
+            sumados = pack.credits_total
+        else:
+            # El pack ya estaba activo (o agotado) y entra OTRO pago acreditado sobre él.
+            # Pasa si la empresa reintentó la compra y terminó pagando las dos veces: pagó
+            # dos packs, le corresponden dos. Se suman en vez de perderse — y si estaba
+            # agotado, vuelve a quedar activo.
+            pack.credits_total += TALENT_PACK_CREDITS
+            pack.status = TalentPackStatus.active
+            sumados = TALENT_PACK_CREDITS
+            logger.info(
+                "talent_pack_pago_adicional",
+                pack_id=str(pack.id), company_id=str(pack.company_id), sumados=sumados,
+            )
 
         if company:
             await create_notification(
                 db, user_id=company.user_id, type="talent_pack_active",
                 title="Ya tenés acceso a la Base de Talento",
                 body=(
-                    f"Se acreditó tu pago. Tenés {pack.credits_total} desbloqueos para usar "
-                    "con los perfiles que quieras."
+                    f"Se acreditó tu pago. Sumaste {sumados} contactos para usar con los "
+                    "perfiles que quieras."
                 ),
                 link="/dashboard/company/talento",
             )

@@ -324,28 +324,37 @@ async def buy_talent_pack(
     """Compra un pack. Mismo circuito que destacar una búsqueda: se crea el Payment y el pack en
     `pending_payment`, y el pack recién se activa cuando el **webhook** confirma el cobro — el
     frontend nunca lo activa."""
-    en_curso = (
+    # Si ya hay una compra a medio hacer, se REUSA en vez de rechazarla.
+    #
+    # Antes esto devolvía 400 "Ya hay una compra en curso, esperá o cancelala" — y no había
+    # forma de cancelarla desde ninguna pantalla, así que la empresa quedaba encerrada: había
+    # pasado con sólo tocar el botón dos veces, o volver atrás desde Mercado Pago sin pagar.
+    # Un pago abandonado no puede bloquear al siguiente. Se le arma una preferencia nueva
+    # sobre el mismo pack: si el pago viejo llegara a acreditarse igual, el webhook lo activa
+    # y no hay pack duplicado.
+    pack = (
         await db.execute(
-            select(TalentCreditPack).where(
+            select(TalentCreditPack)
+            .where(
                 TalentCreditPack.company_id == company.id,
                 TalentCreditPack.status == TalentPackStatus.pending_payment,
             )
+            .order_by(TalentCreditPack.purchased_at.desc())
         )
     ).scalars().first()
-    if en_curso:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya hay una compra de pack en curso. Esperá a que se acredite o cancelala.",
+
+    if pack is None:
+        pack = TalentCreditPack(
+            company_id=company.id,
+            credits_total=TALENT_PACK_CREDITS,
+            status=TalentPackStatus.pending_payment,
         )
+        db.add(pack)
+        await db.flush()
 
-    pack = TalentCreditPack(
-        company_id=company.id,
-        credits_total=TALENT_PACK_CREDITS,
-        status=TalentPackStatus.pending_payment,
-    )
-    db.add(pack)
-    await db.flush()
-
+    # Un Payment nuevo por intento: `external_reference` es lo que MP nos devuelve en el
+    # webhook, y reusar el del intento anterior haría que dos pagos distintos apunten a la
+    # misma fila. Cada intento tiene que ser rastreable por separado.
     payment = Payment(
         company_id=company.id,
         type=PaymentType.talent_pack,
