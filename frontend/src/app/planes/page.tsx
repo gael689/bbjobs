@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CheckIcon, StarIcon, UserGroupIcon, BriefcaseIcon } from "@heroicons/react/24/outline";
-import SaberMasTalento from "@/components/planes/SaberMasTalento";
 
 export const metadata: Metadata = {
   title: "Planes y precios",
@@ -167,9 +166,16 @@ export default function PlanesPage() {
                   >
                     {plan.cta}
                   </Link>
-                  {/* El detalle del perfil en gris vive detrás de este botón: en la tarjeta
-                      rompía la comparación entre las tres columnas. */}
-                  {plan.destacado && <SaberMasTalento credits={TALENT_PACK_CREDITS} />}
+                  {/* El detalle del perfil en gris vive en su propia página, no en un modal:
+                      no entraba en pantalla chica, y así además se puede linkear y compartir. */}
+                  {plan.destacado && (
+                    <Link
+                      href="/planes/base-de-talento"
+                      className="block text-center text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] underline underline-offset-4 decoration-[#9ED4DF] hover:decoration-[#1E8EA3] py-2 transition-colors"
+                    >
+                      Quiero saber más
+                    </Link>
+                  )}
                 </div>
               </div>
             );
