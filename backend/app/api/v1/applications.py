@@ -54,6 +54,7 @@ class CandidateSummary(BaseModel):
     id: uuid.UUID
     first_name: str
     last_name: str
+    photo_url: Optional[str] = None
     cv_file_url: Optional[str] = None
     completion_percent: int = 0
     age: Optional[int] = None
@@ -212,6 +213,9 @@ async def list_job_applications(
     has_own_transport: Optional[bool] = Query(None),
     availability: Optional[Availability] = Query(None),
     immediate_availability: Optional[bool] = Query(None),
+    position: Optional[str] = Query(None, description="Busca en el puesto de la experiencia laboral"),
+    experience_min: Optional[float] = Query(None, ge=0, description="Años de experiencia, mínimo"),
+    experience_max: Optional[float] = Query(None, ge=0, description="Años de experiencia, máximo"),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -242,9 +246,40 @@ async def list_job_applications(
     if age_max is not None:
         # edad <= age_max  <=>  nació después de "hoy - (age_max+1) años"
         query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
+    if position:
+        # EXISTS, no JOIN: un candidato con 3 trabajos que coinciden no tiene que aparecer 3
+        # veces en el resultado.
+        query = query.where(
+            select(Experience.id)
+            .where(Experience.candidate_id == CandidateProfile.id, Experience.role_title.ilike(f"%{position}%"))
+            .exists()
+        )
 
     result = await db.execute(query)
     rows = result.all()
+
+    # Años de experiencia: no se puede filtrar en SQL sin repetir la lógica de fusión de
+    # tramos superpuestos (ver _years_of_experience en applicant_stats.py) — se trae la
+    # experiencia de los candidatos que ya pasaron el resto de los filtros, de una sola vez
+    # (no una consulta por candidato), y se filtra acá.
+    if experience_min is not None or experience_max is not None:
+        candidate_ids = [candidate.id for _, candidate in rows]
+        exps_result = await db.execute(
+            select(Experience).where(Experience.candidate_id.in_(candidate_ids))
+        )
+        exps_por_candidato: dict[uuid.UUID, list[Experience]] = {}
+        for exp in exps_result.scalars().all():
+            exps_por_candidato.setdefault(exp.candidate_id, []).append(exp)
+
+        def _en_rango(candidate_id: uuid.UUID) -> bool:
+            anios = anios_de_experiencia(exps_por_candidato.get(candidate_id, []))
+            if experience_min is not None and anios < experience_min:
+                return False
+            if experience_max is not None and anios > experience_max:
+                return False
+            return True
+
+        rows = [(app, candidate) for app, candidate in rows if _en_rango(candidate.id)]
 
     enriched = []
     for app, candidate in rows:
@@ -263,6 +298,7 @@ async def list_job_applications(
                     id=candidate.id,
                     first_name=candidate.first_name,
                     last_name=candidate.last_name,
+                    photo_url=candidate.photo_url,
                     cv_file_url=candidate.cv_file_url,
                     completion_percent=completion_percent,
                     age=calculate_age(candidate.birth_date),
@@ -383,6 +419,7 @@ async def build_candidate_full_profile(db: AsyncSession, candidate_id: uuid.UUID
         first_name=profile.first_name,
         last_name=profile.last_name,
         phone=profile.phone,
+        photo_url=profile.photo_url,
         summary=profile.summary,
         cv_file_url=profile.cv_file_url,
         age=calculate_age(profile.birth_date),

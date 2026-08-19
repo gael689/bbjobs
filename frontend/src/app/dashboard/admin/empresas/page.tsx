@@ -13,6 +13,11 @@ import {
   type Company, type Job, type AdminApplication,
 } from "../types";
 
+function diasDesde(fecha: string): number {
+  const ms = Date.now() - new Date(fecha).getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
 export default function AdminEmpresasPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -410,6 +415,12 @@ export default function AdminEmpresasPage() {
                       </span>
                     )}
                   </div>
+                  <p className="text-xs text-[#64748B] mt-1">
+                    Se registró el {new Date(viewCompany.created_at).toLocaleDateString("es-AR")}
+                    {viewCompany.verification_status === "pending" && (
+                      <> · espera verificación hace {diasDesde(viewCompany.created_at)} día{diasDesde(viewCompany.created_at) === 1 ? "" : "s"}</>
+                    )}
+                  </p>
                 </div>
                 {viewCompany.website && (
                   <a
@@ -439,7 +450,14 @@ export default function AdminEmpresasPage() {
                   <div>
                     <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Responsable</p>
                     <div className="border border-[#DDE3EC] rounded-xl p-4 space-y-2.5">
-                      <p className="text-sm font-bold text-[#1C2230]">{viewCompany.responsible_full_name}</p>
+                      <div>
+                        <p className="text-sm font-bold text-[#1C2230]">{viewCompany.responsible_full_name}</p>
+                        {viewCompany.responsible_position ? (
+                          <p className="text-xs text-[#64748B]">{viewCompany.responsible_position}</p>
+                        ) : (
+                          <p className="text-xs text-[#94A3B8] italic">Puesto sin completar</p>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-sm text-[#64748B]">
                         <EnvelopeIcon className="w-4 h-4 shrink-0" />
                         <a href={`mailto:${viewCompany.responsible_email}`} className="hover:text-[#1E8EA3]">{viewCompany.responsible_email}</a>
@@ -447,6 +465,26 @@ export default function AdminEmpresasPage() {
                       <div className="flex items-center gap-2 text-sm text-[#64748B]">
                         <PhoneIcon className="w-4 h-4 shrink-0" />
                         <a href={`tel:${viewCompany.responsible_phone}`} className="hover:text-[#1E8EA3]">{viewCompany.responsible_phone}</a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Datos de la empresa</p>
+                    <div className="border border-[#DDE3EC] rounded-xl p-4 space-y-2.5 text-sm">
+                      <div className="flex items-center gap-2 text-[#1C2230]">
+                        <BriefcaseIcon className="w-4 h-4 text-[#1E8EA3] shrink-0" />
+                        {viewCompany.industry_name || <span className="text-[#94A3B8] italic">Sector sin completar</span>}
+                      </div>
+                      <div className="flex items-center gap-2 text-[#1C2230]">
+                        <BuildingOffice2Icon className="w-4 h-4 text-[#1E8EA3] shrink-0" />
+                        {viewCompany.city || viewCompany.province
+                          ? [viewCompany.city, viewCompany.province].filter(Boolean).join(", ")
+                          : <span className="text-[#94A3B8] italic">Ubicación sin completar</span>}
+                      </div>
+                      <div className="flex items-center gap-2 text-[#1C2230]">
+                        <UsersIcon className="w-4 h-4 text-[#1E8EA3] shrink-0" />
+                        {viewCompany.employee_count || <span className="text-[#94A3B8] italic">Cantidad de empleados sin completar</span>}
                       </div>
                     </div>
                   </div>

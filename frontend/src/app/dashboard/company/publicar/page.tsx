@@ -150,15 +150,15 @@ export default function PublicarBusquedaPage() {
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Publicar búsqueda</h1>
       <p className="text-[#64748B] text-sm mb-6">Te guiamos paso a paso — te toma un par de minutos.</p>
 
-      {profile && !isVerified ? (
-        <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-2xl px-6 py-5 text-sm text-[#1C2230]">
-          Tu empresa todavía no está verificada. Solicitá la verificación desde{" "}
-          <a href="/dashboard/company/perfil" className="font-bold text-[#1E8EA3] hover:underline">tu perfil</a>{" "}
-          para poder publicar búsquedas.
+      {profile && !isVerified && (
+        <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-2xl px-6 py-4 mb-6 text-sm text-[#1C2230]">
+          Podés publicar ahora — Talency revisa y aprueba igual que siempre. Para ver los datos
+          de quienes se postulen (CV, perfil) necesitás la verificación —{" "}
+          <a href="/dashboard/company/perfil" className="font-bold text-[#1E8EA3] hover:underline">pedila acá</a>.
         </div>
-      ) : (
-        <>
-          {/* Progress */}
+      )}
+      <>
+        {/* Progress */}
           <div className="flex items-center gap-2 mb-8">
             {STEPS.map((s, i) => (
               <div key={s.key} className="flex items-center flex-1 last:flex-none">
@@ -222,7 +222,10 @@ export default function PublicarBusquedaPage() {
               {step === 1 && (
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Industria *</label>
+                    {/* "Sector" y no "Industria": desde el 18/08 "Industria" es una opción más
+                        de la lista (el rubro que más emplea en Bahía y no estaba), así que el
+                        campo no puede seguir llamándose igual que una de sus opciones. */}
+                    <label className="block text-sm font-bold text-[#1C2230] mb-1.5">Sector *</label>
                     <select
                       value={form.industry_id}
                       onChange={e => setForm(f => ({ ...f, industry_id: e.target.value }))}
@@ -408,7 +411,7 @@ export default function PublicarBusquedaPage() {
                     </p>
                   </div>
 
-                  <label className="flex items-center justify-between gap-3 bg-[#F7EFE9] border border-[#D4B7A2] rounded-xl px-4 py-3.5 cursor-pointer">
+                  <label className={`flex items-center justify-between gap-3 bg-[#F7EFE9] border border-[#D4B7A2] rounded-xl px-4 py-3.5 ${isVerified ? "cursor-pointer" : "opacity-60 cursor-not-allowed"}`}>
                     <span className="flex items-start gap-2.5">
                       <BoltIcon className="w-5 h-5 text-[#B98F72] shrink-0 mt-0.5" />
                       <span>
@@ -416,15 +419,18 @@ export default function PublicarBusquedaPage() {
                           Destacar esta búsqueda — ${FEATURED_JOB_PRICE.toLocaleString("es-AR")} ARS
                         </span>
                         <span className="block text-xs text-[#64748B] mt-0.5">
-                          Prioridad en la revisión de Talency y en el listado público. Te lleva al pago de Mercado Pago al enviar.
+                          {isVerified
+                            ? "Prioridad en la revisión de Talency y en el listado público. Te lleva al pago de Mercado Pago al enviar."
+                            : "Necesitás tu empresa verificada para destacar y pagar."}
                         </span>
                       </span>
                     </span>
                     <input
                       type="checkbox"
                       checked={destacar}
+                      disabled={!isVerified}
                       onChange={e => setDestacar(e.target.checked)}
-                      className="w-5 h-5 accent-[#D4B7A2] shrink-0"
+                      className="w-5 h-5 accent-[#D4B7A2] shrink-0 disabled:cursor-not-allowed"
                     />
                   </label>
 
@@ -468,8 +474,7 @@ export default function PublicarBusquedaPage() {
               )}
             </div>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }

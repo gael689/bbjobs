@@ -5,9 +5,9 @@ from sqlalchemy import or_, func
 from typing import List, Optional
 import datetime
 import uuid
-from app.api.deps import get_db, require_role, require_verified_company
+from app.api.deps import get_db, require_role, require_company
 from app.models.core import UserRole
-from app.models.company import CompanyProfile
+from app.models.company import CompanyProfile, VerificationStatus
 from app.models.candidate import EducationLevel, MAX_SKILLS_PER_CATEGORY
 from app.models.catalogs import Skill, SkillCategory
 from app.models.job import JobPosting, JobPostingStatus, JobPostingSkill, JobModerationStatus
@@ -64,7 +64,7 @@ _EDUCATION_RANK = {
 @router.post("/me/company/jobs", response_model=JobPostingCompanyResponse)
 async def create_job_posting(
     payload: JobPostingCreate,
-    company: CompanyProfile = Depends(require_verified_company),
+    company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
     job = JobPosting(
@@ -102,11 +102,19 @@ async def create_job_posting(
         js = JobPostingSkill(job_posting_id=job.id, skill_id=skill.skill_id, is_required=skill.is_required)
         db.add(js)
 
+    # Empresas sin verificar ya pueden publicar (ver A2 del plan del 14/08) para no perder el
+    # lead mientras Talency revisa el CUIT — pero eso mismo hace que el aviso a Talency tenga
+    # que decirlo: una búsqueda de una empresa sin verificar necesita mirarse con más cuidado
+    # que una de rutina.
+    sin_verificar = company.verification_status != VerificationStatus.verified
     await notify_all_admins(
         db,
         type="job_pending_review",
-        title="Nueva búsqueda para revisar",
-        body=f"'{job.title}' de {job.company_legal_name_snapshot} está esperando aprobación.",
+        title="Nueva búsqueda para revisar" + (" — empresa sin verificar" if sin_verificar else ""),
+        body=(
+            f"'{job.title}' de {job.company_legal_name_snapshot} está esperando aprobación."
+            + (" Esta empresa todavía no fue verificada." if sin_verificar else "")
+        ),
         link="/dashboard/admin/busquedas",
     )
 
@@ -116,7 +124,7 @@ async def create_job_posting(
 
 @router.get("/me/company/jobs", response_model=List[JobPostingCompanyResponse])
 async def list_my_job_postings(
-    company: CompanyProfile = Depends(require_verified_company),
+    company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -128,7 +136,7 @@ async def list_my_job_postings(
 async def update_job_posting(
     id: uuid.UUID,
     payload: JobPostingUpdate,
-    company: CompanyProfile = Depends(require_verified_company),
+    company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(

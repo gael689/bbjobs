@@ -230,6 +230,7 @@ class CandidateFullProfile(BaseModel):
     first_name: str
     last_name: str
     phone: str
+    photo_url: Optional[str] = None
     summary: Optional[str] = None
     cv_file_url: Optional[str] = None
     age: Optional[int] = None

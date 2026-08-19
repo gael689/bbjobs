@@ -303,3 +303,80 @@ async def get_public_market_stats(db: AsyncSession = Depends(get_db)):
         por_rubro=por_rubro,
         por_modalidad=por_modalidad,
     )
+
+
+# ── Salario de mercado — vista interna del admin ─────────────────────────────
+# Distinto del endpoint público de arriba a propósito (ver B2 del plan del 14/08): éste no
+# depende del interruptor `stats_visibles_en_landing` ni filtra por `salary_visible` — Talency
+# necesita ver el número real del mercado para decidir qué publicar, no el número ya filtrado
+# que se publica.
+
+class AdminMarketStatsResponse(BaseModel):
+    total_busquedas: int = 0
+    busquedas_con_salario: int = 0
+    salario_promedio: Optional[float] = None
+    salario_mediana: Optional[float] = None
+    salario_min: Optional[float] = None
+    salario_max: Optional[float] = None
+    por_rubro: List[dict] = []
+
+
+@router.get("/admin/market-stats", response_model=AdminMarketStatsResponse)
+async def get_admin_market_stats(
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    activas = (
+        JobPosting.status == JobPostingStatus.active,
+        JobPosting.moderation_status == JobModerationStatus.approved,
+        JobPosting.deleted_at.is_(None),
+    )
+
+    total = (await db.execute(
+        select(func.count()).select_from(JobPosting).where(*activas)
+    )).scalar() or 0
+
+    if total == 0:
+        return AdminMarketStatsResponse(total_busquedas=0)
+
+    # Punto medio de la banda salarial de cada aviso — sin el filtro salary_visible que sí
+    # tiene el endpoint público: acá se ve el mercado entero, lo publicado y lo que la
+    # empresa decidió no mostrar.
+    punto_medio = (
+        func.coalesce(JobPosting.salary_min, JobPosting.salary_max)
+        + func.coalesce(JobPosting.salary_max, JobPosting.salary_min)
+    ) / 2
+
+    fila_salario = (await db.execute(
+        select(
+            func.avg(punto_medio),
+            func.percentile_cont(0.5).within_group(punto_medio),
+            func.min(punto_medio),
+            func.max(punto_medio),
+            func.count(),
+        ).select_from(JobPosting).where(
+            *activas,
+            or_(JobPosting.salary_min.is_not(None), JobPosting.salary_max.is_not(None)),
+        )
+    )).one()
+
+    por_rubro = [
+        {"label": nombre, "count": cuenta}
+        for nombre, cuenta in (await db.execute(
+            select(Industry.name, func.count(JobPosting.id))
+            .join(JobPosting, JobPosting.industry_id == Industry.id)
+            .where(*activas)
+            .group_by(Industry.name)
+            .order_by(func.count(JobPosting.id).desc())
+        )).all()
+    ]
+
+    return AdminMarketStatsResponse(
+        total_busquedas=total,
+        busquedas_con_salario=fila_salario[4] or 0,
+        salario_promedio=round(float(fila_salario[0])) if fila_salario[0] is not None else None,
+        salario_mediana=round(float(fila_salario[1])) if fila_salario[1] is not None else None,
+        salario_min=round(float(fila_salario[2])) if fila_salario[2] is not None else None,
+        salario_max=round(float(fila_salario[3])) if fila_salario[3] is not None else None,
+        por_rubro=por_rubro,
+    )

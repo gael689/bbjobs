@@ -58,6 +58,17 @@ export function useNotifications() {
     }
   }, []);
 
+  const dismiss = useCallback(async (id: string) => {
+    const wasUnread = items.find((n) => n.id === id)?.is_read === false;
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
+    try {
+      await api.delete(`/me/notifications/${id}`);
+    } catch {
+      // optimistic update stays; next poll will reconcile
+    }
+  }, [items]);
+
   const toggleOpen = useCallback(() => {
     setOpen((prev) => {
       const next = !prev;
@@ -100,5 +111,6 @@ export function useNotifications() {
     close: () => setOpen(false),
     markRead,
     markAllRead,
+    dismiss,
   };
 }

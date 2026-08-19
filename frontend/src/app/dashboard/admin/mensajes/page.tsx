@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ChatBubbleLeftRightIcon, CheckCircleIcon, EnvelopeIcon, PhoneIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftRightIcon, CheckCircleIcon, EnvelopeIcon, PhoneIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { ContactMessage } from "../types";
 
 export default function AdminMensajesPage() {
@@ -28,6 +28,19 @@ export default function AdminMensajesPage() {
     try {
       await api.patch(`/admin/contact-messages/${id}/resolve`);
       setMessages(prev => showResolved ? prev.map(m => m.id === id ? { ...m, resolved: true } : m) : prev.filter(m => m.id !== id));
+    } catch {
+      // no-op, el usuario puede reintentar
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("¿Eliminar este mensaje? No se puede deshacer.")) return;
+    setActionLoading(id + "delete");
+    try {
+      await api.delete(`/admin/contact-messages/${id}`);
+      setMessages(prev => prev.filter(m => m.id !== id));
     } catch {
       // no-op, el usuario puede reintentar
     } finally {
@@ -86,16 +99,26 @@ export default function AdminMensajesPage() {
                       </div>
                       {m.company_name && <p className="text-sm text-[#64748B] mb-1">{m.company_name}</p>}
                     </div>
-                    {!m.resolved && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!m.resolved && (
+                        <button
+                          onClick={() => handleResolve(m.id)}
+                          disabled={actionLoading === m.id}
+                          className="flex items-center gap-1.5 text-xs font-bold border border-green-200 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-60"
+                        >
+                          <CheckCircleIcon className="w-4 h-4" />
+                          Marcar resuelto
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleResolve(m.id)}
-                        disabled={actionLoading === m.id}
-                        className="shrink-0 flex items-center gap-1.5 text-xs font-bold border border-green-200 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-60"
+                        onClick={() => handleDelete(m.id)}
+                        disabled={actionLoading === m.id + "delete"}
+                        title="Eliminar mensaje"
+                        className="flex items-center gap-1.5 text-xs font-bold border border-red-200 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-60"
                       >
-                        <CheckCircleIcon className="w-4 h-4" />
-                        Marcar resuelto
+                        <TrashIcon className="w-4 h-4" />
                       </button>
-                    )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-[#64748B] mb-3 flex-wrap">
                     <a href={`mailto:${m.email}`} className="flex items-center gap-1 hover:text-[#1E8EA3]">

@@ -79,6 +79,7 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   // Moderación de búsquedas (positivo/negativo para la empresa)
   job_approved: { ...TEAL, icon: CheckBadgeIcon },
   job_rejected: DESTRUCTIVE,
+  job_reopened: { ...TEAL, icon: CheckBadgeIcon },
   // Admin — moderación
   admin_company_pending: { ...TEAL, icon: BellAlertIcon },
   admin_company_reapplied: { ...TEAL, icon: BellAlertIcon },

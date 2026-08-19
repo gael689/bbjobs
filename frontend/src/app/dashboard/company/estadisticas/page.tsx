@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { BriefcaseIcon, UsersIcon, ClockIcon, ChartBarIcon, BoltIcon } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
+import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
-  APP_STATUS_LABEL, EDUCATION_LEVEL_LABEL, JOB_MODERATION_CLS, JOB_MODERATION_LABEL,
+  APP_STATUS_LABEL, JOB_MODERATION_CLS, JOB_MODERATION_LABEL,
   FEATURED_JOB_PRICE,
   type Application, type ApplicantStats, type JobPosting,
 } from "../types";
@@ -13,7 +14,11 @@ import {
 export default function CompanyEstadisticasPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [appsByJob, setAppsByJob] = useState<Record<string, Application[]>>({});
-  const [applicantStats, setApplicantStats] = useState<ApplicantStats | null>(null);
+  // "" = todas mis búsquedas juntas. Cacheado por scope para no repetir el pedido al
+  // ir y volver del selector (ver B5 del plan del 14/08 — antes esta pantalla no
+  // graficaba nada, mostraba contadores sueltos).
+  const [statsScope, setStatsScope] = useState<string>("");
+  const [statsByScope, setStatsByScope] = useState<Record<string, ApplicantStats | null>>({});
   const [loading, setLoading] = useState(true);
   const [featureModalJob, setFeatureModalJob] = useState<JobPosting | null>(null);
   const [featuring, setFeaturing] = useState(false);
@@ -31,8 +36,17 @@ export default function CompanyEstadisticasPage() {
       setAppsByJob(Object.fromEntries(results));
       setLoading(false);
     }).catch(() => setLoading(false));
-    api.get("/me/company/applications/stats").then(r => setApplicantStats(r.data)).catch(() => {});
+    api.get("/me/company/applications/stats").then(r => setStatsByScope(prev => ({ ...prev, "": r.data }))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!statsScope || statsByScope[statsScope]) return;
+    api.get(`/me/company/jobs/${statsScope}/applications/stats`)
+      .then(r => setStatsByScope(prev => ({ ...prev, [statsScope]: r.data })))
+      .catch(() => setStatsByScope(prev => ({ ...prev, [statsScope]: null })));
+  }, [statsScope, statsByScope]);
+
+  const applicantStats = statsByScope[statsScope] ?? null;
 
   function toast(msg: string) {
     setToastMsg(msg);
@@ -164,63 +178,45 @@ export default function CompanyEstadisticasPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
-              <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
-              {allApps.length === 0 ? (
-                <p className="text-sm text-[#64748B]">Todavía no recibiste postulaciones.</p>
-              ) : (
-                <div className="space-y-2">
-                  {Object.entries(statusBreakdown).map(([status, count]) => {
-                    const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
-                    return (
-                      <div key={status} className="flex items-center justify-between">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${meta.cls}`}>{meta.label}</span>
-                        <span className="text-sm font-bold text-[#1C2230]">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {applicantStats && applicantStats.total > 0 && (
-              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
-                <h3 className="text-sm font-bold text-[#1C2230] mb-4">Perfil de postulantes (todas las búsquedas)</h3>
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
-                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">
-                      {applicantStats.avg_age != null ? applicantStats.avg_age : "—"}
-                    </p>
-                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Edad prom.</p>
-                  </div>
-                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
-                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">
-                      {applicantStats.avg_experience_years != null ? `${applicantStats.avg_experience_years}a` : "—"}
-                    </p>
-                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Experiencia</p>
-                  </div>
-                  <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl p-3 text-center">
-                    <p className="text-lg font-display font-extrabold text-[#1E8EA3]">{applicantStats.immediate_availability_count}</p>
-                    <p className="text-[11px] text-[#64748B] font-medium mt-0.5">Disp. inmediata</p>
-                  </div>
-                </div>
-                {Object.keys(applicantStats.education_distribution).length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold text-[#64748B] uppercase tracking-wide mb-2">Título alcanzado</p>
-                    <div className="space-y-1.5">
-                      {Object.entries(applicantStats.education_distribution).map(([level, count]) => (
-                        <div key={level} className="flex items-center gap-2">
-                          <span className="text-xs text-[#1C2230] w-24 shrink-0">{EDUCATION_LEVEL_LABEL[level] || level}</span>
-                          <div className="flex-1 h-2 bg-[#EEF2F7] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#1E8EA3] rounded-full" style={{ width: `${(count / applicantStats.total) * 100}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-[#1C2230] w-6 text-right">{count}</span>
-                        </div>
-                      ))}
+          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
+            <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
+            {allApps.length === 0 ? (
+              <p className="text-sm text-[#64748B]">Todavía no recibiste postulaciones.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(statusBreakdown).map(([status, count]) => {
+                  const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
+                  return (
+                    <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${meta.cls}`}>
+                      <span className="text-xs font-bold">{meta.label}</span>
+                      <span className="text-xs font-extrabold">{count}</span>
                     </div>
-                  </div>
-                )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Mismos gráficos que ve el candidato y el admin — antes esta pantalla, la que se
+              llama "Estadísticas", no los mostraba (estaban sólo en Postulaciones). Ver B5 del
+              plan del 14/08. */}
+          <div>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h3 className="text-sm font-bold text-[#1C2230]">Perfil de postulantes</h3>
+              <select
+                value={statsScope}
+                onChange={e => setStatsScope(e.target.value)}
+                className="border border-[#DDE3EC] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+              >
+                <option value="">Todas mis búsquedas</option>
+                {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+              </select>
+            </div>
+            {applicantStats ? (
+              <PanelEstadisticas stats={applicantStats} />
+            ) : (
+              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-10 text-center">
+                <p className="text-sm text-[#64748B]">Cargando estadísticas…</p>
               </div>
             )}
           </div>

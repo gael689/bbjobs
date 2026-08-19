@@ -216,6 +216,20 @@ export default function AdminCandidatosPage() {
           candidates.map(c => (
             <div key={c.id} className="px-6 py-4 flex items-center justify-between gap-3 hover:bg-[#FAFBFD] transition-colors">
               <div className="flex items-center gap-3 min-w-0">
+                {/* Foto + anillo de %: el anillo se mantiene acá (a diferencia del panel de
+                    empresa) porque Talency sabe qué mide — ver B4 del plan del 14/08. La
+                    foto es lo nuevo, antes no llegaba a ninguna vista aunque ya se subía. */}
+                {c.photo_url ? (
+                  <img
+                    src={c.photo_url}
+                    alt={`${c.first_name} ${c.last_name}`}
+                    className="w-9 h-9 rounded-full object-cover shrink-0 border border-[#DDE3EC]"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 text-[#1E8EA3] font-display font-bold text-xs">
+                    {c.first_name.slice(0, 1)}{c.last_name.slice(0, 1)}
+                  </div>
+                )}
                 <ProfileCompletionRing percent={c.completion_percent} size={36} strokeWidth={4} />
                 <div className="min-w-0">
                   <p className="font-bold text-[#1C2230] truncate">{c.first_name} {c.last_name}</p>

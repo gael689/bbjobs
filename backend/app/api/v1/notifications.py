@@ -82,6 +82,28 @@ async def mark_notification_read(
     return notification
 
 
+@router.delete("/me/notifications/{notification_id}")
+async def delete_notification(
+    notification_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Descartar una notificación de la propia campanita — antes sólo se podía marcar leída,
+    nunca sacarla de la lista (ver A3 del plan del 14/08)."""
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+    )
+    notification = result.scalar_one_or_none()
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    await db.delete(notification)
+    await db.commit()
+    return {"status": "ok"}
+
+
 @router.post("/me/notifications/read-all")
 async def mark_all_notifications_read(
     current_user: User = Depends(get_current_user),

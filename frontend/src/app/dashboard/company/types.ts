@@ -101,6 +101,7 @@ export interface Application {
     id: string;
     first_name: string;
     last_name: string;
+    photo_url?: string;
     cv_file_url?: string;
     completion_percent: number;
     age?: number;
@@ -118,11 +119,14 @@ export interface ApplicantFilters {
   has_own_transport?: "" | "true" | "false";
   availability?: "" | CandidateAvailability;
   immediate_availability?: boolean;
+  position?: string;
+  experience_min?: string;
+  experience_max?: string;
 }
 
 export const EMPTY_APPLICANT_FILTERS: ApplicantFilters = {
   age_min: "", age_max: "", gender: "", has_own_transport: "", availability: "",
-  immediate_availability: false,
+  immediate_availability: false, position: "", experience_min: "", experience_max: "",
 };
 
 export interface Bucket {
@@ -169,6 +173,7 @@ export interface CandidateFullProfile {
   first_name: string;
   last_name: string;
   phone: string;
+  photo_url?: string;
   summary?: string;
   cv_file_url?: string;
   age?: number;

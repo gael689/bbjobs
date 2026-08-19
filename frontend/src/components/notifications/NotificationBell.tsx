@@ -29,7 +29,7 @@ export default function NotificationBell({
   variant?: "icon" | "prominent";
 }) {
   const router = useRouter();
-  const { items, unreadCount, loading, open, toggleOpen, close, markRead, markAllRead } =
+  const { items, unreadCount, loading, open, toggleOpen, close, markRead, markAllRead, dismiss } =
     useNotifications();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -161,7 +161,7 @@ export default function NotificationBell({
                 </div>
               ) : (
                 items.map((n) => (
-                  <NotificationItem key={n.id} notification={n} onClick={handleItemClick} />
+                  <NotificationItem key={n.id} notification={n} onClick={handleItemClick} onDismiss={dismiss} />
                 ))
               )}
             </div>

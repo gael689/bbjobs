@@ -5,7 +5,6 @@ import {
   XMarkIcon, BriefcaseIcon, AcademicCapIcon, WrenchScrewdriverIcon,
   LanguageIcon, ArrowDownTrayIcon, ClockIcon, UserCircleIcon, EyeIcon,
 } from "@heroicons/react/24/outline";
-import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import { abrirCv } from "@/lib/cv";
 
 type Gender = "masculino" | "femenino" | "otro" | "no_declara";
@@ -28,6 +27,7 @@ export interface CandidateProfileModalData {
   first_name: string;
   last_name: string;
   phone: string;
+  photo_url?: string;
   summary?: string;
   cv_file_url?: string;
   age?: number;
@@ -101,11 +101,15 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
           <div className="p-6 sm:p-8">
             {/* Identity bar — full width */}
             <div className="flex flex-col sm:flex-row sm:items-start gap-5 pb-6 border-b border-[#DDE3EC]">
-              {showCompletion ? (
-                <ProfileCompletionRing percent={profile.completion_percent} size={64} strokeWidth={5} />
+              {profile.photo_url ? (
+                <img
+                  src={profile.photo_url}
+                  alt={`${profile.first_name} ${profile.last_name}`}
+                  className="w-16 h-16 rounded-full object-cover shrink-0 border border-[#DDE3EC]"
+                />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0">
-                  <UserCircleIcon className="w-8 h-8 text-[#1E8EA3]" />
+                <div className="w-16 h-16 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 text-[#1E8EA3] font-display font-bold text-lg">
+                  {profile.first_name.slice(0, 1).toUpperCase()}{profile.last_name.slice(0, 1).toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">

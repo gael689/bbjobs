@@ -54,6 +54,15 @@ export default function NotificationsPage() {
     }
   }
 
+  async function dismiss(id: string) {
+    setItems(prev => prev.filter(n => n.id !== id));
+    try {
+      await api.delete(`/me/notifications/${id}`);
+    } catch {
+      // el estado optimista queda; un refresh manual reconcilia
+    }
+  }
+
   function handleItemClick(notification: NotificationItemData) {
     if (!notification.is_read) markRead(notification.id);
     if (notification.link) router.push(notification.link);
@@ -110,7 +119,7 @@ export default function NotificationsPage() {
         ) : (
           <div className="divide-y divide-[#EEF2F7]">
             {filtered.map(n => (
-              <NotificationItem key={n.id} notification={n} onClick={handleItemClick} />
+              <NotificationItem key={n.id} notification={n} onClick={handleItemClick} onDismiss={dismiss} />
             ))}
           </div>
         )}

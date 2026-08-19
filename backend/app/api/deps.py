@@ -71,16 +71,28 @@ def require_role(allowed_roles: list[UserRole]):
         return current_user
     return role_checker
 
-async def require_verified_company(
+async def require_company(
     current_user: User = Depends(require_role([UserRole.company])),
     db: AsyncSession = Depends(get_db)
 ) -> CompanyProfile:
+    """El perfil de la empresa, sin exigir verificación. Usar para lo que una empresa puede
+    hacer aunque Talency todavía no la haya comprobado: publicar y editar sus propias
+    búsquedas. Talency modera igual (moderation_status), así que nada sale al portal sin que
+    alguien lo revise — ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, A2. Para lo que sí
+    requiere estar verificada (ver postulantes, CV, perfiles, pagos), usar
+    require_verified_company."""
     result = await db.execute(select(CompanyProfile).where(CompanyProfile.user_id == current_user.id))
     company = result.scalar_one_or_none()
 
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
+    return company
+
+
+async def require_verified_company(
+    company: CompanyProfile = Depends(require_company),
+) -> CompanyProfile:
     if company.verification_status != VerificationStatus.verified:
         raise HTTPException(status_code=403, detail="Company is not verified")
 

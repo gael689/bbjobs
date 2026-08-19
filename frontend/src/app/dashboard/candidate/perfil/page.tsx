@@ -551,7 +551,10 @@ export default function CandidatePerfilPage() {
                   >
                     {profile?.photo_url ? "Cambiar foto" : "Subir foto de perfil"}
                   </button>
-                  <p className="text-xs text-[#64748B] mt-0.5">JPG, PNG o WEBP, máx. 2MB.</p>
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    JPG, PNG o WEBP, máx. 2MB.
+                    {!profile?.photo_url && " Los perfiles con foto llaman más la atención de las empresas."}
+                  </p>
                 </div>
               </div>
 

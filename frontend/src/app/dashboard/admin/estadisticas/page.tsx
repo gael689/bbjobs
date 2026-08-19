@@ -2,11 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import Link from "next/link";
 import {
   BuildingOffice2Icon, UsersIcon, BriefcaseIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon,
-  ChatBubbleLeftRightIcon, CreditCardIcon,
+  ChatBubbleLeftRightIcon, CreditCardIcon, CurrencyDollarIcon, ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import type { Metrics } from "../types";
+
+interface AdminMarketStats {
+  total_busquedas: number;
+  busquedas_con_salario: number;
+  salario_promedio: number | null;
+  salario_mediana: number | null;
+  salario_min: number | null;
+  salario_max: number | null;
+  por_rubro: { label: string; count: number }[];
+}
 
 interface TrendPoint {
   date: string;
@@ -59,10 +70,12 @@ function TrendCard({
 export default function AdminEstadisticasPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [trends, setTrends] = useState<Trends | null>(null);
+  const [marketStats, setMarketStats] = useState<AdminMarketStats | null>(null);
 
   useEffect(() => {
     api.get("/admin/dashboard").then(r => setMetrics(r.data)).catch(() => {});
     api.get("/admin/dashboard/trends").then(r => setTrends(r.data)).catch(() => {});
+    api.get("/admin/market-stats").then(r => setMarketStats(r.data)).catch(() => {});
   }, []);
 
   const jobsSeries = trends?.points.map(p => p.jobs_created) ?? [];
@@ -84,6 +97,58 @@ export default function AdminEstadisticasPage() {
             <TrendCard label="Postulaciones recibidas" values={appsSeries} total={appsTotal} />
           </div>
         </>
+      )}
+
+      {/* Salario de mercado — vista interna, sin el filtro de "empresa eligió mostrarlo" ni
+          el interruptor de la home (ver B2 del plan del 14/08). Es distinto del número
+          público: acá se ve el mercado real para decidir qué publicar, no lo ya publicado. */}
+      <h2 className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-3">Salario de mercado (interno)</h2>
+      {marketStats && (
+        <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm mb-8">
+          {marketStats.busquedas_con_salario === 0 ? (
+            <p className="text-sm text-[#64748B]">Ninguna búsqueda activa declara un sueldo todavía.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <p className="text-xl font-display font-extrabold text-[#1C2230]">
+                    ${marketStats.salario_promedio?.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-xs text-[#64748B]">Promedio</p>
+                </div>
+                <div>
+                  <p className="text-xl font-display font-extrabold text-[#1C2230]">
+                    ${marketStats.salario_mediana?.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-xs text-[#64748B]">Mediana</p>
+                </div>
+                <div>
+                  <p className="text-xl font-display font-extrabold text-[#1C2230]">
+                    ${marketStats.salario_min?.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-xs text-[#64748B]">Mínimo</p>
+                </div>
+                <div>
+                  <p className="text-xl font-display font-extrabold text-[#1C2230]">
+                    ${marketStats.salario_max?.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-xs text-[#64748B]">Máximo</p>
+                </div>
+              </div>
+              <p className="text-xs text-[#64748B] flex items-center gap-1.5 mb-1">
+                <CurrencyDollarIcon className="w-3.5 h-3.5 text-[#1E8EA3] shrink-0" />
+                Calculado sobre {marketStats.busquedas_con_salario} de {marketStats.total_busquedas} búsquedas activas que declaran sueldo
+                {marketStats.busquedas_con_salario < 5 && " — muestra chica, tomalo como orientativo"}.
+              </p>
+              <p className="text-xs text-[#94A3B8]">
+                Este número es interno — cuenta todas las búsquedas, publiquen o no el sueldo.{" "}
+                <Link href="/dashboard/admin/indicadores" className="text-[#1E8EA3] font-semibold hover:underline inline-flex items-center gap-0.5">
+                  El que ven las empresas y candidatos se controla desde Indicadores <ArrowRightIcon className="w-3 h-3" />
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {/* Estado general — agrupado por dominio */}

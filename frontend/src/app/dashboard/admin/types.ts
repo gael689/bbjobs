@@ -4,15 +4,21 @@ export interface Company {
   id: string;
   legal_name: string;
   cuit: string;
+  industry_name?: string;
+  province?: string;
+  city?: string;
+  employee_count?: string;
   responsible_full_name: string;
   responsible_email: string;
   responsible_phone: string;
+  responsible_position?: string;
   website?: string;
   description?: string;
   logo_url?: string;
   verification_status: VerifStatus;
   verified_at?: string;
   verification_notes?: string;
+  created_at: string;
 }
 
 export type CandidateGender = "masculino" | "femenino" | "otro" | "no_declara";
@@ -23,6 +29,7 @@ export interface Candidate {
   first_name: string;
   last_name: string;
   phone: string;
+  photo_url?: string;
   cv_file_url?: string;
   age?: number;
   gender?: CandidateGender;
@@ -82,6 +89,7 @@ export interface AdminApplication {
     id: string;
     first_name: string;
     last_name: string;
+    photo_url?: string;
     cv_file_url?: string;
     completion_percent: number;
     age?: number;
@@ -114,6 +122,7 @@ export interface CandidateFullProfile {
   first_name: string;
   last_name: string;
   phone: string;
+  photo_url?: string;
   summary?: string;
   cv_file_url?: string;
   age?: number;
@@ -141,9 +150,11 @@ export interface Job {
   description: string;
   modality: string;
   company_legal_name_snapshot: string;
+  company_verification_status?: VerifStatus;
   status: string;
   published_at?: string;
   expires_at?: string;
+  closed_at?: string;
   duration_days: number;
   moderation_status: ModerationStatus;
   moderation_notes?: string;
@@ -171,6 +182,26 @@ export const MODERATION_CLS: Record<ModerationStatus, string> = {
   pending_review: "bg-amber-100 text-amber-700",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
+};
+
+// Estado del aviso — independiente de moderation_status (ver A1 en el plan de agosto).
+// Una búsqueda puede estar "Aprobada" y a la vez "Dada de baja": la moderación dice si
+// Talency la autorizó alguna vez, el estado dice si sigue viva. Sólo sale en el portal
+// cuando LOS DOS coinciden en "sí" (active + approved).
+export const JOB_STATUS_LABEL: Record<string, string> = {
+  draft: "Borrador",
+  active: "Activa",
+  paused: "Pausada",
+  closed: "Dada de baja",
+  expired: "Vencida",
+};
+
+export const JOB_STATUS_CLS: Record<string, string> = {
+  draft: "bg-slate-100 text-slate-600",
+  active: "bg-green-100 text-green-700",
+  paused: "bg-amber-100 text-amber-700",
+  closed: "bg-red-100 text-red-700",
+  expired: "bg-slate-200 text-slate-600",
 };
 
 export interface Metrics {

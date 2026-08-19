@@ -451,8 +451,21 @@ export default function CompanyBusquedasPage() {
                     {applicants.slice(0, 6).map(app => (
                       <div key={app.id} className="flex items-center gap-3 py-3">
                         {/* Sin anillo de % de perfil — mismo motivo que en Postulaciones:
-                            la empresa lo confunde con un % de ajuste al puesto. */}
-                        <UserCircleIcon className={`w-8 h-8 ${app.candidate ? "text-[#9ED4DF]" : "text-[#DDE3EC]"}`} />
+                            la empresa lo confunde con un % de ajuste al puesto. La foto sí se
+                            muestra (ver B3 del plan del 14/08) — antes no llegaba acá. */}
+                        {app.candidate?.photo_url ? (
+                          <img
+                            src={app.candidate.photo_url}
+                            alt={`${app.candidate.first_name} ${app.candidate.last_name}`}
+                            className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#DDE3EC]"
+                          />
+                        ) : app.candidate ? (
+                          <div className="w-8 h-8 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 text-[#1E8EA3] font-display font-bold text-[11px]">
+                            {app.candidate.first_name.slice(0, 1)}{app.candidate.last_name.slice(0, 1)}
+                          </div>
+                        ) : (
+                          <UserCircleIcon className="w-8 h-8 text-[#DDE3EC]" />
+                        )}
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
                             {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}

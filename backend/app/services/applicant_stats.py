@@ -119,8 +119,28 @@ def _franja_experiencia(anios: float) -> str:
 
 
 def _years_of_experience(experiences: Sequence[Experience]) -> float:
+    """Días cubiertos por AL MENOS un tramo, no la suma cruda de duraciones — dos trabajos
+    simultáneos (part-time + freelance, o un cambio de puesto sin cerrar el anterior a tiempo)
+    no tienen que contar doble. Se fusionan los intervalos superpuestos antes de sumar
+    (algoritmo estándar: ordenar por inicio, extender el actual mientras el próximo arranca
+    antes de que termine)."""
     today = datetime.date.today()
-    total_days = sum(max(0, ((exp.end_date or today) - exp.start_date).days) for exp in experiences)
+    intervalos = sorted(
+        (exp.start_date, max(exp.start_date, exp.end_date or today)) for exp in experiences
+    )
+    if not intervalos:
+        return 0.0
+
+    total_days = 0
+    inicio_actual, fin_actual = intervalos[0]
+    for inicio, fin in intervalos[1:]:
+        if inicio <= fin_actual:
+            fin_actual = max(fin_actual, fin)
+        else:
+            total_days += (fin_actual - inicio_actual).days
+            inicio_actual, fin_actual = inicio, fin
+    total_days += (fin_actual - inicio_actual).days
+
     return round(total_days / 365.25, 1)
 
 

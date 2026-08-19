@@ -11,11 +11,13 @@ import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
   APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   EMPTY_APPLICANT_FILTERS,
-  type Application, type ApplicantFilters, type ApplicantStats, type CandidateFullProfile, type JobPosting,
+  type Application, type ApplicantFilters, type ApplicantStats, type CandidateFullProfile,
+  type CompanyProfile, type JobPosting,
 } from "../types";
 
 export default function CompanyPostulacionesPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [currentApps, setCurrentApps] = useState<Application[]>([]);
   const [loadingApps, setLoadingApps] = useState(false);
@@ -25,6 +27,8 @@ export default function CompanyPostulacionesPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [candidateProfile, setCandidateProfile] = useState<CandidateFullProfile | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
+
+  const isVerified = profile?.verification_status === "verified";
 
   function toast(msg: string) {
     setToastMsg(msg);
@@ -39,11 +43,14 @@ export default function CompanyPostulacionesPage() {
     if (f.has_own_transport) params.has_own_transport = f.has_own_transport === "true";
     if (f.availability) params.availability = f.availability;
     if (f.immediate_availability) params.immediate_availability = true;
+    if (f.position?.trim()) params.position = f.position.trim();
+    if (f.experience_min) params.experience_min = f.experience_min;
+    if (f.experience_max) params.experience_max = f.experience_max;
     return params;
   }
 
-  function loadApplications(jobId: string, f: ApplicantFilters) {
-    if (!jobId) return;
+  function loadApplications(jobId: string, f: ApplicantFilters, verified: boolean) {
+    if (!jobId || !verified) return;
     setLoadingApps(true);
     api.get(`/me/company/jobs/${jobId}/applications`, { params: buildFilterParams(f) })
       .then(r => setCurrentApps(r.data))
@@ -54,34 +61,44 @@ export default function CompanyPostulacionesPage() {
       .finally(() => setLoadingApps(false));
   }
 
-  function selectJob(jobId: string) {
+  function selectJob(jobId: string, verified: boolean = isVerified) {
     setSelectedJobId(jobId);
     setFilters(EMPTY_APPLICANT_FILTERS);
     setStats(null);
-    loadApplications(jobId, EMPTY_APPLICANT_FILTERS);
+    setCurrentApps([]);
+    if (!verified) return;
+    loadApplications(jobId, EMPTY_APPLICANT_FILTERS, verified);
     api.get(`/me/company/jobs/${jobId}/applications/stats`).then(r => setStats(r.data)).catch(() => {});
   }
 
   useEffect(() => {
-    api.get("/me/company/jobs").then(r => {
-      setJobs(r.data);
-      if (r.data.length > 0) selectJob(r.data[0].id);
-    }).catch(() => {});
+    // Se pide el perfil antes de disparar el resto: ver postulantes sigue exigiendo empresa
+    // verificada (a diferencia de publicar, ver A2 del plan del 14/08) y sin esto se dispara
+    // un pedido que siempre da 403 para una empresa sin verificar.
+    Promise.all([
+      api.get("/me/company/profile").then(r => r.data as CompanyProfile).catch(() => null),
+      api.get("/me/company/jobs").then(r => r.data as JobPosting[]).catch(() => []),
+    ]).then(([p, jobList]) => {
+      setProfile(p);
+      setJobs(jobList);
+      if (jobList.length > 0) selectJob(jobList[0].id, p?.verification_status === "verified");
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function applyFilters(e: React.FormEvent) {
     e.preventDefault();
-    loadApplications(selectedJobId, filters);
+    loadApplications(selectedJobId, filters, isVerified);
   }
 
   function clearFilters() {
     setFilters(EMPTY_APPLICANT_FILTERS);
-    loadApplications(selectedJobId, EMPTY_APPLICANT_FILTERS);
+    loadApplications(selectedJobId, EMPTY_APPLICANT_FILTERS, isVerified);
   }
 
   const hasActiveFilters = !!(
     filters.age_min || filters.age_max || filters.gender ||
-    filters.has_own_transport || filters.availability || filters.immediate_availability
+    filters.has_own_transport || filters.availability || filters.immediate_availability ||
+    filters.position?.trim() || filters.experience_min || filters.experience_max
   );
 
   async function handleAppStatus(appId: string, status: string) {
@@ -123,6 +140,21 @@ export default function CompanyPostulacionesPage() {
           <BriefcaseIcon className="w-10 h-10 text-[#DDE3EC] mx-auto mb-4" />
           <p className="text-[#64748B] font-medium">Todavía no publicaste ninguna búsqueda.</p>
         </div>
+      ) : !isVerified ? (
+        <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-2xl p-8 text-center">
+          <UsersIcon className="w-10 h-10 text-[#1E8EA3] mx-auto mb-3" />
+          <p className="text-[#1C2230] font-bold mb-1">Necesitás tu empresa verificada para ver postulantes</p>
+          <p className="text-[#64748B] text-sm mb-4">
+            Tus búsquedas ya se publican y reciben postulaciones — para ver quién se postuló,
+            su CV y su perfil hace falta la verificación.
+          </p>
+          <a
+            href="/dashboard/company/perfil"
+            className="inline-flex items-center gap-1.5 text-sm font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] px-5 py-2.5 rounded-xl transition-colors"
+          >
+            Pedir verificación
+          </a>
+        </div>
       ) : (
         <>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -152,6 +184,24 @@ export default function CompanyPostulacionesPage() {
                 <span className="text-sm font-bold text-[#1C2230]">Filtrar postulantes</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <input
+                  type="text" placeholder="Posición (ej: comercial)"
+                  value={filters.position}
+                  onChange={e => setFilters(f => ({ ...f, position: e.target.value }))}
+                  className="col-span-2 border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+                />
+                <input
+                  type="number" min={0} step={0.5} placeholder="Exp. mín. (años)"
+                  value={filters.experience_min}
+                  onChange={e => setFilters(f => ({ ...f, experience_min: e.target.value }))}
+                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+                />
+                <input
+                  type="number" min={0} step={0.5} placeholder="Exp. máx. (años)"
+                  value={filters.experience_max}
+                  onChange={e => setFilters(f => ({ ...f, experience_max: e.target.value }))}
+                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
+                />
                 <input
                   type="number" min={0} placeholder="Edad mín."
                   value={filters.age_min}
@@ -199,7 +249,7 @@ export default function CompanyPostulacionesPage() {
                   Disp. inmediata
                 </label>
               </div>
-              <div className="flex gap-2 mt-3">
+              <div className="flex items-center gap-3 mt-3">
                 <button type="submit" className="text-xs font-bold bg-[#1E8EA3] text-white rounded-lg px-3 py-1.5 hover:bg-[#187B8E] transition-colors">
                   Filtrar
                 </button>
@@ -207,6 +257,15 @@ export default function CompanyPostulacionesPage() {
                   <button type="button" onClick={clearFilters} className="text-xs font-bold text-[#64748B] border border-[#DDE3EC] rounded-lg px-3 py-1.5 hover:bg-[#FAFBFD] transition-colors">
                     Limpiar
                   </button>
+                )}
+                {/* Sin esto, filtrar y no ver ningún cambio visible es indistinguible de que el
+                    filtro no hizo nada (ver B4 del plan del 14/08). */}
+                {!loadingApps && (
+                  <span className="text-xs text-[#64748B]">
+                    {hasActiveFilters
+                      ? `${currentApps.length} postulante${currentApps.length === 1 ? "" : "s"} con estos filtros`
+                      : `${currentApps.length} postulante${currentApps.length === 1 ? "" : "s"}`}
+                  </span>
                 )}
               </div>
             </form>
@@ -237,10 +296,22 @@ export default function CompanyPostulacionesPage() {
                       {/* Sin anillo de % de perfil: la empresa lo leía como "% de ajuste al
                           puesto" cuando en realidad mide cuánto cargó el candidato de su propio
                           perfil (pedido de Eugenia, agosto/2026). Sigue visible en el panel de
-                          Talency, que sabe qué mide. */}
-                      <div className="w-9 h-9 rounded-lg bg-[#E6F4F7] flex items-center justify-center shrink-0">
-                        <UsersIcon className="w-4 h-4 text-[#1E8EA3]" />
-                      </div>
+                          Talency, que sabe qué mide. En su lugar, la foto del candidato — antes
+                          nunca llegaba a la empresa aunque ya se subía (ver B3 del plan del
+                          14/08). */}
+                      {app.candidate?.photo_url ? (
+                        <img
+                          src={app.candidate.photo_url}
+                          alt={`${app.candidate.first_name} ${app.candidate.last_name}`}
+                          className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#DDE3EC]"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-[#E6F4F7] flex items-center justify-center shrink-0 text-[#1E8EA3] font-display font-bold text-xs">
+                          {app.candidate
+                            ? `${app.candidate.first_name.slice(0, 1)}${app.candidate.last_name.slice(0, 1)}`.toUpperCase()
+                            : <UsersIcon className="w-4 h-4" />}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-[#1C2230]">
                           {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}

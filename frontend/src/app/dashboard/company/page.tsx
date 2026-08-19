@@ -33,10 +33,13 @@ export default function CompanyInicioPage() {
       </h1>
       <p className="text-[#64748B] text-sm mb-6">Así está la actividad de tu empresa en BBJobs.</p>
 
-      {/* Hero — estado de verificación / CTA principal */}
+      {/* Hero — estado de verificación / CTA principal.
+          Publicar ya no depende de estar verificada (ver A2 del plan del 14/08): una empresa
+          sin verificar sigue yendo a /publicar, no a /perfil. La verificación sólo destraba
+          ver postulantes, CV y pagos — se lo recordamos acá, no le bloqueamos el camino. */}
       {!isVerified ? (
         <Link
-          href="/dashboard/company/perfil"
+          href="/dashboard/company/publicar"
           className="group flex items-center gap-5 sm:gap-6 bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-6 mb-6 hover:border-amber-400 transition-colors"
         >
           <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
@@ -44,16 +47,16 @@ export default function CompanyInicioPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-display font-bold text-[#1C2230] text-[16.5px]">
-              {isPending ? "Tu empresa está en revisión" : "Verificá tu empresa para publicar búsquedas"}
+              {isPending ? "Ya podés publicar — tu empresa sigue en revisión" : "Publicá tu primera búsqueda"}
             </p>
             <p className="text-[13px] text-[#64748B] mt-1">
               {isPending
-                ? "El equipo de Talency está revisando tus datos — te avisamos apenas esté lista."
-                : "Solicitá la verificación desde tu perfil para empezar a publicar."}
+                ? "Talency la modera igual. Para ver los postulantes vas a necesitar la verificación — pedila desde tu perfil."
+                : "No hace falta esperar la verificación para publicar. Para ver los postulantes sí la vas a necesitar."}
             </p>
           </div>
           <span className="hidden sm:flex items-center gap-1 text-[13px] font-bold text-amber-700 shrink-0">
-            Ir a Perfil <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            Publicar <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </Link>
       ) : (

@@ -10,6 +10,7 @@ from app.api.deps import get_db, require_role
 from app.models.core import User, UserRole, AdminProfile
 from app.models.company import CompanyProfile, VerificationStatus
 from app.models.candidate import CandidateProfile, Education, Gender, Availability
+from app.models.catalogs import Industry
 from app.models.job import JobPosting, Application, JobPostingStatus, JobModerationStatus
 from app.models.alerts import AuditLog
 from app.models.contact import ContactMessage
@@ -21,6 +22,7 @@ from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, get_highest_education_level,
 )
 from app.services.job_features import end_active_feature_for_job
+from app.services.job_status import can_admin_reopen
 from app.services.settings import get_all_settings, set_setting
 from app.models.settings import SettingKey
 from app.integrations.clerk_client import create_clerk_user
@@ -58,9 +60,14 @@ class CompanyAdminResponse(BaseModel):
     legal_name: str
     cuit: str
     industry_id: uuid.UUID
+    industry_name: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+    employee_count: Optional[str] = None
     responsible_full_name: str
     responsible_phone: str
     responsible_email: str
+    responsible_position: Optional[str] = None
     website: Optional[str] = None
     description: Optional[str] = None
     logo_url: Optional[str] = None
@@ -68,6 +75,7 @@ class CompanyAdminResponse(BaseModel):
     verified_at: Optional[datetime] = None
     verification_notes: Optional[str] = None
     is_anonymized: bool
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -106,8 +114,10 @@ class JobAdminResponse(BaseModel):
     modality: str
     status: JobPostingStatus
     company_legal_name_snapshot: str
+    company_verification_status: Optional[VerificationStatus] = None
     published_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
     duration_days: int
     moderation_status: JobModerationStatus
     moderation_notes: Optional[str] = None
@@ -250,7 +260,12 @@ async def list_companies(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(CompanyProfile)
+    # JOIN con Industry para resolver el nombre del rubro — CompanyProfile sólo guarda el
+    # UUID y no tiene relationship cargada, así que antes de esto el admin nunca veía el
+    # rubro (ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, B1).
+    q = select(CompanyProfile, Industry.name).join(
+        Industry, CompanyProfile.industry_id == Industry.id
+    )
     if status:
         q = q.where(CompanyProfile.verification_status == status)
     # pending first, then by creation order
@@ -258,7 +273,12 @@ async def list_companies(
         (CompanyProfile.verification_status == VerificationStatus.pending).desc(),
     )
     result = await db.execute(q)
-    return result.scalars().all()
+    return [
+        CompanyAdminResponse.model_validate(company, from_attributes=True).model_copy(
+            update={"industry_name": industry_name}
+        )
+        for company, industry_name in result.all()
+    ]
 
 
 @router.patch("/admin/companies/{company_id}/verify")
@@ -537,7 +557,13 @@ async def list_jobs(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(JobPosting).where(JobPosting.deleted_at.is_(None))
+    # LEFT JOIN (no join simple): una búsqueda cuya empresa se borró (company_id nullable,
+    # ver JobPosting) igual tiene que listarse — sólo se queda sin verification_status.
+    q = (
+        select(JobPosting, CompanyProfile.verification_status)
+        .outerjoin(CompanyProfile, JobPosting.company_id == CompanyProfile.id)
+        .where(JobPosting.deleted_at.is_(None))
+    )
     if status:
         q = q.where(JobPosting.status == status)
     if moderation_status:
@@ -547,7 +573,12 @@ async def list_jobs(
     # publica, no desde que se aprueba. Entre el resto, orden justo: las más viejas primero.
     q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc())
     result = await db.execute(q)
-    return result.scalars().all()
+    return [
+        JobAdminResponse.model_validate(job, from_attributes=True).model_copy(
+            update={"company_verification_status": verification_status}
+        )
+        for job, verification_status in result.all()
+    ]
 
 
 # ── Drill-down: empresa → búsquedas → postulaciones, y candidato → perfil completo ────────────
@@ -642,6 +673,7 @@ async def list_job_applications_admin(
                     id=candidate.id,
                     first_name=candidate.first_name,
                     last_name=candidate.last_name,
+                    photo_url=candidate.photo_url,
                     cv_file_url=candidate.cv_file_url,
                     completion_percent=completion_percent,
                     age=calculate_age(candidate.birth_date),
@@ -766,9 +798,11 @@ async def moderate_job(
     if not job:
         raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
 
-    if job.moderation_status != JobModerationStatus.pending_review:
-        raise HTTPException(status_code=400, detail="La búsqueda ya fue revisada")
-
+    # Antes esto exigía moderation_status == pending_review, así que una vez aprobada o
+    # rechazada, la decisión era para siempre — ni siquiera el propio admin podía corregir un
+    # click de más. Ahora se puede volver a moderar en cualquier momento (aprobar algo que se
+    # había rechazado por error, o al revés) — es la misma acción, sólo que ya no es de una
+    # sola vez. Ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, A1.
     if payload.action == "approve":
         job.moderation_status = JobModerationStatus.approved
         notif_type, notif_title, notif_body = (
@@ -812,6 +846,61 @@ async def moderate_job(
 
     await db.commit()
     return {"status": "ok", "moderation_status": job.moderation_status}
+
+
+@router.patch("/admin/jobs/{job_id}/reopen")
+async def reopen_job(
+    job_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Saca una búsqueda de `closed` — el único camino de vuelta, y sólo el admin lo tiene
+    (ver can_admin_reopen: la empresa no puede reabrir lo que cerró ni lo que Talency dio de
+    baja). Cubre el caso real: se da de baja por error, o la empresa la cierra y se
+    arrepiente. Si ya venció el plazo, se recalcula `expires_at` desde hoy en vez de reabrir
+    una búsqueda que nace vencida — reabrir para que expire en el mismo segundo no sirve."""
+    result = await db.execute(select(JobPosting).where(JobPosting.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
+
+    if not can_admin_reopen(job.status):
+        raise HTTPException(
+            status_code=400,
+            detail="Sólo se puede reabrir una búsqueda dada de baja",
+        )
+
+    job.status = JobPostingStatus.active
+    job.closed_at = None
+    now = datetime.now(timezone.utc)
+    if not job.expires_at or job.expires_at <= now:
+        job.published_at = now
+        job.expires_at = now + timedelta(days=job.duration_days)
+
+    company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.id == job.company_id))
+    company = company_result.scalar_one_or_none()
+    if company:
+        await create_notification(
+            db,
+            user_id=company.user_id,
+            type="job_reopened",
+            title="Tu búsqueda volvió a estar activa",
+            body=f"'{job.title}' fue reactivada por el equipo de BBJobs.",
+            link="/dashboard/company/estadisticas",
+        )
+
+    audit = AuditLog(
+        admin_user_id=admin.id,
+        action="job_reopen",
+        target_entity="job_postings",
+        target_id=job.id,
+        notes=None,
+    )
+    db.add(audit)
+
+    await db.commit()
+    await db.refresh(job)
+    return {"status": "ok", "job_status": job.status, "expires_at": job.expires_at}
 
 
 @router.patch("/admin/jobs/{job_id}", response_model=JobAdminResponse)
@@ -980,6 +1069,25 @@ async def resolve_contact_message(
     if not msg:
         raise HTTPException(status_code=404, detail="Mensaje no encontrado")
     msg.resolved = True
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/admin/contact-messages/{message_id}")
+async def delete_contact_message(
+    message_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Borrado real, no lógico — antes no existía ningún camino para sacar un mensaje de acá,
+    ni siquiera spam o los de prueba que quedaron de una carga vieja (ver A3 del plan del
+    14/08). Un mensaje de contacto resuelto no tiene valor de archivo que justifique guardarlo
+    para siempre."""
+    result = await db.execute(select(ContactMessage).where(ContactMessage.id == message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    await db.delete(msg)
     await db.commit()
     return {"status": "ok"}
 
