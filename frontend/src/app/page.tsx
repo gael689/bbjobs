@@ -184,6 +184,31 @@ export default function Home() {
       ══════════════════════════════════ */}
       <section className="relative px-4 pt-32 pb-28 overflow-hidden">
 
+        {/* ── Foto del puerto ──
+            Va como capa de más abajo de todo. La imagen ya viene desaturada y virada al celeste
+            de la paleta, y con el sector izquierdo casi liso: por eso no necesita el velo oscuro
+            que pedía una foto de contraste normal. Aun así va el degradé de abajo, porque el
+            título está CENTRADO y sin él las grúas quedan justo detrás de su mitad derecha.
+            `object-right-bottom` mantiene las grúas a la derecha y la línea de agua abajo cuando
+            el alto de la sección cambia; en celular sólo se ve el agua, que es lo deseable. */}
+        <div className="absolute inset-0 pointer-events-none">
+          <Image
+            src="/hero-puerto.jpg"
+            alt=""
+            aria-hidden="true"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-right-bottom"
+          />
+          {/* Velo suave y sólo del lado izquierdo, donde arranca el texto. A la derecha se deja
+              la foto limpia: el pixel más oscuro de las grúas ronda el #9fc4d2, así que contra
+              el texto #1C2230 el contraste pasa holgado y un velo ahí sólo la borraba. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#FAFBFD]/90 via-[#FAFBFD]/40 to-transparent" />
+          {/* Funde el borde inferior con la sección que sigue, para que no quede un corte duro. */}
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[#FAFBFD]" />
+        </div>
+
         {/* ── Dot-grid de fondo ── */}
         <div className="hero-dot-grid absolute inset-0 pointer-events-none" />
 
