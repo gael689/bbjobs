@@ -4,6 +4,7 @@ import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, PlusCircleIcon, BriefcaseIcon, UsersIcon, ChartBarIcon, CreditCardIcon, BellIcon,
+  MagnifyingGlassCircleIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/company/busquedas", label: "Búsquedas", icon: BriefcaseIcon },
   { href: "/dashboard/company/publicar", label: "Publicar búsqueda", icon: PlusCircleIcon },
   { href: "/dashboard/company/postulaciones", label: "Postulaciones", icon: UsersIcon },
+  { href: "/dashboard/company/talento", label: "Base de Talento", icon: MagnifyingGlassCircleIcon },
   { href: "/dashboard/company/perfil", label: "Perfil de empresa", icon: BuildingOffice2Icon },
   { href: "/dashboard/company/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
   { href: "/dashboard/company/pagos", label: "Pagos", icon: CreditCardIcon },
