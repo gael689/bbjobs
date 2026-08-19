@@ -17,7 +17,7 @@ from app.models.contact import ContactMessage
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
-from app.services.profile_completion import compute_profile_completion_for_candidate
+from app.services.profile_completion import compute_profile_completion_bulk
 from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, get_highest_education_level,
 )
@@ -514,20 +514,31 @@ async def list_candidates(
     if age_max is not None:
         query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
 
-    profiles = (await db.execute(query)).scalars().all()
+    profiles = list((await db.execute(query)).scalars().all())
+
+    # La educación y el % de perfil completo de todos los candidatos salen de un número fijo de
+    # consultas. Antes eran 5 por candidato adentro del `for` (una de educations más las 4 de
+    # compute_profile_completion_for_candidate): con 143 candidatos, 716 idas a la base para
+    # armar una sola pantalla.
+    educaciones: dict[uuid.UUID, list[Education]] = {}
+    if profiles:
+        for e in (
+            await db.execute(
+                select(Education).where(Education.candidate_id.in_([p.id for p in profiles]))
+            )
+        ).scalars().all():
+            educaciones.setdefault(e.candidate_id, []).append(e)
+    completions = await compute_profile_completion_bulk(db, profiles)
 
     enriched = []
     for profile in profiles:
-        educations = (
-            await db.execute(select(Education).where(Education.candidate_id == profile.id))
-        ).scalars().all()
-        level = get_highest_education_level(educations)
+        level = get_highest_education_level(educaciones.get(profile.id, []))
 
         # education_level es derivado (no está en la tabla) — se filtra después de calcularlo.
         if education_level is not None and level != education_level:
             continue
 
-        completion = await compute_profile_completion_for_candidate(db, profile)
+        completion = completions[profile.id]
         enriched.append(
             CandidateAdminResponse(
                 id=profile.id,
@@ -656,9 +667,12 @@ async def list_job_applications_admin(
         .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
         .where(Application.job_posting_id == job_id)
     )
+    rows = result.all()
+    completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
+
     enriched = []
-    for app, candidate in result.all():
-        completion_percent = (await compute_profile_completion_for_candidate(db, candidate)).percent
+    for app, candidate in rows:
+        completion_percent = completions[candidate.id].percent
         enriched.append(
             ApplicationWithCandidateResponse(
                 id=app.id,

@@ -2,18 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { BriefcaseIcon, UsersIcon, ClockIcon, ChartBarIcon, BoltIcon } from "@heroicons/react/24/outline";
+import { BriefcaseIcon, UsersIcon, ChartBarIcon, BoltIcon } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
   APP_STATUS_LABEL, JOB_MODERATION_CLS, JOB_MODERATION_LABEL,
   FEATURED_JOB_PRICE,
-  type Application, type ApplicantStats, type JobPosting,
+  type ApplicantStats, type JobPosting,
 } from "../types";
+
+/** Espejo de CompanyApplicationCounts en app/api/v1/applications.py */
+type ApplicationCounts = {
+  total: number;
+  by_status: Record<string, number>;
+  by_job: Record<string, number>;
+};
 
 export default function CompanyEstadisticasPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
-  const [appsByJob, setAppsByJob] = useState<Record<string, Application[]>>({});
   // "" = todas mis búsquedas juntas. Cacheado por scope para no repetir el pedido al
   // ir y volver del selector (ver B5 del plan del 14/08 — antes esta pantalla no
   // graficaba nada, mostraba contadores sueltos).
@@ -23,20 +29,21 @@ export default function CompanyEstadisticasPage() {
   const [featureModalJob, setFeatureModalJob] = useState<JobPosting | null>(null);
   const [featuring, setFeaturing] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  // Conteos agregados en la base (`by_status`, `by_job`). Antes se calculaban en el navegador
+  // trayendo la lista entera de postulantes de cada búsqueda.
+  const [counts, setCounts] = useState<ApplicationCounts | null>(null);
 
   useEffect(() => {
-    api.get("/me/company/jobs").then(async (r) => {
-      const jobList: JobPosting[] = r.data;
-      setJobs(jobList);
-      const results = await Promise.all(
-        jobList.map(j =>
-          api.get(`/me/company/jobs/${j.id}/applications`).then(res => [j.id, res.data] as const).catch(() => [j.id, []] as const)
-        )
-      );
-      setAppsByJob(Object.fromEntries(results));
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    // Dos pedidos y listos. Antes esta pantalla disparaba además un GET de la lista completa
+    // de postulantes por CADA búsqueda, en paralelo — con nombres, CVs y % de perfil de cada
+    // persona — nada más que para contar cuántas eran. El total sale del mismo agregado que ya
+    // se pedía acá abajo, que el backend calcula en una sola pasada.
+    api.get("/me/company/jobs")
+      .then(r => setJobs(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
     api.get("/me/company/applications/stats").then(r => setStatsByScope(prev => ({ ...prev, "": r.data }))).catch(() => {});
+    api.get("/me/company/applications/counts").then(r => setCounts(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -66,28 +73,10 @@ export default function CompanyEstadisticasPage() {
     }
   }
 
-  const allApps = Object.values(appsByJob).flat();
   const activeCount = jobs.filter(j => j.status === "active").length;
   const pausedCount = jobs.filter(j => j.status === "paused").length;
   const closedCount = jobs.filter(j => j.status === "closed").length;
-
-  const statusBreakdown: Record<string, number> = {};
-  for (const app of allApps) {
-    statusBreakdown[app.status] = (statusBreakdown[app.status] || 0) + 1;
-  }
-
-  // Aproximación: promedio de tiempo hasta "contacted" sobre postulaciones que
-  // actualmente están en ese estado (no trackea el historial completo de transiciones).
-  const contactedApps = allApps.filter(a => a.status === "contacted" && (a as unknown as { status_updated_at?: string }).status_updated_at);
-  let avgDaysToContact: number | null = null;
-  if (contactedApps.length > 0) {
-    const totalMs = contactedApps.reduce((sum, a) => {
-      const updated = new Date((a as unknown as { status_updated_at: string }).status_updated_at).getTime();
-      const created = new Date(a.created_at).getTime();
-      return sum + Math.max(0, updated - created);
-    }, 0);
-    avgDaysToContact = totalMs / contactedApps.length / (1000 * 60 * 60 * 24);
-  }
+  const totalApps = counts?.total ?? statsByScope[""]?.total ?? null;
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-6xl">
@@ -145,7 +134,7 @@ export default function CompanyEstadisticasPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
               <div className="w-9 h-9 bg-[#E6F4F7] rounded-lg flex items-center justify-center mb-3">
                 <BriefcaseIcon className="w-5 h-5 text-[#1E8EA3]" />
@@ -164,37 +153,11 @@ export default function CompanyEstadisticasPage() {
               <div className="w-9 h-9 bg-[#E6F4F7] rounded-lg flex items-center justify-center mb-3">
                 <UsersIcon className="w-5 h-5 text-[#1E8EA3]" />
               </div>
-              <p className="text-2xl font-display font-extrabold text-[#1C2230]">{allApps.length}</p>
+              <p className="text-2xl font-display font-extrabold text-[#1C2230]">
+                {totalApps !== null ? totalApps : "—"}
+              </p>
               <p className="text-xs text-[#64748B] font-medium mt-0.5">Postulaciones totales</p>
             </div>
-            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5">
-              <div className="w-9 h-9 bg-[#E6F4F7] rounded-lg flex items-center justify-center mb-3">
-                <ClockIcon className="w-5 h-5 text-[#1E8EA3]" />
-              </div>
-              <p className="text-2xl font-display font-extrabold text-[#1C2230]">
-                {avgDaysToContact !== null ? `${avgDaysToContact.toFixed(1)}d` : "—"}
-              </p>
-              <p className="text-xs text-[#64748B] font-medium mt-0.5">Prom. a contactado</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
-            <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
-            {allApps.length === 0 ? (
-              <p className="text-sm text-[#64748B]">Todavía no recibiste postulaciones.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(statusBreakdown).map(([status, count]) => {
-                  const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
-                  return (
-                    <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${meta.cls}`}>
-                      <span className="text-xs font-bold">{meta.label}</span>
-                      <span className="text-xs font-extrabold">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* Mismos gráficos que ve el candidato y el admin — antes esta pantalla, la que se
@@ -221,6 +184,23 @@ export default function CompanyEstadisticasPage() {
             )}
           </div>
 
+          {counts && Object.keys(counts.by_status).length > 0 && (
+            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-6">
+              <h3 className="text-sm font-bold text-[#1C2230] mb-4">Postulaciones por estado</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(counts.by_status).map(([status, count]) => {
+                  const meta = APP_STATUS_LABEL[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
+                  return (
+                    <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${meta.cls}`}>
+                      <span className="text-xs font-bold">{meta.label}</span>
+                      <span className="text-xs font-extrabold">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-[#DDE3EC] bg-[#FAFBFD]">
               <h3 className="text-sm font-bold text-[#1C2230]">Postulaciones por búsqueda</h3>
@@ -240,6 +220,12 @@ export default function CompanyEstadisticasPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {counts && (
+                        <span className="text-xs font-bold text-[#1E8EA3] bg-[#E6F4F7] px-2.5 py-1 rounded-full whitespace-nowrap">
+                          {counts.by_job[job.id] ?? 0}{" "}
+                          {(counts.by_job[job.id] ?? 0) === 1 ? "postulación" : "postulaciones"}
+                        </span>
+                      )}
                       <ExpiryBadge expiresAt={job.expires_at} status={job.status} />
                       {job.is_featured ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold bg-[#D4B7A2]/25 text-[#1C2230] border border-[#D4B7A2] px-2.5 py-1 rounded-full">
@@ -256,7 +242,6 @@ export default function CompanyEstadisticasPage() {
                           Destacar — ${FEATURED_JOB_PRICE.toLocaleString("es-AR")}
                         </button>
                       )}
-                      <span className="text-sm font-bold text-[#1E8EA3]">{(appsByJob[job.id] || []).length}</span>
                     </div>
                   </div>
                 ))}

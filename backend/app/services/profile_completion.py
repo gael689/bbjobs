@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import List, NamedTuple
+from typing import Dict, List, NamedTuple, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.candidate import CandidateProfile, Experience, Education, CandidateSkill, Language
@@ -68,7 +68,10 @@ async def compute_profile_completion_for_candidate(
     db: AsyncSession, profile: CandidateProfile
 ) -> ProfileCompletion:
     """Variante que resuelve los booleanos con queries livianas (LIMIT 1) — para llamadores
-    que no tienen ya las listas de experiencia/educación/skills/idiomas en memoria."""
+    que no tienen ya las listas de experiencia/educación/skills/idiomas en memoria.
+
+    Es para **un** candidato suelto. Si son varios va compute_profile_completion_bulk: llamar a
+    ésta adentro de un `for` es exactamente el N+1 que esa otra existe para evitar."""
 
     async def _has_any(model) -> bool:
         result = await db.execute(select(model.id).where(model.candidate_id == profile.id).limit(1))
@@ -85,6 +88,51 @@ async def compute_profile_completion_for_candidate(
         has_skills=has_skills,
         has_languages=await _has_any(Language),
     )
+
+
+async def compute_profile_completion_bulk(
+    db: AsyncSession, profiles: Sequence[CandidateProfile]
+) -> Dict[uuid.UUID, ProfileCompletion]:
+    """Lo mismo que compute_profile_completion_for_candidate, pero para un lote entero: 4
+    consultas fijas en lugar de 4 por candidato.
+
+    Los cuatro llamadores que la necesitan (los dos listados de postulantes, /admin/candidates y
+    el recordatorio diario del scheduler) llamaban a la variante de a uno adentro de un `for`.
+    Con los 143 candidatos de hoy eso ya eran ~572 idas a la base para pintar una pantalla, y el
+    número crece con la base — que es justo lo que no se puede permitir en el recordatorio, que
+    los recorre a todos sí o sí. Acá el costo no depende de cuántos sean.
+
+    Devuelve un dict indexado por id de perfil: los llamadores filtran su propia lista después
+    (por ejemplo /admin/candidates descarta por nivel educativo) y necesitan poder buscar por id,
+    no por posición."""
+    if not profiles:
+        return {}
+
+    ids = [p.id for p in profiles]
+
+    async def _con_registros(columna) -> set:
+        # Sólo importa la existencia, así que se piden los candidate_id distintos y nada más:
+        # traer las filas enteras devolvería una por cada experiencia/idioma cargado y habría
+        # que descartarlas en Python.
+        return set(
+            (await db.execute(select(columna).where(columna.in_(ids)).distinct())).scalars().all()
+        )
+
+    con_experiencia = await _con_registros(Experience.candidate_id)
+    con_educacion = await _con_registros(Education.candidate_id)
+    con_habilidades = await _con_registros(CandidateSkill.candidate_id)
+    con_idiomas = await _con_registros(Language.candidate_id)
+
+    return {
+        p.id: compute_profile_completion(
+            p,
+            has_experience=p.id in con_experiencia,
+            has_education=p.id in con_educacion,
+            has_skills=p.id in con_habilidades,
+            has_languages=p.id in con_idiomas,
+        )
+        for p in profiles
+    }
 
 
 def should_send_completion_reminder(profile: CandidateProfile, percent: int) -> bool:

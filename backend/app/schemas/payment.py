@@ -2,20 +2,39 @@ from pydantic import BaseModel
 from typing import Optional, Any
 from datetime import datetime
 import uuid
+from app.core.config import settings
 from app.models.payment import SubscriptionStatus, PaymentType, JobFeatureStatus
 
 # Precio fijo de destacar una búsqueda — único producto pago de Fase 1. No es configurable por
 # admin (a diferencia del viejo diseño de "duración configurable"): un número fijo en el código,
 # igual que su espejo en el frontend (dashboard/company/types.ts::FEATURED_JOB_PRICE).
-FEATURED_JOB_PRICE: float = 5000.0
+_FEATURED_JOB_PRICE_BASE: float = 5000.0
 FEATURED_JOB_CURRENCY: str = "ARS"
+
+
+def featured_job_price() -> float:
+    """El precio que se cobra por destacar, con la variable de entorno pisando la constante.
+
+    Se resuelve en cada llamada y no al importar el módulo: así cambiar la variable en Railway
+    impacta con el redeploy y no hace falta tocar código. En operación normal la variable está
+    vacía y devuelve la constante."""
+    if settings.FEATURED_JOB_PRICE is not None:
+        return float(settings.FEATURED_JOB_PRICE)
+    return _FEATURED_JOB_PRICE_BASE
 
 # Pack de la Base de Talento: pago único que acredita N desbloqueos de perfil. Mismo mecanismo
 # de cobro que el destacado (preferencia de Checkout Pro), no una suscripción — ver
 # BASE-TALENTO-Y-PLANES-PLAN.md §5. Espejo en el frontend: dashboard/company/types.ts.
-TALENT_PACK_PRICE: float = 49900.0
+_TALENT_PACK_PRICE_BASE: float = 49900.0
 TALENT_PACK_CREDITS: int = 15
 TALENT_PACK_CURRENCY: str = "ARS"
+
+
+def talent_pack_price() -> float:
+    """Ídem `featured_job_price`, para el pack de la Base de Talento."""
+    if settings.TALENT_PACK_PRICE is not None:
+        return float(settings.TALENT_PACK_PRICE)
+    return _TALENT_PACK_PRICE_BASE
 
 class PlanCreate(BaseModel):
     code: str

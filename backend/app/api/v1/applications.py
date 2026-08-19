@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
@@ -24,8 +25,8 @@ from app.schemas.documents import SignedDocumentLink
 from app.integrations.cloudinary_client import signed_document_url
 from app.services.notifications import create_notification
 from app.services.profile_completion import (
-    compute_profile_completion, compute_profile_completion_for_candidate,
-    should_send_completion_reminder,
+    compute_profile_completion, compute_profile_completion_bulk,
+    compute_profile_completion_for_candidate, should_send_completion_reminder,
 )
 from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, franja_edad_de, franja_experiencia_de,
@@ -284,9 +285,11 @@ async def list_job_applications(
 
         rows = [(app, candidate) for app, candidate in rows if _en_rango(candidate.id)]
 
+    completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
+
     enriched = []
     for app, candidate in rows:
-        completion_percent = (await compute_profile_completion_for_candidate(db, candidate)).percent
+        completion_percent = completions[candidate.id].percent
         enriched.append(
             ApplicationWithCandidateResponse(
                 id=app.id,
@@ -331,6 +334,46 @@ async def job_applicant_stats(
         await db.execute(select(Application.candidate_id).where(Application.job_posting_id == job.id))
     ).scalars().all()
     return await compute_applicant_stats(db, candidate_ids)
+
+
+class CompanyApplicationCounts(BaseModel):
+    """Conteos de postulaciones de la empresa, agregados en la base.
+
+    Existen porque la pantalla de Estadísticas los armaba pidiendo la lista completa de
+    postulantes de **cada** búsqueda y contando en el navegador: un request por búsqueda, y
+    cada uno disparaba su propio N+1. Dos `GROUP BY` dan lo mismo en dos consultas."""
+    total: int
+    by_status: dict[str, int]
+    by_job: dict[uuid.UUID, int]
+
+
+@router.get("/me/company/applications/counts", response_model=CompanyApplicationCounts)
+async def company_application_counts(
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    base = (
+        select(Application.status, func.count(Application.id))
+        .join(JobPosting, Application.job_posting_id == JobPosting.id)
+        .where(JobPosting.company_id == company.id)
+    )
+    por_estado = {
+        str(estado): int(n) for estado, n in (await db.execute(base.group_by(Application.status))).all()
+    }
+    por_busqueda = {
+        job_id: int(n)
+        for job_id, n in (
+            await db.execute(
+                select(Application.job_posting_id, func.count(Application.id))
+                .join(JobPosting, Application.job_posting_id == JobPosting.id)
+                .where(JobPosting.company_id == company.id)
+                .group_by(Application.job_posting_id)
+            )
+        ).all()
+    }
+    return CompanyApplicationCounts(
+        total=sum(por_estado.values()), by_status=por_estado, by_job=por_busqueda
+    )
 
 
 @router.get("/me/company/applications/stats", response_model=ApplicantStats)

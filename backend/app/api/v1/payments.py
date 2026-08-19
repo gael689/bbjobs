@@ -10,7 +10,7 @@ from app.models.job import JobPosting, JobPostingStatus
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.schemas.payment import (
     PaymentCheckoutResponse, FeatureStatusResponse, FeatureHistoryItem,
-    FEATURED_JOB_PRICE, FEATURED_JOB_CURRENCY,
+    featured_job_price, FEATURED_JOB_CURRENCY,
 )
 from app.integrations.mercado_pago import create_preference
 
@@ -53,7 +53,7 @@ async def feature_job(
     payment = Payment(
         company_id=company.id,
         type=PaymentType.job_feature,
-        amount=FEATURED_JOB_PRICE,
+        amount=featured_job_price(),
         currency=FEATURED_JOB_CURRENCY,
     )
     db.add(payment)
@@ -70,7 +70,7 @@ async def feature_job(
     success_url = f"{settings.FRONTEND_URL}/dashboard/company/pagos?payment_id={payment.id}&job_id={job.id}"
     init_point = create_preference(
         title=f"Destacar búsqueda: {job.title}",
-        price=FEATURED_JOB_PRICE,
+        price=featured_job_price(),
         external_reference=str(payment.id),
         success_url=success_url,
     )

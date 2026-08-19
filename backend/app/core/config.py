@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str | None = None
     CLOUDINARY_API_SECRET: str | None = None
     
+    # Precios de prueba. Sirven para hacer un cobro real de monto bajo sin tocar el código:
+    # se cargan como variable en Railway, se prueba, y para volver al precio de verdad se
+    # **borra la variable**. Antes esto obligaba a editar la constante en el backend y sus dos
+    # espejos del frontend, deployar, y acordarse de revertir los tres — y si se revertía mal,
+    # la empresa veía un precio y se le cobraba otro.
+    # Dejar en None en operación normal.
+    TALENT_PACK_PRICE: float | None = None
+    FEATURED_JOB_PRICE: float | None = None
+
     MP_ACCESS_TOKEN: str | None = None
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None

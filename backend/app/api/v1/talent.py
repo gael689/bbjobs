@@ -14,7 +14,7 @@ Tres reglas que valen para todo el módulo:
 """
 import datetime
 import uuid
-from typing import List, Optional
+from typing import Dict, List, Optional, Sequence, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -37,13 +37,18 @@ from app.models.payment import (
 )
 from app.schemas.candidate import calculate_age
 from app.schemas.payment import (
-    TALENT_PACK_CREDITS, TALENT_PACK_CURRENCY, TALENT_PACK_PRICE,
+    TALENT_PACK_CREDITS, TALENT_PACK_CURRENCY, talent_pack_price,
 )
 from app.services.applicant_stats import anios_de_experiencia
 from app.services.notifications import create_notification
 from app.services.profile_completion import compute_profile_completion
 
 router = APIRouter()
+
+# Techo del único camino que no puede paginar en SQL (ver search_talent): cuántos candidatos se
+# traen como máximo cuando la empresa filtra por años de experiencia. Con 128 perfiles en la base
+# sobra; está para que la consulta tenga un límite conocido y no para ajustarlo hacia arriba.
+_TOPE_FILTRO_EXPERIENCIA = 2000
 
 
 # ─────────────────────────────── schemas ────────────────────────────────
@@ -185,109 +190,146 @@ async def _ids_desbloqueados(db: AsyncSession, company_id: uuid.UUID) -> set[uui
     return {row[0] for row in result.all()}
 
 
+async def _armar_perfiles(
+    db: AsyncSession, perfiles: Sequence[CandidateProfile], *, desbloqueados: Set[uuid.UUID]
+) -> List[TalentProfile]:
+    """Arma una página entera de perfiles con un número fijo de consultas.
+
+    Antes esto era una función por perfil y cada llamada pedía por separado experiencias,
+    educaciones, habilidades, idiomas, la zona y el mail: 6 idas a la base por candidato, o sea
+    300 para una página de 50. Acá todo sale con `IN (…)` sobre los ids de la página.
+
+    Las zonas se traen enteras y se resuelven con un diccionario: el catálogo tiene 6 filas, así
+    que una consulta para todas sale más barato que preguntar la de cada candidato — y ni
+    siquiera hace falta saber cuáles se usan."""
+    if not perfiles:
+        return []
+
+    ids = [p.id for p in perfiles]
+
+    experiencias: Dict[uuid.UUID, List[Experience]] = {}
+    for e in (
+        await db.execute(
+            select(Experience)
+            .where(Experience.candidate_id.in_(ids))
+            .order_by(Experience.start_date.desc())
+        )
+    ).scalars().all():
+        experiencias.setdefault(e.candidate_id, []).append(e)
+
+    educaciones: Dict[uuid.UUID, List[Education]] = {}
+    for e in (
+        await db.execute(
+            select(Education)
+            .where(Education.candidate_id.in_(ids))
+            .order_by(Education.start_date.desc())
+        )
+    ).scalars().all():
+        educaciones.setdefault(e.candidate_id, []).append(e)
+
+    habilidades: Dict[uuid.UUID, List[str]] = {}
+    for cid, nombre in (
+        await db.execute(
+            select(CandidateSkill.candidate_id, Skill.name)
+            .join(Skill, Skill.id == CandidateSkill.skill_id)
+            .where(CandidateSkill.candidate_id.in_(ids))
+            .order_by(Skill.category.asc(), Skill.sort_order.asc())
+        )
+    ).all():
+        habilidades.setdefault(cid, []).append(nombre)
+
+    idiomas: Dict[uuid.UUID, List[str]] = {}
+    for l in (
+        await db.execute(select(Language).where(Language.candidate_id.in_(ids)))
+    ).scalars().all():
+        idiomas.setdefault(l.candidate_id, []).append(f"{l.language_name} · {str(l.level)}")
+
+    zonas = dict((await db.execute(select(Zone.id, Zone.name))).all())
+
+    # El mail sólo aparece del lado desbloqueado, así que si la página no tiene ninguno la
+    # consulta ni se hace.
+    user_ids = [p.user_id for p in perfiles if p.id in desbloqueados]
+    mails = (
+        dict((await db.execute(select(User.id, User.email).where(User.id.in_(user_ids)))).all())
+        if user_ids
+        else {}
+    )
+
+    resultados: List[TalentProfile] = []
+    for profile in perfiles:
+        unlocked = profile.id in desbloqueados
+        exps = experiencias.get(profile.id, [])
+        edus = educaciones.get(profile.id, [])
+        habs = habilidades.get(profile.id, [])
+        idis = idiomas.get(profile.id, [])
+
+        datos = TalentProfile(
+            id=profile.id,
+            reference=_referencia(profile.id),
+            unlocked=unlocked,
+            age=calculate_age(profile.birth_date),
+            gender=profile.gender,
+            zone_name=zonas.get(profile.location_zone_id) if profile.location_zone_id else None,
+            availability=profile.availability,
+            immediate_availability=profile.immediate_availability,
+            has_own_transport=profile.has_own_transport,
+            accepts_remote=profile.accepts_remote,
+            accepts_hybrid=profile.accepts_hybrid,
+            accepts_onsite=profile.accepts_onsite,
+            years_of_experience=round(anios_de_experiencia(exps), 1) if exps else 0.0,
+            has_cv=bool(profile.cv_file_url),
+            completion_percent=compute_profile_completion(
+                profile,
+                has_experience=bool(exps),
+                has_education=bool(edus),
+                has_skills=bool(habs),
+                has_languages=bool(idis),
+            ).percent,
+            experience=[
+                BlindExperience(
+                    role_title=e.role_title,
+                    months=_meses(e),
+                    company_name=e.company_name if unlocked else None,
+                    description=e.description if unlocked else None,
+                )
+                for e in exps
+            ],
+            education=[
+                BlindEducation(
+                    level=str(e.level),
+                    degree=e.degree,
+                    status=str(e.status),
+                    institution=e.institution if unlocked else None,
+                )
+                for e in edus
+            ],
+            skills=habs,
+            languages=idis,
+            other_skill=profile.other_skill,
+        )
+
+        if unlocked:
+            datos.first_name = profile.first_name
+            datos.last_name = profile.last_name
+            datos.phone = profile.phone
+            datos.email = mails.get(profile.user_id)
+            datos.photo_url = profile.photo_url
+            datos.cv_file_url = profile.cv_file_url
+            datos.summary = profile.summary
+
+        resultados.append(datos)
+
+    return resultados
+
+
 async def _armar_perfil(
     db: AsyncSession, profile: CandidateProfile, *, unlocked: bool
 ) -> TalentProfile:
-    experiencias = list(
-        (
-            await db.execute(
-                select(Experience)
-                .where(Experience.candidate_id == profile.id)
-                .order_by(Experience.start_date.desc())
-            )
-        ).scalars().all()
-    )
-    educaciones = list(
-        (
-            await db.execute(
-                select(Education)
-                .where(Education.candidate_id == profile.id)
-                .order_by(Education.start_date.desc())
-            )
-        ).scalars().all()
-    )
-    habilidades = [
-        s.name
-        for s in (
-            await db.execute(
-                select(Skill)
-                .join(CandidateSkill, CandidateSkill.skill_id == Skill.id)
-                .where(CandidateSkill.candidate_id == profile.id)
-                .order_by(Skill.category.asc(), Skill.sort_order.asc())
-            )
-        ).scalars().all()
-    ]
-    idiomas = [
-        f"{l.language_name} · {str(l.level)}"
-        for l in (
-            await db.execute(select(Language).where(Language.candidate_id == profile.id))
-        ).scalars().all()
-    ]
-
-    zona = None
-    if profile.location_zone_id:
-        zona = (
-            await db.execute(select(Zone.name).where(Zone.id == profile.location_zone_id))
-        ).scalar_one_or_none()
-
-    datos = TalentProfile(
-        id=profile.id,
-        reference=_referencia(profile.id),
-        unlocked=unlocked,
-        age=calculate_age(profile.birth_date),
-        gender=profile.gender,
-        zone_name=zona,
-        availability=profile.availability,
-        immediate_availability=profile.immediate_availability,
-        has_own_transport=profile.has_own_transport,
-        accepts_remote=profile.accepts_remote,
-        accepts_hybrid=profile.accepts_hybrid,
-        accepts_onsite=profile.accepts_onsite,
-        years_of_experience=round(anios_de_experiencia(experiencias), 1) if experiencias else 0.0,
-        has_cv=bool(profile.cv_file_url),
-        completion_percent=compute_profile_completion(
-            profile,
-            has_experience=bool(experiencias),
-            has_education=bool(educaciones),
-            has_skills=bool(habilidades),
-            has_languages=bool(idiomas),
-        ).percent,
-        experience=[
-            BlindExperience(
-                role_title=e.role_title,
-                months=_meses(e),
-                company_name=e.company_name if unlocked else None,
-                description=e.description if unlocked else None,
-            )
-            for e in experiencias
-        ],
-        education=[
-            BlindEducation(
-                level=str(e.level),
-                degree=e.degree,
-                status=str(e.status),
-                institution=e.institution if unlocked else None,
-            )
-            for e in educaciones
-        ],
-        skills=habilidades,
-        languages=idiomas,
-        other_skill=profile.other_skill,
-    )
-
-    if unlocked:
-        email = (
-            await db.execute(select(User.email).where(User.id == profile.user_id))
-        ).scalar_one_or_none()
-        datos.first_name = profile.first_name
-        datos.last_name = profile.last_name
-        datos.phone = profile.phone
-        datos.email = email
-        datos.photo_url = profile.photo_url
-        datos.cv_file_url = profile.cv_file_url
-        datos.summary = profile.summary
-
-    return datos
+    """Un perfil suelto — el de la ficha y el del desbloqueo. Delega en la versión por lote para
+    que el armado del perfil ciego (qué se tapa y qué no) exista en un solo lugar."""
+    return (
+        await _armar_perfiles(db, [profile], desbloqueados={profile.id} if unlocked else set())
+    )[0]
 
 
 def _base_query():
@@ -310,7 +352,7 @@ async def get_talent_credits(
         credits_total=total,
         credits_used=usados,
         credits_available=max(0, total - usados),
-        pack_price=TALENT_PACK_PRICE,
+        pack_price=talent_pack_price(),
         pack_credits=TALENT_PACK_CREDITS,
         currency=TALENT_PACK_CURRENCY,
     )
@@ -358,7 +400,7 @@ async def buy_talent_pack(
     payment = Payment(
         company_id=company.id,
         type=PaymentType.talent_pack,
-        amount=TALENT_PACK_PRICE,
+        amount=talent_pack_price(),
         currency=TALENT_PACK_CURRENCY,
         related_talent_pack_id=pack.id,
     )
@@ -367,7 +409,7 @@ async def buy_talent_pack(
 
     init_point = create_preference(
         title=f"BBJobs — Base de Talento: {TALENT_PACK_CREDITS} desbloqueos",
-        price=TALENT_PACK_PRICE,
+        price=talent_pack_price(),
         external_reference=str(payment.id),
         success_url=f"{settings.FRONTEND_URL}/dashboard/company/talento?payment_id={payment.id}",
     )
@@ -437,12 +479,23 @@ async def search_talent(
             )
         query = query.where(CandidateProfile.id.in_(desbloqueados))
 
-    perfiles = list((await db.execute(query)).scalars().all())
+    # Orden explícito y con desempate por id: sin un ORDER BY estable, dos páginas consecutivas
+    # pueden traer al mismo candidato o saltearse otro, porque Postgres no garantiza que el
+    # OFFSET recorra las filas siempre en el mismo orden.
+    query = query.order_by(CandidateProfile.created_at.desc(), CandidateProfile.id.asc())
 
-    # Años de experiencia: se filtra en Python porque la fusión de tramos superpuestos no se
-    # puede expresar en SQL sin duplicar la lógica de applicant_stats (dos trabajos simultáneos
-    # no suman el doble). Se traen las experiencias de todos los candidatos de una sola vez.
     if experience_min is not None or experience_max is not None:
+        # Los años de experiencia salen de fusionar tramos superpuestos (dos trabajos
+        # simultáneos no suman el doble, ver applicant_stats) y eso no se expresa como una
+        # condición SQL. Este es el único camino donde hay que traer los candidatos, calcular y
+        # recién ahí cortar la página en memoria.
+        #
+        # El tope existe para que la consulta tenga un techo conocido igual: el día que la base
+        # sea más grande que esto, el filtro de experiencia deja de ser confiable y hay que
+        # bajar el cálculo a la base (una columna derivada o una vista materializada), no subir
+        # el número.
+        perfiles = list((await db.execute(query.limit(_TOPE_FILTRO_EXPERIENCIA))).scalars().all())
+
         exps_por_candidato: dict[uuid.UUID, list[Experience]] = {}
         if perfiles:
             todas = (
@@ -464,13 +517,21 @@ async def search_talent(
             return True
 
         perfiles = [p for p in perfiles if _en_rango(p)]
+        total_resultados = len(perfiles)
+        pagina = perfiles[offset : offset + limit]
+    else:
+        # El camino normal: la base cuenta y corta. Antes traía todos los perfiles siempre y
+        # descartaba en Python los que no entraban en la página.
+        total_resultados = int(
+            (
+                await db.execute(
+                    select(func.count()).select_from(query.order_by(None).subquery())
+                )
+            ).scalar() or 0
+        )
+        pagina = list((await db.execute(query.offset(offset).limit(limit))).scalars().all())
 
-    total_resultados = len(perfiles)
-    pagina = perfiles[offset : offset + limit]
-
-    resultados = [
-        await _armar_perfil(db, p, unlocked=p.id in desbloqueados) for p in pagina
-    ]
+    resultados = await _armar_perfiles(db, pagina, desbloqueados=desbloqueados)
 
     total, usados = await _saldo(db, company.id)
     return TalentSearchResponse(

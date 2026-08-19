@@ -8,7 +8,7 @@ from app.models.job import JobPosting, JobPostingStatus
 from app.services.notifications import create_notification
 from app.services.job_features import end_active_feature_for_job
 from app.services.profile_completion import (
-    compute_profile_completion_for_candidate, should_send_completion_reminder,
+    compute_profile_completion_bulk, should_send_completion_reminder,
 )
 import datetime
 
@@ -110,11 +110,17 @@ async def send_profile_reminders():
     logger.info("running_job_send_profile_reminders")
     async with async_session_maker() as db:
         res = await db.execute(select(CandidateProfile))
-        candidates = res.scalars().all()
+        candidates = list(res.scalars().all())
+
+        # Acá no hay pantalla que paginar: la tarea los recorre a todos por definición, así que
+        # la única forma de que no crezca con la base es resolver la completitud de una sola vez.
+        # De a uno eran 4 consultas por candidato — 573 en la corrida de hoy, y ~20.000 con 5.000
+        # candidatos, todas las noches.
+        completions = await compute_profile_completion_bulk(db, candidates)
 
         sent = 0
         for candidate in candidates:
-            completion = await compute_profile_completion_for_candidate(db, candidate)
+            completion = completions[candidate.id]
             if should_send_completion_reminder(candidate, completion.percent):
                 await create_notification(
                     db,
