@@ -18,7 +18,15 @@ export async function abrirCv(endpoint: string, opts?: { descargar?: boolean }) 
 
   // La pestaña se abre ANTES del await: si se abriera después, el navegador ya no la asocia
   // al click del usuario y el bloqueador de popups la mata.
-  const pestana = descargar ? null : window.open("", "_blank", "noopener");
+  //
+  // ⚠️ Sin `noopener`, y es a propósito: con esa feature `window.open()` **devuelve null**
+  // por especificación (justamente para que quien abre no pueda tocar la ventana nueva). O
+  // sea que `pestana` quedaba siempre en null, la pestaña en blanco se abría igual pero
+  // ingobernable, y el código caía al fallback del <a> — que después del await ya no cuenta
+  // como gesto del usuario y el bloqueador lo mata. Resultado: pestaña en blanco y ningún
+  // CV, que es exactamente lo que reportó Eugenia. Descargar andaba porque no pasa por acá.
+  // La relación con el opener se corta a mano abajo, antes de navegar.
+  const pestana = descargar ? null : window.open("", "_blank");
 
   try {
     const r = await api.get(endpoint, { params: { attachment: descargar } });
@@ -32,6 +40,11 @@ export async function abrirCv(endpoint: string, opts?: { descargar?: boolean }) 
     }
 
     if (pestana) {
+      // Se corta el vínculo con el opener **antes** de navegar, mientras la pestaña sigue
+      // siendo `about:blank` y del mismo origen: una vez que apunta a Cloudinary es otro
+      // origen y tocarle propiedades se vuelve terreno resbaladizo. Esto es lo que daba
+      // `noopener` sin el efecto de que `window.open` devuelva null.
+      pestana.opener = null;
       pestana.location.href = url;
       return;
     }
