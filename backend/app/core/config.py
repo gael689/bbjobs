@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     TALENT_PACK_PRICE: float | None = None
     FEATURED_JOB_PRICE: float | None = None
 
+    # A dónde le decimos a Mercado Pago que mande los avisos de pago. Se manda en CADA
+    # preferencia; si queda vacía, MP usa lo que esté configurado en el panel (o nada).
+    # En Railway se deduce sola de RAILWAY_PUBLIC_DOMAIN — está sólo para poder pisarla.
+    MP_NOTIFICATION_URL: str | None = None
+    RAILWAY_PUBLIC_DOMAIN: str | None = None
+
     MP_ACCESS_TOKEN: str | None = None
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None

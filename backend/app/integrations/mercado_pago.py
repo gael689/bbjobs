@@ -11,12 +11,31 @@ def get_mp_client():
         return None
     return mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
+def notification_url() -> str | None:
+    """A dónde tiene que avisar Mercado Pago cuando se paga.
+
+    Va en **cada preferencia**, no sólo configurada en el panel. Los dos mecanismos existen y
+    conviene tener los dos: el panel es global y se puede desconfigurar sin que nadie se
+    entere — de hecho pasó, y estuvimos con `mp_webhook_events` vacía sin saber si el problema
+    era el pago o el aviso. Mandarla en la preferencia hace que el circuito no dependa de un
+    estado que vive fuera del repositorio.
+
+    En Railway sale sola de `RAILWAY_PUBLIC_DOMAIN`. En local devuelve None: MP no puede
+    notificar a localhost, así que mandar una URL inalcanzable sólo generaría reintentos.
+    """
+    if settings.MP_NOTIFICATION_URL:
+        return settings.MP_NOTIFICATION_URL
+    if settings.RAILWAY_PUBLIC_DOMAIN:
+        return f"https://{settings.RAILWAY_PUBLIC_DOMAIN}/api/v1/webhooks/mercado-pago"
+    return None
+
+
 def create_preference(title: str, price: float, external_reference: str, success_url: str):
     sdk = get_mp_client()
     if not sdk:
         logger.warning("MercadoPago no configurado. Simulando URL.")
         return "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=mock_123"
-        
+
     preference_data = {
         "items": [
             {
@@ -34,10 +53,19 @@ def create_preference(title: str, price: float, external_reference: str, success
         },
         "auto_return": "approved",
     }
-    
+
+    aviso = notification_url()
+    if aviso:
+        preference_data["notification_url"] = aviso
+
     try:
         preference_response = sdk.preference().create(preference_data)
         preference = preference_response["response"]
+        logger.info(
+            "mp_preference_creada",
+            external_reference=external_reference,
+            notification_url=aviso or "(sin URL — se usa la del panel)",
+        )
         return preference["init_point"]
     except Exception as e:
         logger.error("mp_preference_error", error=str(e))
