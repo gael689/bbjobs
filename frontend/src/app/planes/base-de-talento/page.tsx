@@ -70,8 +70,8 @@ export default function BaseDeTalentoInfoPage() {
             {
               n: "1",
               icono: MagnifyingGlassIcon,
-              titulo: "Buscá gratis",
-              texto: "Recorré la base entera y filtrá por puesto, experiencia, edad y zona. Mirar perfiles no consume nada.",
+              titulo: "Explorá gratis",
+              texto: "Explorá toda la base y filtrá por puesto, experiencia y zona. Ver perfiles no consume contactos.",
             },
             {
               n: "2",
@@ -82,8 +82,8 @@ export default function BaseDeTalentoInfoPage() {
             {
               n: "3",
               icono: LockOpenIcon,
-              titulo: "Desbloqueá al que te sirva",
-              texto: "Accedés a su nombre, teléfono, mail y CV. Queda tuyo para siempre.",
+              titulo: "Usá un contacto",
+              texto: "Accedés a su nombre, teléfono, mail y CV. Queda disponible en tu cuenta.",
             },
           ].map(paso => {
             const Icono = paso.icono;
@@ -110,8 +110,8 @@ export default function BaseDeTalentoInfoPage() {
             El mismo candidato, antes y después
           </h2>
           <p className="text-[#64748B] mb-7 max-w-2xl">
-            Un ejemplo con datos ficticios, para que veas exactamente qué cambia cuando gastás un
-            desbloqueo.
+            Un ejemplo con datos ficticios, para que veas exactamente qué cambia cuando usás un
+            contacto.
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-5 items-start">
@@ -159,7 +159,7 @@ export default function BaseDeTalentoInfoPage() {
             <article className="bg-white border-2 border-[#9ED4DF] rounded-2xl p-6">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-[#E6F4F7] text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full mb-5">
                 <LockOpenIcon className="w-3.5 h-3.5" />
-                Desbloqueado · 1 crédito
+                Desbloqueado · 1 contacto
               </span>
               <div className="flex items-start gap-3 mb-5">
                 <div className="w-12 h-12 rounded-full bg-[#E6F4F7] flex items-center justify-center shrink-0 font-display font-extrabold text-[#1E8EA3]">
@@ -244,7 +244,7 @@ export default function BaseDeTalentoInfoPage() {
             </Razon>
             <Razon titulo="El «85% completo» sí se ve">
               Te dice cuánta información vas a encontrar del otro lado <strong className="text-[#1C2230]">antes</strong> de
-              gastar el desbloqueo. Así nadie paga por un perfil casi vacío.
+              usar el contacto. Así nadie paga por un perfil casi vacío.
             </Razon>
           </div>
         </section>
@@ -275,9 +275,9 @@ export default function BaseDeTalentoInfoPage() {
           <p className="font-display font-extrabold text-white text-4xl md:text-5xl tracking-tight mb-2">
             ${TALENT_PACK_PRICE.toLocaleString("es-AR")}
           </p>
-          <p className="text-[#9ED4DF] mb-1">{TALENT_PACK_CREDITS} desbloqueos · sin vencimiento</p>
+          <p className="text-[#9ED4DF] mb-1">{TALENT_PACK_CREDITS} contactos · sin vencimiento</p>
           <p className="text-white/60 text-sm mb-7 max-w-md mx-auto">
-            Los usás cuando quieras. Lo que desbloqueás queda tuyo para siempre.
+            Los usás cuando quieras. Los contactos desbloqueados quedan en tu cuenta.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Link

@@ -60,9 +60,11 @@ const AVAILABILITY_LABEL: Record<string, string> = {
   full_time: "Full-time", part_time: "Part-time", ambos: "Full o part-time",
 };
 
+type Zona = { id: string; name: string };
+
 const EMPTY_FILTERS = {
   position: "", age_min: "", age_max: "",
-  experience_min: "", experience_max: "", only_unlocked: false,
+  experience_min: "", experience_max: "", zone_id: "", only_unlocked: false,
 };
 
 function duracion(meses: number): string {
@@ -84,6 +86,7 @@ export default function BaseDeTalentoPage() {
   const [confirmando, setConfirmando] = useState<TalentProfile | null>(null);
   const [desbloqueando, setDesbloqueando] = useState(false);
   const [comprando, setComprando] = useState(false);
+  const [zonas, setZonas] = useState<Zona[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
   function avisar(msg: string) {
@@ -98,6 +101,7 @@ export default function BaseDeTalentoPage() {
     if (f.age_max) params.age_max = f.age_max;
     if (f.experience_min) params.experience_min = f.experience_min;
     if (f.experience_max) params.experience_max = f.experience_max;
+    if (f.zone_id) params.zone_id = f.zone_id;
     if (f.only_unlocked) params.only_unlocked = true;
     return params;
   }
@@ -120,6 +124,7 @@ export default function BaseDeTalentoPage() {
 
   useEffect(() => {
     api.get("/me/company/talent/credits").then(r => setCredits(r.data)).catch(() => {});
+    api.get("/catalogs/zones").then(r => setZonas(r.data)).catch(() => {});
     api.get("/me/company/talent")
       .then(aplicar)
       .catch(() => avisar("No pudimos cargar la Base de Talento."))
@@ -165,7 +170,7 @@ export default function BaseDeTalentoPage() {
       <h1 className="font-display font-extrabold text-2xl text-[#1C2230] mb-1">Base de Talento</h1>
       <p className="text-[#64748B] text-sm mb-6">
         Buscá entre todos los candidatos que autorizaron aparecer acá, aunque no se hayan postulado
-        a tus búsquedas. Mirar es gratis — el crédito se usa sólo al desbloquear el contacto.
+        a tus búsquedas. Ver perfiles es gratis — usás un contacto sólo cuando decidís desbloquear a alguien.
       </p>
 
       {/* ── Saldo y compra ── */}
@@ -178,7 +183,7 @@ export default function BaseDeTalentoPage() {
             {credits ? (
               <>
                 <p className="font-display font-extrabold text-xl text-[#1C2230] leading-tight">
-                  {credits.credits_available} {credits.credits_available === 1 ? "desbloqueo" : "desbloqueos"} disponibles
+                  {credits.credits_available} {credits.credits_available === 1 ? "contacto" : "contactos"} disponibles
                 </p>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   {credits.credits_total > 0
@@ -200,7 +205,7 @@ export default function BaseDeTalentoPage() {
           {comprando
             ? "Abriendo Mercado Pago…"
             : credits
-              ? `Comprar ${credits.pack_credits} desbloqueos — $${credits.pack_price.toLocaleString("es-AR")}`
+              ? `Comprar ${credits.pack_credits} contactos — $${credits.pack_price.toLocaleString("es-AR")}`
               : "Comprar pack"}
         </button>
       </div>
@@ -235,6 +240,14 @@ export default function BaseDeTalentoPage() {
             onChange={e => setFilters(f => ({ ...f, experience_min: e.target.value }))}
             className="border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
           />
+          <select
+            value={filters.zone_id}
+            onChange={e => setFilters(f => ({ ...f, zone_id: e.target.value }))}
+            className="border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Todas las zonas</option>
+            {zonas.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
         </div>
         <div className="flex flex-wrap items-center gap-3 mt-3">
           <button type="submit" className="text-xs font-bold bg-[#1E8EA3] text-white rounded-lg px-4 py-2 hover:bg-[#187B8E] transition-colors">
@@ -422,7 +435,7 @@ function TarjetaPerfil({
         {!perfil.unlocked && (
           <button
             type="button" onClick={onDesbloquear} disabled={sinCreditos}
-            title={sinCreditos ? "No te quedan desbloqueos" : undefined}
+            title={sinCreditos ? "No te quedan contactos" : undefined}
             className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors"
           >
             <LockClosedIcon className="w-3.5 h-3.5" />
@@ -471,14 +484,14 @@ function ModalPerfil({
               <p className="text-sm font-bold text-[#1C2230] mb-0.5">Perfil sin desbloquear</p>
               <p className="text-xs text-[#64748B] mb-3">
                 Están ocultos el nombre, la foto, el teléfono, el mail, el CV y dónde trabajó.
-                Desbloquear usa 1 de tus desbloqueos y es para siempre.
+                Usa 1 de tus contactos, y queda desbloqueado para siempre.
               </p>
               <button
                 type="button" onClick={onDesbloquear} disabled={sinCreditos}
                 className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
               >
                 <LockOpenIcon className="w-4 h-4" />
-                {sinCreditos ? "No te quedan desbloqueos" : "Desbloquear contacto"}
+                {sinCreditos ? "No te quedan contactos" : "Desbloquear contacto"}
               </button>
             </div>
           </div>
@@ -590,7 +603,7 @@ function ModalConfirmar({
           Vas a ver su nombre, teléfono, mail, foto y CV completo.
         </p>
         <p className="text-sm text-[#64748B] mb-4">
-          Usa <strong className="text-[#1C2230]">1 desbloqueo</strong> y te quedan{" "}
+          Usa <strong className="text-[#1C2230]">1 contacto</strong> y te quedan{" "}
           <strong className="text-[#1C2230]">{Math.max(0, restantes - 1)}</strong>. Queda desbloqueado
           para siempre — volver a abrirlo no cuesta nada.
         </p>

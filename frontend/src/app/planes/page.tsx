@@ -38,8 +38,8 @@ const PLANES: Plan[] = [
     incluye: [
       "Búsquedas ilimitadas",
       "Postulaciones sin límite",
-      "Perfil y CV de quienes se postulan",
-      "Filtros por edad, experiencia y puesto",
+      "Acceso al perfil y CV de quienes se postulan",
+      "Filtros por experiencia, puesto y zona",
       "Estadísticas de tus búsquedas",
     ],
     cta: "Crear cuenta de empresa",
@@ -52,31 +52,30 @@ const PLANES: Plan[] = [
     icono: StarIcon,
     resumen: "Para una búsqueda urgente o difícil de cubrir.",
     incluye: [
-      "Tu aviso arriba de los resultados",
-      "Resaltado entre los demás",
-      "Dura lo que dure la búsqueda",
-      "Sin renovaciones ni vencimientos",
-      "Prioridad de revisión de Talency",
+      "Tu aviso aparece primero en los resultados",
+      "Mayor visibilidad frente a otras búsquedas",
+      "Se mantiene destacado mientras la búsqueda esté activa",
+      "Pago único, sin renovaciones",
     ],
-    cta: "Empezar",
+    cta: "Destacar búsqueda",
   },
   {
     nombre: "Base de Talento",
     precio: pesos(TALENT_PACK_PRICE),
     moneda: true,
-    unidad: `${TALENT_PACK_CREDITS} desbloqueos`,
+    unidad: `${TALENT_PACK_CREDITS} contactos`,
     icono: UserGroupIcon,
     destacado: true,
     resumen: "No esperes a que se postulen: buscá vos.",
     incluye: [
-      "Buscá en toda la base de candidatos",
-      "Filtrá por puesto, experiencia, edad y zona",
-      "Mirar perfiles no consume desbloqueos",
-      `${TALENT_PACK_CREDITS} contactos para usar cuando quieras`,
-      "Lo que desbloqueás queda tuyo para siempre",
-      "Sin vencimiento",
+      "Explorá toda la base de candidatos",
+      "Filtrá por puesto, experiencia y zona",
+      "Ver perfiles no consume contactos",
+      "Usás 1 contacto solo cuando decidís desbloquearlo",
+      "Los contactos desbloqueados quedan disponibles en tu cuenta",
+      `Tus ${TALENT_PACK_CREDITS} contactos no vencen`,
     ],
-    cta: "Empezar",
+    cta: "Acceder a la base",
   },
 ];
 
@@ -89,12 +88,14 @@ export default function PlanesPage() {
           <span className="inline-block text-xs font-bold text-[#1E8EA3] uppercase tracking-[0.18em] mb-5">
             Planes y precios
           </span>
+          {/* El título no repite "es gratis" porque la bajada de Eugenia ya abre con eso.
+              Acá enmarca, la bajada informa. */}
           <h1 className="font-display font-extrabold text-4xl md:text-[52px] text-[#1C2230] leading-[1.08] tracking-tight mb-5 text-balance">
-            Publicar es gratis.<br />Siempre lo fue.
+            Buscá personal<br />a tu ritmo.
           </h1>
           <p className="text-lg text-[#64748B] leading-relaxed">
-            Toda empresa verificada publica búsquedas y ve a quienes se postulan sin pagar nada.
-            Lo de abajo es para cuando querés ir a buscar vos.
+            Publicar búsquedas en BBJobs es gratis. Solo pagás si querés darles más visibilidad
+            o acceder directamente a nuestra base de talento.
           </p>
         </header>
 

@@ -17,6 +17,7 @@ import {
 
 export default function CompanyPostulacionesPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [zonas, setZonas] = useState<{ id: string; name: string }[]>([]);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [currentApps, setCurrentApps] = useState<Application[]>([]);
@@ -46,6 +47,7 @@ export default function CompanyPostulacionesPage() {
     if (f.position?.trim()) params.position = f.position.trim();
     if (f.experience_min) params.experience_min = f.experience_min;
     if (f.experience_max) params.experience_max = f.experience_max;
+    if (f.zone_id) params.zone_id = f.zone_id;
     return params;
   }
 
@@ -75,6 +77,7 @@ export default function CompanyPostulacionesPage() {
     // Se pide el perfil antes de disparar el resto: ver postulantes sigue exigiendo empresa
     // verificada (a diferencia de publicar, ver A2 del plan del 14/08) y sin esto se dispara
     // un pedido que siempre da 403 para una empresa sin verificar.
+    api.get("/catalogs/zones").then(r => setZonas(r.data)).catch(() => {});
     Promise.all([
       api.get("/me/company/profile").then(r => r.data as CompanyProfile).catch(() => null),
       api.get("/me/company/jobs").then(r => r.data as JobPosting[]).catch(() => []),
@@ -98,7 +101,8 @@ export default function CompanyPostulacionesPage() {
   const hasActiveFilters = !!(
     filters.age_min || filters.age_max || filters.gender ||
     filters.has_own_transport || filters.availability || filters.immediate_availability ||
-    filters.position?.trim() || filters.experience_min || filters.experience_max
+    filters.position?.trim() || filters.experience_min || filters.experience_max ||
+    filters.zone_id
   );
 
   async function handleAppStatus(appId: string, status: string) {
@@ -202,6 +206,14 @@ export default function CompanyPostulacionesPage() {
                   onChange={e => setFilters(f => ({ ...f, experience_max: e.target.value }))}
                   className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
                 />
+                <select
+                  value={filters.zone_id}
+                  onChange={e => setFilters(f => ({ ...f, zone_id: e.target.value }))}
+                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                >
+                  <option value="">Zona (todas)</option>
+                  {zonas.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
                 <input
                   type="number" min={0} placeholder="Edad mín."
                   value={filters.age_min}

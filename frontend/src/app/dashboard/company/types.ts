@@ -122,11 +122,13 @@ export interface ApplicantFilters {
   position?: string;
   experience_min?: string;
   experience_max?: string;
+  zone_id?: string;
 }
 
 export const EMPTY_APPLICANT_FILTERS: ApplicantFilters = {
   age_min: "", age_max: "", gender: "", has_own_transport: "", availability: "",
   immediate_availability: false, position: "", experience_min: "", experience_max: "",
+  zone_id: "",
 };
 
 export interface Bucket {

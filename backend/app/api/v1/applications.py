@@ -216,6 +216,7 @@ async def list_job_applications(
     position: Optional[str] = Query(None, description="Busca en el puesto de la experiencia laboral"),
     experience_min: Optional[float] = Query(None, ge=0, description="Años de experiencia, mínimo"),
     experience_max: Optional[float] = Query(None, ge=0, description="Años de experiencia, máximo"),
+    zone_id: Optional[uuid.UUID] = Query(None, description="Zona donde vive el candidato"),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -246,6 +247,8 @@ async def list_job_applications(
     if age_max is not None:
         # edad <= age_max  <=>  nació después de "hoy - (age_max+1) años"
         query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
+    if zone_id is not None:
+        query = query.where(CandidateProfile.location_zone_id == zone_id)
     if position:
         # EXISTS, no JOIN: un candidato con 3 trabajos que coinciden no tiene que aparecer 3
         # veces en el resultado.
