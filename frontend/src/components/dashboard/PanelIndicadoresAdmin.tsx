@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { cargarTodasLasPaginas } from "@/hooks/useListaPaginada";
 import { ChartBarIcon } from "@heroicons/react/24/outline";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import { type ApplicantStats } from "@/app/dashboard/company/types";
@@ -39,8 +40,10 @@ export default function PanelIndicadoresAdmin() {
   const error = !cargando && resultado?.stats === null;
 
   useEffect(() => {
-    api.get("/admin/jobs")
-      .then(r => setJobs(r.data.map((j: JobOpcion) => ({ id: j.id, title: j.title }))))
+    // Todas las páginas: /admin/jobs pagina, y esto es un <select>. Si se quedara con la
+    // primera página, las búsquedas más nuevas no se podrían elegir para ver sus indicadores.
+    cargarTodasLasPaginas<JobOpcion>("/admin/jobs")
+      .then(js => setJobs(js.map(j => ({ id: j.id, title: j.title }))))
       .catch(() => {});
   }, []);
 

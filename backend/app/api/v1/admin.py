@@ -28,6 +28,7 @@ from app.models.settings import SettingKey
 from app.integrations.clerk_client import create_clerk_user
 from app.integrations.cloudinary_client import signed_document_url
 from app.schemas.candidate import calculate_age, CandidateFullProfile
+from app.schemas.common import Paginated, PageQuery, PageSizeQuery, contar, recortar
 from app.schemas.documents import SignedDocumentLink
 from app.schemas.contact import ContactMessageResponse
 from app.schemas.history import ApplicationStatusHistoryResponse, CandidateActivityLogResponse
@@ -254,12 +255,20 @@ async def get_dashboard_trends(
     return DashboardTrends(points=points)
 
 
-@router.get("/admin/companies", response_model=List[CompanyAdminResponse])
+@router.get("/admin/companies", response_model=Paginated[CompanyAdminResponse])
 async def list_companies(
     status: Optional[VerificationStatus] = Query(None),
+    page: int = PageQuery,
+    page_size: int = PageSizeQuery,
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
+    """Ojo: este listado tiene dos consumidores con necesidades opuestas. El panel de Empresas
+    lo pagina de a 20, pero el `<select>` de "asignar desbloqueos" (dashboard/admin/talento)
+    necesita **todas** las verificadas o hay empresas que no se pueden elegir. No se abre una
+    ruta de catálogo aparte para eso: ese consumidor recorre las páginas hasta juntar `total`
+    (cargarTodasLasPaginas en frontend/src/hooks/useListaPaginada.ts), así el tope de 100 sigue
+    valiendo para todos y no queda un endpoint sin techo que baje la tabla entera de una."""
     # JOIN con Industry para resolver el nombre del rubro — CompanyProfile sólo guarda el
     # UUID y no tiene relationship cargada, así que antes de esto el admin nunca veía el
     # rubro (ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, B1).
@@ -268,17 +277,23 @@ async def list_companies(
     )
     if status:
         q = q.where(CompanyProfile.verification_status == status)
-    # pending first, then by creation order
+    # Las pendientes primero (es lo que hay que atender), y de ahí las más nuevas. El desempate
+    # por id no es cosmético: con sólo el criterio de "pendiente sí/no", dos empresas del mismo
+    # grupo podían salir en distinto orden entre página y página y el OFFSET repetía una.
     q = q.order_by(
         (CompanyProfile.verification_status == VerificationStatus.pending).desc(),
+        CompanyProfile.created_at.desc(),
+        CompanyProfile.id.desc(),
     )
-    result = await db.execute(q)
-    return [
+    total = await contar(db, q)
+    result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    items = [
         CompanyAdminResponse.model_validate(company, from_attributes=True).model_copy(
             update={"industry_name": industry_name}
         )
         for company, industry_name in result.all()
     ]
+    return Paginated(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.patch("/admin/companies/{company_id}/verify")
@@ -476,9 +491,11 @@ async def takedown_job(
     return {"status": "ok", "job_id": job_id}
 
 
-@router.get("/admin/candidates", response_model=List[CandidateAdminResponse])
+@router.get("/admin/candidates", response_model=Paginated[CandidateAdminResponse])
 async def list_candidates(
     q: Optional[str] = Query(None, description="Buscar por nombre o apellido"),
+    page: int = PageQuery,
+    page_size: int = PageSizeQuery,
     age_min: Optional[int] = Query(None, ge=0),
     age_max: Optional[int] = Query(None, ge=0),
     gender: Optional[Gender] = Query(None),
@@ -513,6 +530,21 @@ async def list_candidates(
         query = query.where(CandidateProfile.birth_date <= _birth_date_cutoff(age_min))
     if age_max is not None:
         query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
+
+    # Los más nuevos primero, con desempate por id: sin un orden total, el OFFSET puede
+    # devolver dos veces al mismo candidato y saltearse otro.
+    query = query.order_by(CandidateProfile.created_at.desc(), CandidateProfile.id.desc())
+
+    # El título alcanzado no es una columna: se deriva del máximo de las educaciones cargadas.
+    # Cuando ese filtro viene, no hay consulta que lo exprese sin duplicar el ranking de
+    # niveles, así que se traen los candidatos que pasaron el resto de los filtros y el corte
+    # de página se hace después de descartar. Sin el filtro —el caso normal— la página se
+    # corta en SQL y el resto de la función trabaja sólo sobre esas 20 filas.
+    filtra_por_titulo = education_level is not None
+
+    if not filtra_por_titulo:
+        total = await contar(db, query)
+        query = query.offset((page - 1) * page_size).limit(page_size)
 
     profiles = list((await db.execute(query)).scalars().all())
 
@@ -558,13 +590,19 @@ async def list_candidates(
             )
         )
 
-    return enriched
+    if filtra_por_titulo:
+        total = len(enriched)
+        enriched = recortar(enriched, page, page_size)
+
+    return Paginated(items=enriched, total=total, page=page, page_size=page_size)
 
 
-@router.get("/admin/jobs", response_model=List[JobAdminResponse])
+@router.get("/admin/jobs", response_model=Paginated[JobAdminResponse])
 async def list_jobs(
     status: Optional[JobPostingStatus] = Query(None),
     moderation_status: Optional[JobModerationStatus] = Query(None),
+    page: int = PageQuery,
+    page_size: int = PageSizeQuery,
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
@@ -582,14 +620,18 @@ async def list_jobs(
     # Prioridad: las búsquedas con destacado pago (is_featured) se revisan primero — protegen
     # los días de exposición que la empresa ya compró, ya que expires_at corre desde que se
     # publica, no desde que se aprueba. Entre el resto, orden justo: las más viejas primero.
-    q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc())
-    result = await db.execute(q)
-    return [
+    # El id al final es el desempate que hace determinístico el OFFSET — published_at es
+    # nullable (una búsqueda que nunca se publicó), así que sin él varias filas empatan.
+    q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc(), JobPosting.id.asc())
+    total = await contar(db, q)
+    result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    items = [
         JobAdminResponse.model_validate(job, from_attributes=True).model_copy(
             update={"company_verification_status": verification_status}
         )
         for job, verification_status in result.all()
     ]
+    return Paginated(items=items, total=total, page=page, page_size=page_size)
 
 
 # ── Drill-down: empresa → búsquedas → postulaciones, y candidato → perfil completo ────────────
@@ -656,18 +698,24 @@ async def job_applicant_stats_admin(
     return await compute_applicant_stats(db, candidate_ids)
 
 
-@router.get("/admin/jobs/{job_id}/applications", response_model=List[ApplicationWithCandidateResponse])
+@router.get("/admin/jobs/{job_id}/applications", response_model=Paginated[ApplicationWithCandidateResponse])
 async def list_job_applications_admin(
     job_id: uuid.UUID,
+    page: int = PageQuery,
+    page_size: int = PageSizeQuery,
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
+    query = (
         select(Application, CandidateProfile)
         .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
         .where(Application.job_posting_id == job_id)
+        # Mismo orden que el listado que ve la empresa (applications.py): las últimas
+        # postulaciones arriba, con el id como desempate para que el OFFSET sea estable.
+        .order_by(Application.created_at.desc(), Application.id.desc())
     )
-    rows = result.all()
+    total = await contar(db, query)
+    rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).all()
     completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
 
     enriched = []
@@ -698,7 +746,7 @@ async def list_job_applications_admin(
                 ),
             )
         )
-    return enriched
+    return Paginated(items=enriched, total=total, page=page, page_size=page_size)
 
 
 @router.get("/admin/candidates/{candidate_id}", response_model=CandidateFullProfile)

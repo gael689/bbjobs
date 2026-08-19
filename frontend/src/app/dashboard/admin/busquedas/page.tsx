@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
   CheckCircleIcon, XCircleIcon, BoltIcon, PencilIcon, TrashIcon,
   UserCircleIcon, XMarkIcon, ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
+import Paginacion from "@/components/ui/Paginacion";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
@@ -30,9 +32,11 @@ interface EditForm {
 }
 
 export default function AdminBusquedasPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Qué búsqueda eligió la persona a mano. La seleccionada de verdad se DERIVA de esto y de
+  // la página que está cargada (ver `selectedJob`): con la lista paginada, guardar el id en
+  // un estado y "corregirlo" desde un efecto al cambiar de página deja un render con una
+  // selección que ya no está en la lista.
+  const [seleccionManual, setSeleccionManual] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -41,61 +45,63 @@ export default function AdminBusquedasPage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
 
-  const [applicantsByJob, setApplicantsByJob] = useState<Record<string, AdminApplication[]>>({});
   const [statsByJob, setStatsByJob] = useState<Record<string, ApplicantStats | null>>({});
   const [showStats, setShowStats] = useState(false);
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
-  // Sin flag de loading aparte — "está cargando" se deriva de que selectedId todavía no tiene
-  // entrada en el cache (evita un setState síncrono dentro del efecto de abajo).
-  const applicantsLoading = !!selectedId && !applicantsByJob[selectedId];
+  const [pendingCount, setPendingCount] = useState(0);
+  const [refrescoPendientes, setRefrescoPendientes] = useState(0);
 
   const toast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 3500);
   }, []);
 
-  // `loading` arranca en `true` (useState arriba) y sólo se apaga async en el .finally — nunca
-  // se vuelve a prender sincrónicamente, así que fetchJobs es seguro de llamar directo desde
-  // un efecto sin disparar el lint de set-state-in-effect.
-  const fetchJobs = useCallback((keepSelection = true) => {
-    api.get("/admin/jobs").then(r => {
-      const data: Job[] = r.data;
-      setJobs(data);
-      if (!keepSelection || !data.some(j => j.id === selectedId)) {
-        const firstPending = data.find(j => j.moderation_status === "pending_review");
-        setSelectedId((firstPending ?? data[0])?.id ?? null);
-      }
-    }).catch(() => toast("Error al cargar búsquedas", "error"))
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
+  // El filtro por estado pasó a ser del servidor: con la lista paginada, filtrar en el
+  // navegador sólo esconde filas de la página cargada, no busca en el resto.
+  const {
+    items: jobs, total, pagina, pageSize, totalPaginas, cargando: loading, irAPagina, recargar,
+  } = useListaPaginada<Job>("/admin/jobs", {
+    moderation_status: filterTab === "all" ? undefined : filterTab,
+  });
 
+  // El "N por revisar" del encabezado ya no se puede contar sobre la página: es un pedido de
+  // una sola fila del que sólo interesa el `total`.
   useEffect(() => {
-    fetchJobs(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let vigente = true;
+    api.get("/admin/jobs", { params: { moderation_status: "pending_review", page_size: 1 } })
+      .then(r => { if (vigente) setPendingCount(r.data.total); })
+      .catch(() => {});
+    return () => { vigente = false; };
+  }, [refrescoPendientes]);
+
+  function fetchJobs() {
+    recargar();
+    setRefrescoPendientes(n => n + 1);
+  }
+
+  // La búsqueda del detalle: la elegida a mano si sigue estando en la página cargada, y si no
+  // la primera por revisar, que es a lo que se entra a hacer acá.
+  const selectedJob =
+    jobs.find(j => j.id === seleccionManual)
+    ?? jobs.find(j => j.moderation_status === "pending_review")
+    ?? jobs[0]
+    ?? null;
+  const selectedId = selectedJob?.id ?? null;
 
   const selectJob = useCallback((jobId: string) => {
-    setSelectedId(jobId);
+    setSeleccionManual(jobId);
     setEditing(false);
   }, []);
 
-  // Única fuente de fetch de postulantes — dispara al cambiar de búsqueda seleccionada
-  // (por click en la lista o por la auto-selección de fetchJobs), cacheado por id.
-  useEffect(() => {
-    if (selectedId && !applicantsByJob[selectedId]) {
-      api.get(`/admin/jobs/${selectedId}/applications`)
-        .then(r => setApplicantsByJob(prev => ({ ...prev, [selectedId]: r.data })))
-        .catch(() => setApplicantsByJob(prev => ({ ...prev, [selectedId]: [] })));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  const postulantes = useListaPaginada<AdminApplication>(
+    selectedId ? `/admin/jobs/${selectedId}/applications` : null,
+  );
+  const applicants = postulantes.items;
 
   // Las mismas estadísticas que ve la empresa. El admin decide si se publican
   // —el interruptor de Indicadores— y hasta ahora no tenía dónde ver lo que
-  // estaba publicando. Mismo esquema que los postulantes: cacheado por id, una
-  // sola llamada por aviso.
+  // estaba publicando. Cacheadas por id, una sola llamada por aviso.
   useEffect(() => {
     if (selectedId && !statsByJob[selectedId]) {
       api.get(`/admin/jobs/${selectedId}/applications/stats`)
@@ -104,16 +110,6 @@ export default function AdminBusquedasPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
-
-  const filteredJobs = useMemo(() => {
-    if (filterTab === "all") return jobs;
-    return jobs.filter(j => j.moderation_status === filterTab);
-  }, [jobs, filterTab]);
-
-  const selectedJob = jobs.find(j => j.id === selectedId) ?? null;
-  const applicants = selectedId ? applicantsByJob[selectedId] ?? [] : [];
-
-  const pendingCount = jobs.filter(j => j.moderation_status === "pending_review").length;
 
   async function handleModerate(jobId: string, action: "approve" | "reject") {
     if (action === "reject") {
@@ -245,7 +241,7 @@ export default function AdminBusquedasPage() {
     try {
       await api.delete(`/admin/jobs/${jobId}`);
       toast("Búsqueda eliminada");
-      fetchJobs(false);
+      fetchJobs();
     } catch {
       toast("Error al eliminar", "error");
     } finally {
@@ -303,7 +299,7 @@ export default function AdminBusquedasPage() {
         <h1 className="text-2xl font-display font-bold text-[#1C2230]">Búsquedas y postulantes</h1>
       </div>
       <p className="text-[#64748B] text-sm mb-6">
-        {jobs.length} búsqueda{jobs.length !== 1 ? "s" : ""}
+        {total} búsqueda{total !== 1 ? "s" : ""}{filterTab !== "all" && " en esta categoría"}
         {pendingCount > 0 && <> · <span className="text-amber-600 font-semibold">{pendingCount} por revisar</span></>}
       </p>
 
@@ -327,16 +323,14 @@ export default function AdminBusquedasPage() {
         </div>
       ) : jobs.length === 0 ? (
         <div className="bg-white border border-[#DDE3EC] rounded-2xl p-12 text-center text-[#64748B]">
-          Sin búsquedas publicadas.
+          {filterTab === "all" ? "Sin búsquedas publicadas." : "Nada en esta categoría."}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
           {/* Lista */}
-          <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden shadow-sm max-h-[70vh] overflow-y-auto">
-            {filteredJobs.length === 0 ? (
-              <div className="p-8 text-center text-sm text-[#64748B]">Nada en esta categoría.</div>
-            ) : (
-              filteredJobs.map(job => (
+          <div>
+            <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden shadow-sm max-h-[70vh] overflow-y-auto">
+              {jobs.map(job => (
                 <button
                   key={job.id}
                   onClick={() => selectJob(job.id)}
@@ -365,8 +359,16 @@ export default function AdminBusquedasPage() {
                     )}
                   </div>
                 </button>
-              ))
-            )}
+              ))}
+            </div>
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={totalPaginas}
+              total={total}
+              pageSize={pageSize}
+              etiqueta="búsquedas"
+              onCambiar={irAPagina}
+            />
           </div>
 
           {/* Detalle */}
@@ -557,8 +559,11 @@ export default function AdminBusquedasPage() {
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  {/* El total sale del backend; los dos promedios sólo pueden mirar la página
+                      cargada y lo dicen. Los promedios de verdad, sobre todos los postulantes,
+                      están en las Estadísticas de acá abajo. */}
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
-                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{applicants.length}</p>
+                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{postulantes.total}</p>
                     <p className="text-[11px] text-[#64748B]">Postulantes</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
@@ -568,7 +573,7 @@ export default function AdminBusquedasPage() {
                         return ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length) : "—";
                       })()}
                     </p>
-                    <p className="text-[11px] text-[#64748B]">Edad promedio</p>
+                    <p className="text-[11px] text-[#64748B]">Edad prom. (página)</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
                     <p className="text-lg font-display font-extrabold text-[#1C2230]">
@@ -577,7 +582,7 @@ export default function AdminBusquedasPage() {
                         return p.length ? `${Math.round(p.reduce((s, x) => s + x, 0) / p.length)}%` : "—";
                       })()}
                     </p>
-                    <p className="text-[11px] text-[#64748B]">Perfil completo prom.</p>
+                    <p className="text-[11px] text-[#64748B]">Perfil completo (página)</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
                     <p className="text-lg font-display font-extrabold text-[#1C2230]">
@@ -631,13 +636,14 @@ export default function AdminBusquedasPage() {
 
                 {/* Postulantes */}
                 <h3 className="font-display font-bold text-sm text-[#1C2230] mb-3">Postulantes</h3>
-                {applicantsLoading ? (
+                {postulantes.cargando ? (
                   <div className="py-8 flex justify-center">
                     <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : applicants.length === 0 ? (
                   <p className="text-sm text-[#64748B]">Todavía no hay postulantes.</p>
                 ) : (
+                  <>
                   <div className="divide-y divide-[#DDE3EC]/60">
                     {applicants.map(app => (
                       <div key={app.id} className="flex items-center gap-2.5 py-3">
@@ -679,6 +685,15 @@ export default function AdminBusquedasPage() {
                       </div>
                     ))}
                   </div>
+                  <Paginacion
+                    pagina={postulantes.pagina}
+                    totalPaginas={postulantes.totalPaginas}
+                    total={postulantes.total}
+                    pageSize={postulantes.pageSize}
+                    etiqueta="postulantes"
+                    onCambiar={postulantes.irAPagina}
+                  />
+                  </>
                 )}
               </>
             )}

@@ -8,6 +8,8 @@ import {
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
+import Paginacion from "@/components/ui/Paginacion";
+import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
   APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   EMPTY_APPLICANT_FILTERS,
@@ -15,68 +17,61 @@ import {
   type CompanyProfile, type JobPosting,
 } from "../types";
 
+function buildFilterParams(f: ApplicantFilters): Record<string, ValorFiltro> {
+  return {
+    age_min: f.age_min || undefined,
+    age_max: f.age_max || undefined,
+    gender: f.gender || undefined,
+    has_own_transport: f.has_own_transport ? f.has_own_transport === "true" : undefined,
+    availability: f.availability || undefined,
+    immediate_availability: f.immediate_availability || undefined,
+    position: f.position?.trim() || undefined,
+    experience_min: f.experience_min || undefined,
+    experience_max: f.experience_max || undefined,
+    zone_id: f.zone_id || undefined,
+  };
+}
+
 export default function CompanyPostulacionesPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [zonas, setZonas] = useState<{ id: string; name: string }[]>([]);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<string>("");
-  const [currentApps, setCurrentApps] = useState<Application[]>([]);
-  const [loadingApps, setLoadingApps] = useState(false);
+  const [seleccionManual, setSeleccionManual] = useState<string>("");
+  // `filters` es el formulario; `aplicados` es lo que se está pidiendo. La pantalla filtra al
+  // apretar "Filtrar", no al tipear.
   const [filters, setFilters] = useState<ApplicantFilters>(EMPTY_APPLICANT_FILTERS);
-  const [stats, setStats] = useState<ApplicantStats | null>(null);
+  const [aplicados, setAplicados] = useState<ApplicantFilters>(EMPTY_APPLICANT_FILTERS);
+  const [stats, setStats] = useState<Record<string, ApplicantStats | null>>({});
   const [showStats, setShowStats] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [candidateProfile, setCandidateProfile] = useState<CandidateFullProfile | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
 
   const isVerified = profile?.verification_status === "verified";
+  // La búsqueda elegida se deriva: si la de la lista desapareció (se cerró, se dio de baja),
+  // cae sola en la primera en vez de quedar apuntando a un id que ya no está.
+  const selectedJobId = jobs.some(j => j.id === seleccionManual) ? seleccionManual : (jobs[0]?.id ?? "");
 
   function toast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   }
 
-  function buildFilterParams(f: ApplicantFilters) {
-    const params: Record<string, string | boolean> = {};
-    if (f.age_min) params.age_min = f.age_min;
-    if (f.age_max) params.age_max = f.age_max;
-    if (f.gender) params.gender = f.gender;
-    if (f.has_own_transport) params.has_own_transport = f.has_own_transport === "true";
-    if (f.availability) params.availability = f.availability;
-    if (f.immediate_availability) params.immediate_availability = true;
-    if (f.position?.trim()) params.position = f.position.trim();
-    if (f.experience_min) params.experience_min = f.experience_min;
-    if (f.experience_max) params.experience_max = f.experience_max;
-    if (f.zone_id) params.zone_id = f.zone_id;
-    return params;
-  }
+  // Ver postulantes sigue exigiendo empresa verificada (a diferencia de publicar, ver A2 del
+  // plan del 14/08): con `null` el hook no pide nada y así no se dispara un request que
+  // siempre daría 403.
+  const postulaciones = useListaPaginada<Application>(
+    selectedJobId && isVerified ? `/me/company/jobs/${selectedJobId}/applications` : null,
+    buildFilterParams(aplicados),
+  );
 
-  function loadApplications(jobId: string, f: ApplicantFilters, verified: boolean) {
-    if (!jobId || !verified) return;
-    setLoadingApps(true);
-    api.get(`/me/company/jobs/${jobId}/applications`, { params: buildFilterParams(f) })
-      .then(r => setCurrentApps(r.data))
-      .catch(() => {
-        toast("Error al cargar postulaciones");
-        setCurrentApps([]);
-      })
-      .finally(() => setLoadingApps(false));
-  }
-
-  function selectJob(jobId: string, verified: boolean = isVerified) {
-    setSelectedJobId(jobId);
+  function selectJob(jobId: string) {
+    setSeleccionManual(jobId);
     setFilters(EMPTY_APPLICANT_FILTERS);
-    setStats(null);
-    setCurrentApps([]);
-    if (!verified) return;
-    loadApplications(jobId, EMPTY_APPLICANT_FILTERS, verified);
-    api.get(`/me/company/jobs/${jobId}/applications/stats`).then(r => setStats(r.data)).catch(() => {});
+    setAplicados(EMPTY_APPLICANT_FILTERS);
   }
 
   useEffect(() => {
-    // Se pide el perfil antes de disparar el resto: ver postulantes sigue exigiendo empresa
-    // verificada (a diferencia de publicar, ver A2 del plan del 14/08) y sin esto se dispara
-    // un pedido que siempre da 403 para una empresa sin verificar.
     api.get("/catalogs/zones").then(r => setZonas(r.data)).catch(() => {});
     Promise.all([
       api.get("/me/company/profile").then(r => r.data as CompanyProfile).catch(() => null),
@@ -84,18 +79,26 @@ export default function CompanyPostulacionesPage() {
     ]).then(([p, jobList]) => {
       setProfile(p);
       setJobs(jobList);
-      if (jobList.length > 0) selectJob(jobList[0].id, p?.verification_status === "verified");
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Las estadísticas del aviso van aparte del listado: son agregados de TODOS los postulantes,
+  // no de la página que se está viendo. Cacheadas por id, una sola llamada por aviso.
+  useEffect(() => {
+    if (!selectedJobId || !isVerified || stats[selectedJobId] !== undefined) return;
+    api.get(`/me/company/jobs/${selectedJobId}/applications/stats`)
+      .then(r => setStats(prev => ({ ...prev, [selectedJobId]: r.data })))
+      .catch(() => setStats(prev => ({ ...prev, [selectedJobId]: null })));
+  }, [selectedJobId, isVerified, stats]);
 
   function applyFilters(e: React.FormEvent) {
     e.preventDefault();
-    loadApplications(selectedJobId, filters, isVerified);
+    setAplicados(filters);
   }
 
   function clearFilters() {
     setFilters(EMPTY_APPLICANT_FILTERS);
-    loadApplications(selectedJobId, EMPTY_APPLICANT_FILTERS, isVerified);
+    setAplicados(EMPTY_APPLICANT_FILTERS);
   }
 
   const hasActiveFilters = !!(
@@ -108,7 +111,7 @@ export default function CompanyPostulacionesPage() {
   async function handleAppStatus(appId: string, status: string) {
     try {
       await api.patch(`/me/company/applications/${appId}/status`, { status });
-      setCurrentApps(prev => prev.map(a => (a.id === appId ? { ...a, status } : a)));
+      postulaciones.actualizarItems(prev => prev.map(a => (a.id === appId ? { ...a, status } : a)));
     } catch {
       toast("Error al actualizar estado");
     }
@@ -272,11 +275,10 @@ export default function CompanyPostulacionesPage() {
                 )}
                 {/* Sin esto, filtrar y no ver ningún cambio visible es indistinguible de que el
                     filtro no hizo nada (ver B4 del plan del 14/08). */}
-                {!loadingApps && (
+                {!postulaciones.cargando && (
                   <span className="text-xs text-[#64748B]">
-                    {hasActiveFilters
-                      ? `${currentApps.length} postulante${currentApps.length === 1 ? "" : "s"} con estos filtros`
-                      : `${currentApps.length} postulante${currentApps.length === 1 ? "" : "s"}`}
+                    {`${postulaciones.total} postulante${postulaciones.total === 1 ? "" : "s"}`}
+                    {hasActiveFilters && " con estos filtros"}
                   </span>
                 )}
               </div>
@@ -284,25 +286,25 @@ export default function CompanyPostulacionesPage() {
 
           </div>
 
-          {showStats && stats && (
+          {showStats && stats[selectedJobId] && (
             <div className="mb-5">
-              <PanelEstadisticas stats={stats} />
+              <PanelEstadisticas stats={stats[selectedJobId]!} />
             </div>
           )}
 
           <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
-            {loadingApps ? (
+            {postulaciones.cargando ? (
               <div className="py-12 flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : currentApps.length === 0 ? (
+            ) : postulaciones.items.length === 0 ? (
               <div className="py-12 text-center text-sm text-[#64748B]">
                 <UsersIcon className="w-10 h-10 mx-auto mb-3 text-[#DDE3EC]" />
                 Sin postulaciones aún para esta búsqueda.
               </div>
             ) : (
               <div className="divide-y divide-[#DDE3EC]">
-                {currentApps.map(app => (
+                {postulaciones.items.map(app => (
                   <div key={app.id} className="px-6 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Sin anillo de % de perfil: la empresa lo leía como "% de ajuste al
@@ -377,6 +379,17 @@ export default function CompanyPostulacionesPage() {
               </div>
             )}
           </div>
+
+          {!postulaciones.cargando && (
+            <Paginacion
+              pagina={postulaciones.pagina}
+              totalPaginas={postulaciones.totalPaginas}
+              total={postulaciones.total}
+              pageSize={postulaciones.pageSize}
+              etiqueta="postulantes"
+              onCambiar={postulaciones.irAPagina}
+            />
+          )}
         </>
       )}
 

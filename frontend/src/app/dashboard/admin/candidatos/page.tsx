@@ -7,7 +7,9 @@ import {
   DocumentTextIcon, FunnelIcon, UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
+import Paginacion from "@/components/ui/Paginacion";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
   CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL, EDUCATION_LEVEL_LABEL,
   EMPTY_CANDIDATE_FILTERS,
@@ -19,51 +21,48 @@ interface Zone {
   name: string;
 }
 
+function buildParams(f: CandidateFilters): Record<string, ValorFiltro> {
+  return {
+    q: f.q || undefined,
+    age_min: f.age_min || undefined,
+    age_max: f.age_max || undefined,
+    gender: f.gender || undefined,
+    has_own_transport: f.has_own_transport ? f.has_own_transport === "true" : undefined,
+    availability: f.availability || undefined,
+    immediate_availability: f.immediate_availability || undefined,
+    zone_id: f.zone_id || undefined,
+    has_cv: f.has_cv ? f.has_cv === "true" : undefined,
+    education_level: f.education_level || undefined,
+  };
+}
+
 export default function AdminCandidatosPage() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
+  // Dos estados y no uno: `filters` es lo que hay tipeado en el formulario y `aplicados` es
+  // lo que se está pidiendo. Sin esa separación, cada tecla en el buscador dispararía un
+  // pedido — la pantalla filtra al apretar "Filtrar", no al tipear.
   const [filters, setFilters] = useState<CandidateFilters>(EMPTY_CANDIDATE_FILTERS);
-  const [loading, setLoading] = useState(true);
+  const [aplicados, setAplicados] = useState<CandidateFilters>(EMPTY_CANDIDATE_FILTERS);
   const [profile, setProfile] = useState<CandidateFullProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [activity, setActivity] = useState<CandidateActivityItem[]>([]);
 
+  const {
+    items: candidates, total, pagina, pageSize, totalPaginas, cargando: loading, irAPagina,
+  } = useListaPaginada<Candidate>("/admin/candidates", buildParams(aplicados));
+
   useEffect(() => {
     api.get("/catalogs/zones").then(r => setZones(r.data)).catch(() => {});
-    loadCandidates(EMPTY_CANDIDATE_FILTERS);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function buildParams(f: CandidateFilters) {
-    const params: Record<string, string | boolean> = {};
-    if (f.q) params.q = f.q;
-    if (f.age_min) params.age_min = f.age_min;
-    if (f.age_max) params.age_max = f.age_max;
-    if (f.gender) params.gender = f.gender;
-    if (f.has_own_transport) params.has_own_transport = f.has_own_transport === "true";
-    if (f.availability) params.availability = f.availability;
-    if (f.immediate_availability) params.immediate_availability = true;
-    if (f.zone_id) params.zone_id = f.zone_id;
-    if (f.has_cv) params.has_cv = f.has_cv === "true";
-    if (f.education_level) params.education_level = f.education_level;
-    return params;
-  }
-
-  function loadCandidates(f: CandidateFilters) {
-    setLoading(true);
-    api.get("/admin/candidates", { params: buildParams(f) })
-      .then(r => setCandidates(r.data))
-      .catch(() => setCandidates([]))
-      .finally(() => setLoading(false));
-  }
+  }, []);
 
   function applyFilters(e: React.FormEvent) {
     e.preventDefault();
-    loadCandidates(filters);
+    setAplicados(filters);
   }
 
   function clearFilters() {
     setFilters(EMPTY_CANDIDATE_FILTERS);
-    loadCandidates(EMPTY_CANDIDATE_FILTERS);
+    setAplicados(EMPTY_CANDIDATE_FILTERS);
   }
 
   const hasActiveFilters = Object.entries(filters).some(([k, v]) => v !== EMPTY_CANDIDATE_FILTERS[k as keyof CandidateFilters]);
@@ -90,21 +89,24 @@ export default function AdminCandidatosPage() {
 
       {candidates.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+          {/* El primero cuenta el filtro completo (viene del `total` del backend); los otros
+              dos sólo pueden mirar lo que está cargado, así que lo dicen. Antes los tres
+              contaban lo mismo porque la respuesta traía a todos los candidatos de una. */}
           <div className="bg-white border border-[#DDE3EC] rounded-xl px-4 py-3">
-            <p className="text-lg font-display font-extrabold text-[#1C2230]">{candidates.length}</p>
-            <p className="text-[11px] text-[#64748B]">En esta vista</p>
+            <p className="text-lg font-display font-extrabold text-[#1C2230]">{total}</p>
+            <p className="text-[11px] text-[#64748B]">Candidatos que coinciden</p>
           </div>
           <div className="bg-[#E6F4F7] border border-[#9ED4DF]/50 rounded-xl px-4 py-3">
             <p className="text-lg font-display font-extrabold text-[#187B8E]">
               {candidates.filter(c => !!c.cv_file_url).length}
             </p>
-            <p className="text-[11px] text-[#187B8E]/80">Con CV cargado</p>
+            <p className="text-[11px] text-[#187B8E]/80">Con CV, en esta página</p>
           </div>
           <div className="bg-[#F7EFE9] border border-[#D4B7A2]/40 rounded-xl px-4 py-3">
             <p className="text-lg font-display font-extrabold text-[#B98F72]">
               {Math.round(candidates.reduce((s, c) => s + c.completion_percent, 0) / candidates.length)}%
             </p>
-            <p className="text-[11px] text-[#B98F72]/90">Perfil completo prom.</p>
+            <p className="text-[11px] text-[#B98F72]/90">Perfil completo prom. (página)</p>
           </div>
         </div>
       )}
@@ -265,6 +267,17 @@ export default function AdminCandidatosPage() {
           ))
         )}
       </div>
+
+      {!loading && (
+        <Paginacion
+          pagina={pagina}
+          totalPaginas={totalPaginas}
+          total={total}
+          pageSize={pageSize}
+          etiqueta="candidatos"
+          onCambiar={irAPagina}
+        />
+      )}
 
       <CandidateProfileModal
         profile={profile}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { cargarTodasLasPaginas } from "@/hooks/useListaPaginada";
 import { GiftIcon, LockOpenIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 
 type PackRow = {
@@ -54,8 +55,11 @@ export default function AdminTalentoPage() {
     Promise.all([
       api.get("/admin/talent/packs").then(r => r.data as PackRow[]).catch(() => []),
       api.get("/admin/talent/unlocks").then(r => r.data as UnlockRow[]).catch(() => []),
-      api.get("/admin/companies", { params: { status: "verified" } })
-        .then(r => r.data as CompanyLite[]).catch(() => []),
+      // Todas, no la primera página: /admin/companies pagina de a 20 desde que el panel de
+      // Empresas lo necesitó, y acá alimenta un <select>. Con una sola página, la empresa
+      // número 21 no se podría elegir nunca para asignarle desbloqueos.
+      cargarTodasLasPaginas<CompanyLite>("/admin/companies", { status: "verified" })
+        .catch(() => [] as CompanyLite[]),
     ]).then(([p, u, e]) => {
       setPacks(p);
       setUnlocks(u);

@@ -16,6 +16,7 @@ from app.models.job import JobPosting, Application, ApplicationStatus, JobModera
 from app.models.catalogs import Skill
 from app.models.history import ApplicationStatusHistory
 from app.schemas.application import ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate
+from app.schemas.common import Paginated, PageQuery, PageSizeQuery, contar, recortar
 from app.schemas.candidate import (
     CandidateFullProfile, ExperienceForCompany, EducationForCompany,
     SkillForCompany, LanguageForCompany, calculate_age,
@@ -205,9 +206,11 @@ async def my_application_history(
     return result.scalars().all()
 
 
-@router.get("/me/company/jobs/{id}/applications", response_model=List[ApplicationWithCandidateResponse])
+@router.get("/me/company/jobs/{id}/applications", response_model=Paginated[ApplicationWithCandidateResponse])
 async def list_job_applications(
     id: uuid.UUID,
+    page: int = PageQuery,
+    page_size: int = PageSizeQuery,
     age_min: Optional[int] = Query(None, ge=0),
     age_max: Optional[int] = Query(None, ge=0),
     gender: Optional[Gender] = Query(None),
@@ -259,14 +262,26 @@ async def list_job_applications(
             .exists()
         )
 
-    result = await db.execute(query)
-    rows = result.all()
+    # Orden determinístico y no sólo "prolijo": sin un desempate estable, dos postulaciones
+    # con el mismo created_at pueden salir en distinto orden en cada consulta y el OFFSET
+    # repetir una en la página 2 mientras se saltea otra.
+    query = query.order_by(Application.created_at.desc(), Application.id.desc())
 
-    # Años de experiencia: no se puede filtrar en SQL sin repetir la lógica de fusión de
-    # tramos superpuestos (ver _years_of_experience en applicant_stats.py) — se trae la
-    # experiencia de los candidatos que ya pasaron el resto de los filtros, de una sola vez
-    # (no una consulta por candidato), y se filtra acá.
-    if experience_min is not None or experience_max is not None:
+    filtra_por_experiencia = experience_min is not None or experience_max is not None
+
+    if not filtra_por_experiencia:
+        total = await contar(db, query)
+        rows = (
+            await db.execute(query.offset((page - 1) * page_size).limit(page_size))
+        ).all()
+    else:
+        # El único caso en que la página se corta en memoria: los años de experiencia no se
+        # pueden filtrar en SQL sin repetir la lógica de fusión de tramos superpuestos (ver
+        # _years_of_experience en applicant_stats.py). Se traen las filas que ya pasaron el
+        # resto de los filtros, se descarta, y recién ahí se cuenta y se corta.
+        rows = (await db.execute(query)).all()
+
+    if filtra_por_experiencia:
         candidate_ids = [candidate.id for _, candidate in rows]
         exps_result = await db.execute(
             select(Experience).where(Experience.candidate_id.in_(candidate_ids))
@@ -284,6 +299,8 @@ async def list_job_applications(
             return True
 
         rows = [(app, candidate) for app, candidate in rows if _en_rango(candidate.id)]
+        total = len(rows)
+        rows = recortar(rows, page, page_size)
 
     completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
 
@@ -316,7 +333,7 @@ async def list_job_applications(
             )
         )
 
-    return enriched
+    return Paginated(items=enriched, total=total, page=page, page_size=page_size)
 
 
 @router.get("/me/company/jobs/{id}/applications/stats", response_model=ApplicantStats)

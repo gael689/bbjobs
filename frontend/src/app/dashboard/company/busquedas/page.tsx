@@ -8,6 +8,7 @@ import {
   UserCircleIcon, XMarkIcon, ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
+import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
@@ -35,8 +36,6 @@ export default function CompanyBusquedasPage() {
   const [featureModal, setFeatureModal] = useState<JobPosting | null>(null);
   const [featuring, setFeaturing] = useState(false);
 
-  const [applicantsByJob, setApplicantsByJob] = useState<Record<string, Application[]>>({});
-  const applicantsLoading = !!selectedId && !applicantsByJob[selectedId];
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
 
@@ -67,14 +66,15 @@ export default function CompanyBusquedasPage() {
     setEditing(false);
   }, []);
 
-  useEffect(() => {
-    if (selectedId && !applicantsByJob[selectedId]) {
-      api.get(`/me/company/jobs/${selectedId}/applications`)
-        .then(r => setApplicantsByJob(prev => ({ ...prev, [selectedId]: r.data })))
-        .catch(() => setApplicantsByJob(prev => ({ ...prev, [selectedId]: [] })));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  // Acá los postulantes son un vistazo, no la pantalla de trabajo: se muestran los 6 últimos y
+  // el link manda a Postulaciones, que sí filtra y pagina. Pidiendo page_size=6 el vistazo
+  // deja de bajar la lista entera para mostrar seis, y el "cuántos son" sale del `total`.
+  const postulantes = useListaPaginada<Application>(
+    selectedId ? `/me/company/jobs/${selectedId}/applications` : null,
+    {},
+    { pageSize: 6 },
+  );
+  const applicants = postulantes.items;
 
   const filteredJobs = useMemo(() => {
     if (filterTab === "all") return jobs;
@@ -82,7 +82,6 @@ export default function CompanyBusquedasPage() {
   }, [jobs, filterTab]);
 
   const selectedJob = jobs.find(j => j.id === selectedId) ?? null;
-  const applicants = selectedId ? applicantsByJob[selectedId] ?? [] : [];
 
   async function handleStatusChange(jobId: string, status: string) {
     setActionLoading(jobId + status);
@@ -406,7 +405,7 @@ export default function CompanyBusquedasPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
-                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{applicants.length}</p>
+                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{postulantes.total}</p>
                     <p className="text-[11px] text-[#64748B]">Postulantes</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
@@ -416,7 +415,9 @@ export default function CompanyBusquedasPage() {
                         return ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length) : "—";
                       })()}
                     </p>
-                    <p className="text-[11px] text-[#64748B]">Edad promedio</p>
+                    {/* Sobre los que se están mostrando: el promedio de todos vive en
+                        Estadísticas, que lo calcula el backend en una sola pasada. */}
+                    <p className="text-[11px] text-[#64748B]">Edad prom. (últimos {applicants.length})</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
                     <p className="text-lg font-display font-extrabold text-[#1C2230]">
@@ -431,16 +432,16 @@ export default function CompanyBusquedasPage() {
                 {/* Postulantes */}
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-bold text-sm text-[#1C2230]">Postulantes</h3>
-                  {applicants.length > 0 && (
+                  {postulantes.total > 0 && (
                     <Link
                       href="/dashboard/company/postulaciones"
                       className="text-xs font-bold text-[#1E8EA3] hover:underline"
                     >
-                      Ver y filtrar en Postulaciones →
+                      Ver los {postulantes.total} en Postulaciones →
                     </Link>
                   )}
                 </div>
-                {applicantsLoading ? (
+                {postulantes.cargando ? (
                   <div className="py-8 flex justify-center">
                     <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                   </div>
@@ -448,7 +449,7 @@ export default function CompanyBusquedasPage() {
                   <p className="text-sm text-[#64748B]">Todavía no hay postulantes.</p>
                 ) : (
                   <div className="divide-y divide-[#DDE3EC]/60">
-                    {applicants.slice(0, 6).map(app => (
+                    {applicants.map(app => (
                       <div key={app.id} className="flex items-center gap-3 py-3">
                         {/* Sin anillo de % de perfil — mismo motivo que en Postulaciones:
                             la empresa lo confunde con un % de ajuste al puesto. La foto sí se

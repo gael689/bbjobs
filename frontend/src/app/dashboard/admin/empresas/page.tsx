@@ -8,6 +8,8 @@ import {
   XMarkIcon, GlobeAltIcon, EnvelopeIcon, PhoneIcon, IdentificationIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
+import Paginacion from "@/components/ui/Paginacion";
+import { useListaPaginada } from "@/hooks/useListaPaginada";
 import {
   VERIF_CLS, VERIF_LABEL, MODERATION_CLS, MODERATION_LABEL, APP_STATUS_LABEL,
   type Company, type Job, type AdminApplication,
@@ -18,8 +20,17 @@ function diasDesde(fecha: string): number {
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
+type Solapa = "all" | "pending" | "verified" | "suspended";
+
+const SOLAPAS: { valor: Solapa; label: string }[] = [
+  { valor: "all", label: "Todas" },
+  { valor: "pending", label: "Pendientes" },
+  { valor: "verified", label: "Verificadas" },
+  { valor: "suspended", label: "Suspendidas" },
+];
+
 export default function AdminEmpresasPage() {
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [solapa, setSolapa] = useState<Solapa>("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [rejectModal, setRejectModal] = useState<string | null>(null);
@@ -31,21 +42,49 @@ export default function AdminEmpresasPage() {
   const [companyJobs, setCompanyJobs] = useState<Record<string, Job[]>>({});
   const [loadingJobs, setLoadingJobs] = useState<string | null>(null);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
-  const [jobApplications, setJobApplications] = useState<Record<string, AdminApplication[]>>({});
-  const [loadingApps, setLoadingApps] = useState<string | null>(null);
+
+  // Contadores por estado. Salían de contar en el navegador la lista completa de empresas,
+  // que es justo lo que la paginación deja de traer. Ahora son cuatro pedidos de UNA fila:
+  // lo único que se mira de la respuesta es el `total`.
+  const [contadores, setContadores] = useState<Record<Solapa, number> | null>(null);
+  const [refrescoContadores, setRefrescoContadores] = useState(0);
 
   const toast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 3500);
   }, []);
 
-  const fetchCompanies = useCallback(() => {
-    api.get("/admin/companies").then(r => setCompanies(r.data)).catch(() => toast("Error al cargar empresas", "error"));
-  }, [toast]);
+  const {
+    items: companies, total, pagina, pageSize, totalPaginas, cargando, irAPagina, recargar,
+  } = useListaPaginada<Company>("/admin/companies", {
+    status: solapa === "all" ? undefined : solapa,
+  });
 
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
+    let vigente = true;
+    const contar = (status?: Solapa) =>
+      api.get("/admin/companies", { params: { page_size: 1, ...(status ? { status } : {}) } })
+        .then(r => r.data.total as number)
+        .catch(() => 0);
+    Promise.all([contar(), contar("pending"), contar("verified"), contar("suspended")])
+      .then(([all, pending, verified, suspended]) => {
+        if (vigente) setContadores({ all, pending, verified, suspended });
+      });
+    return () => { vigente = false; };
+  }, [refrescoContadores]);
+
+  // Toda acción sobre una empresa cambia su estado: hay que refrescar la página actual Y los
+  // contadores, porque la empresa se acaba de mudar de solapa.
+  function fetchCompanies() {
+    recargar();
+    setRefrescoContadores(n => n + 1);
+  }
+
+  // Los postulantes del aviso desplegado. Un solo aviso está abierto por vez, así que alcanza
+  // con un hook y no hace falta el cache por id que había antes.
+  const postulantes = useListaPaginada<AdminApplication>(
+    expandedJob ? `/admin/jobs/${expandedJob}/applications` : null,
+  );
 
   async function handleVerify(companyId: string, action: "approve" | "reject") {
     if (action === "reject") {
@@ -123,23 +162,8 @@ export default function AdminEmpresasPage() {
   }
 
   function toggleJobApplications(jobId: string) {
-    if (expandedJob === jobId) {
-      setExpandedJob(null);
-      return;
-    }
-    setExpandedJob(jobId);
-    if (!jobApplications[jobId]) {
-      setLoadingApps(jobId);
-      api.get(`/admin/jobs/${jobId}/applications`)
-        .then(r => setJobApplications(prev => ({ ...prev, [jobId]: r.data })))
-        .catch(() => setJobApplications(prev => ({ ...prev, [jobId]: [] })))
-        .finally(() => setLoadingApps(null));
-    }
+    setExpandedJob(expandedJob === jobId ? null : jobId);
   }
-
-  const pending = companies.filter(c => c.verification_status === "pending");
-  const verified = companies.filter(c => c.verification_status === "verified");
-  const suspended = companies.filter(c => c.verification_status === "suspended");
 
   return (
     <div className="px-4 sm:px-6 py-8">
@@ -183,38 +207,47 @@ export default function AdminEmpresasPage() {
       <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Empresas</h1>
       <p className="text-[#64748B] text-sm mb-6">Gestioná la verificación de empresas registradas.</p>
 
-      {companies.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white border border-[#DDE3EC] rounded-xl px-4 py-3">
-            <p className="text-lg font-display font-extrabold text-[#1C2230]">{companies.length}</p>
-            <p className="text-[11px] text-[#64748B]">Total</p>
-          </div>
-          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-            <p className="text-lg font-display font-extrabold text-amber-700">{pending.length}</p>
-            <p className="text-[11px] text-amber-700/80">Pendientes</p>
-          </div>
-          <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-            <p className="text-lg font-display font-extrabold text-green-700">{verified.length}</p>
-            <p className="text-[11px] text-green-700/80">Verificadas</p>
-          </div>
-          <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-            <p className="text-lg font-display font-extrabold text-red-700">{suspended.length}</p>
-            <p className="text-[11px] text-red-700/80">Suspendidas</p>
-          </div>
-        </div>
-      )}
+      {/* Los contadores son además el filtro: con la lista paginada, "hay 7 pendientes" sin
+          forma de aislarlas obligaría a ir página por página buscándolas. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {SOLAPAS.map(({ valor, label }) => (
+          <button
+            key={valor}
+            type="button"
+            onClick={() => setSolapa(valor)}
+            className={`text-left rounded-xl px-4 py-3 border transition-colors ${
+              solapa === valor
+                ? "bg-[#E6F4F7] border-[#1E8EA3]"
+                : "bg-white border-[#DDE3EC] hover:bg-[#FAFBFD]"
+            }`}
+          >
+            <p className="text-lg font-display font-extrabold text-[#1C2230]">
+              {contadores ? contadores[valor] : "—"}
+            </p>
+            <p className="text-[11px] text-[#64748B]">{label}</p>
+          </button>
+        ))}
+      </div>
 
-      {pending.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 flex items-center gap-3 mb-6">
+      {!!contadores?.pending && solapa !== "pending" && (
+        <button
+          type="button"
+          onClick={() => setSolapa("pending")}
+          className="w-full text-left bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 flex items-center gap-3 mb-6 hover:bg-amber-100/70 transition-colors"
+        >
           <ClockIcon className="w-5 h-5 text-amber-500 shrink-0" />
           <p className="text-sm font-medium text-amber-800">
-            Hay <span className="font-bold">{pending.length}</span> empresa{pending.length > 1 ? "s" : ""} esperando verificación.
+            Hay <span className="font-bold">{contadores.pending}</span> empresa{contadores.pending > 1 ? "s" : ""} esperando verificación.
           </p>
-        </div>
+        </button>
       )}
 
       <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden shadow-sm divide-y divide-[#DDE3EC]/60">
-        {companies.length === 0 ? (
+        {cargando ? (
+          <div className="py-12 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : companies.length === 0 ? (
           <div className="p-12 text-center text-[#64748B]">Sin empresas registradas.</div>
         ) : (
           companies.map(company => (
@@ -346,25 +379,37 @@ export default function AdminEmpresasPage() {
                           </div>
                           {expandedJob === job.id && (
                             <div className="bg-white">
-                              {loadingApps === job.id ? (
+                              {postulantes.cargando ? (
                                 <div className="p-4 flex items-center justify-center">
                                   <div className="w-4 h-4 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                                 </div>
-                              ) : (jobApplications[job.id] || []).length === 0 ? (
+                              ) : postulantes.items.length === 0 ? (
                                 <div className="p-4 text-center text-xs text-[#64748B]">Sin postulaciones para esta búsqueda.</div>
                               ) : (
-                                <div className="divide-y divide-[#EEF2F7]">
-                                  {(jobApplications[job.id] || []).map(app => (
-                                    <div key={app.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                                      <span className="text-sm text-[#1C2230] truncate">
-                                        {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
-                                      </span>
-                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${APP_STATUS_LABEL[app.status]?.cls || "bg-gray-100 text-gray-600"}`}>
-                                        {APP_STATUS_LABEL[app.status]?.label || app.status}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
+                                <>
+                                  <div className="divide-y divide-[#EEF2F7]">
+                                    {postulantes.items.map(app => (
+                                      <div key={app.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                                        <span className="text-sm text-[#1C2230] truncate">
+                                          {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                                        </span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${APP_STATUS_LABEL[app.status]?.cls || "bg-gray-100 text-gray-600"}`}>
+                                          {APP_STATUS_LABEL[app.status]?.label || app.status}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="px-3 border-t border-[#EEF2F7]">
+                                    <Paginacion
+                                      pagina={postulantes.pagina}
+                                      totalPaginas={postulantes.totalPaginas}
+                                      total={postulantes.total}
+                                      pageSize={postulantes.pageSize}
+                                      etiqueta="postulantes"
+                                      onCambiar={postulantes.irAPagina}
+                                    />
+                                  </div>
+                                </>
                               )}
                             </div>
                           )}
@@ -378,6 +423,17 @@ export default function AdminEmpresasPage() {
           ))
         )}
       </div>
+
+      {!cargando && (
+        <Paginacion
+          pagina={pagina}
+          totalPaginas={totalPaginas}
+          total={total}
+          pageSize={pageSize}
+          etiqueta="empresas"
+          onCambiar={irAPagina}
+        />
+      )}
 
       {viewCompany && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setViewCompany(null)}>
