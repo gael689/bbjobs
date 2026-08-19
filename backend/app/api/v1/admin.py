@@ -93,6 +93,7 @@ class CandidateAdminResponse(BaseModel):
     first_name: str
     last_name: str
     phone: str
+    photo_url: Optional[str] = None
     cv_file_url: Optional[str] = None
     cv_uploaded_at: Optional[datetime] = None
     age: Optional[int] = None
@@ -578,6 +579,7 @@ async def list_candidates(
                 first_name=profile.first_name,
                 last_name=profile.last_name,
                 phone=profile.phone,
+                photo_url=profile.photo_url,
                 cv_file_url=profile.cv_file_url,
                 cv_uploaded_at=profile.cv_uploaded_at,
                 age=calculate_age(profile.birth_date),
