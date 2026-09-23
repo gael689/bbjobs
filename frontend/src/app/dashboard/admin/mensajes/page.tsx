@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ChatBubbleLeftRightIcon, CheckCircleIcon, EnvelopeIcon, PhoneIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { ContactMessage } from "../types";
-import { telLink, waLink } from "@/lib/telefono";
+import WhatsAppButton from "@/components/ui/WhatsAppButton";
+import { telLink } from "@/lib/telefono";
 
 export default function AdminMensajesPage() {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
@@ -128,16 +129,11 @@ export default function AdminMensajesPage() {
                       <span className="flex items-center gap-1.5 text-sm font-bold text-[#1C2230]">
                         <PhoneIcon className="w-4 h-4 text-[#64748B]" />{m.phone}
                       </span>
-                      {waLink(m.phone) && (
-                        <a
-                          href={waLink(m.phone)!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-bold bg-[#25D366] hover:bg-[#1EBE5A] text-white px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          WhatsApp
-                        </a>
-                      )}
+                      <WhatsAppButton
+                        size="xs"
+                        phone={m.phone}
+                        message={`Hola ${m.name.split(" ")[0]}, te escribo de BBJobs por la consulta que nos dejaste.`}
+                      />
                       <a
                         href={telLink(m.phone)}
                         className="text-xs font-bold border border-[#DDE3EC] text-[#1C2230] px-3 py-1.5 rounded-lg hover:bg-[#FAFBFD] transition-colors"

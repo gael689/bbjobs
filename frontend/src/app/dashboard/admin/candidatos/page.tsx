@@ -9,6 +9,7 @@ import {
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import Paginacion from "@/components/ui/Paginacion";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import DeleteAccountModal, { DeleteAccountZone } from "@/components/dashboard/DeleteAccountModal";
 import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
@@ -250,6 +251,11 @@ export default function AdminCandidatosPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
+                <WhatsAppButton
+                  size="xs"
+                  phone={c.phone}
+                  message={`Hola ${c.first_name}, te escribo de BBJobs.`}
+                />
                 <button
                   onClick={() => { setProfileUserId(c.user_id); openProfile(c.id); }}
                   className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#E6F4F7] transition-colors"

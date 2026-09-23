@@ -9,6 +9,7 @@ import {
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import Paginacion from "@/components/ui/Paginacion";
+import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
   APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
@@ -355,6 +356,13 @@ export default function CompanyPostulacionesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {app.candidate && (
+                        <WhatsAppButton
+                          size="xs"
+                          phone={app.candidate.phone}
+                          message={`Hola ${app.candidate.first_name}, te escribo por tu postulación a "${jobs.find(j => j.id === selectedJobId)?.title ?? "nuestra búsqueda"}" en BBJobs.`}
+                        />
+                      )}
                       {app.candidate && (
                         <button
                           onClick={() => openCandidateProfile(app.candidate!.id)}

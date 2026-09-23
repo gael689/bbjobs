@@ -9,6 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import Paginacion from "@/components/ui/Paginacion";
+import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import DeleteAccountModal, { DeleteAccountZone } from "@/components/dashboard/DeleteAccountModal";
 import {
@@ -332,6 +333,10 @@ export default function AdminEmpresasPage() {
                     </button>
                   )}
 
+                  <WhatsAppButton
+                    phone={company.responsible_phone}
+                    message={`Hola ${company.responsible_full_name.split(" ")[0]}, te escribo de BBJobs por la cuenta de ${company.legal_name}.`}
+                  />
                   <button
                     onClick={() => setViewCompany(company)}
                     className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1E8EA3] hover:text-[#187B8E] px-2 py-2 rounded-xl hover:bg-[#E6F4F7] transition-colors"

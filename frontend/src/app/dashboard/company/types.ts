@@ -101,6 +101,7 @@ export interface Application {
     id: string;
     first_name: string;
     last_name: string;
+    phone?: string | null;
     photo_url?: string;
     cv_file_url?: string;
     completion_percent: number;

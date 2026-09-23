@@ -56,6 +56,9 @@ class CandidateSummary(BaseModel):
     id: uuid.UUID
     first_name: str
     last_name: str
+    # Para el botón de WhatsApp de la lista de postulantes. No es un dato nuevo para la empresa:
+    # ya lo ve en el perfil completo (GET /me/company/candidates/{id}) de quien se postuló.
+    phone: Optional[str] = None
     photo_url: Optional[str] = None
     cv_file_url: Optional[str] = None
     completion_percent: int = 0
@@ -321,6 +324,7 @@ async def list_job_applications(
                     id=candidate.id,
                     first_name=candidate.first_name,
                     last_name=candidate.last_name,
+                    phone=candidate.phone or None,
                     photo_url=candidate.photo_url,
                     cv_file_url=candidate.cv_file_url,
                     completion_percent=completion_percent,
