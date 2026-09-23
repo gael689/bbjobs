@@ -195,6 +195,25 @@ cubre. Ya queda un comentario explícito en el código marcando esto.
   problema de CSP, era higiene de proceso. Anotado acá por si vuelve a pasar: `netstat -ano` +
   filtrar por el puerto para encontrar el PID.
 
+**Actualización 2026-09-23: la CSP con nonce queda sólo donde hay sesión.** El `force-dynamic`
+global que exigía el nonce hacía que cada visita a cualquier página fuera una función en Vercel,
+y el plan Hobby llegó al 74% del CPU mensual (2h 58m de 4h) con un portal cuyas páginas públicas
+traen sus datos desde el navegador. Quedó así:
+
+- **Estrictas (nonce, render por request):** `/dashboard`, `/onboarding`, `/login`, `/register`,
+  `/post-login`. Cada segmento tiene su `layout.tsx` con `force-dynamic`, y `src/proxy.ts`
+  (`isStrictCspRoute`) les pone el nonce. Es donde hay sesión, datos personales y los formularios
+  de Clerk.
+- **Públicas (prerenderizadas / ISR):** home, `/empleos`, `/empresas`, `/planes`, `/contacto`,
+  `/nosotros`, legales, y `/empleos/[id]` y `/empresas/[id]` con ISR (300 s y 3600 s). CSP fija
+  con `script-src 'self' 'unsafe-inline'` + Clerk + Turnstile; el resto de directivas no cambia.
+- **Por qué el riesgo es aceptable:** `'unsafe-inline'` sólo importa si un atacante logra inyectar
+  HTML en la página. Estas páginas no renderizan HTML de terceros (React escapa todo) y el único
+  `dangerouslySetInnerHTML` (JSON-LD de `/empleos/[id]`) escapa `<` (bloque A). Donde una XSS sí
+  robaría algo —la sesión del panel— la CSP sigue siendo la estricta.
+- Verificado con el build de producción local y Playwright: cero violaciones de CSP en `/`,
+  `/empleos`, `/contacto`, `/register` y `/login`; las públicas responden `x-nextjs-cache: HIT`.
+
 ---
 
 ### D. 🟡 MFA obligatorio para admins (al pasar Clerk a producción)

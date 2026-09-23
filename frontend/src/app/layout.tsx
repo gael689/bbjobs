@@ -35,13 +35,10 @@ export const metadata: Metadata = {
   },
 };
 
-// La CSP con nonce (ver proxy.ts) necesita que cada página se renderice por request: una página
-// estática se genera en build time, sin request de la que sacar un nonce, así que sus scripts
-// quedarían sin el atributo nonce y la CSP los bloquearía enteros. `force-dynamic` en el layout
-// raíz aplica a todo el árbol de rutas de una sola vez (ver SEGURIDAD-PLAN.md bloque C — es un
-// costo consciente: se pierde el prerenderizado estático a cambio de bloquear scripts inline no
-// autorizados de verdad, no sólo confiar en que React escapa el contenido).
-export const dynamic = "force-dynamic";
+// Sin `force-dynamic` acá (sacado el 23/09/2026): las páginas públicas se prerenderizan y llevan
+// una CSP fija; sólo los segmentos con sesión (dashboard, onboarding, login, register, post-login)
+// se renderizan por request, cada uno con su layout.tsx, para la CSP con nonce. Antes todo el
+// árbol era dinámico y cada visita a la home gastaba CPU del plan de Vercel. Ver src/proxy.ts.
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

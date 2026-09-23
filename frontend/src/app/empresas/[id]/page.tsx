@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
 import CompanyProfileClient from "./CompanyProfileClient";
 
+// ISR: cada empresa se genera la primera vez que alguien la visita y queda cacheada
+// 60 minutos (el mismo plazo que ya tenía el fetch). Sin esto, con el layout raíz ya sin
+// `force-dynamic`, Next igual la renderizaría en cada request por ser una ruta con parámetro.
+export const revalidate = 3600;
+export async function generateStaticParams() {
+  return [];
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bbjobs.com.ar";
 

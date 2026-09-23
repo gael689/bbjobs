@@ -5,6 +5,14 @@ import { NextResponse } from "next/server";
 // Sólo el panel autenticado y el onboarding requieren sesión.
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/onboarding(.*)"]);
 
+// Rutas que se renderizan por request y llevan la CSP estricta con nonce: donde hay sesión,
+// datos personales o formularios de Clerk. Tienen su `layout.tsx` con `force-dynamic`.
+// Todo lo demás (home, /empleos, /empresas, /planes, /contacto…) es contenido público: se sirve
+// prerenderizado/ISR y lleva una CSP fija, sin nonce. Ver el comentario de `publicCsp` abajo.
+const isStrictCspRoute = createRouteMatcher([
+  "/dashboard(.*)", "/onboarding(.*)", "/login(.*)", "/register(.*)", "/post-login(.*)",
+]);
+
 // Origen del backend, derivado de NEXT_PUBLIC_API_URL (ej. http://localhost:8000/api/v1 en dev,
 // https://api.bbjobs.com.ar/api/v1 en prod) — connect-src necesita el origen, no la ruta.
 function apiOrigin(): string {
@@ -20,7 +28,8 @@ export default clerkMiddleware(async (auth, request) => {
     await auth.protect();
   }
 
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const strict = isStrictCspRoute(request);
+  const nonce = strict ? Buffer.from(crypto.randomUUID()).toString("base64") : null;
   const isDev = process.env.NODE_ENV === "development";
 
   // Preview deploys siguen en la instancia de test de Clerk (*.clerk.accounts.dev, cubierto por
@@ -50,9 +59,18 @@ export default clerkMiddleware(async (auth, request) => {
   // Clerk devuelve 400 con "CAPTCHA failed to load" (visto en prod 2026-07-21).
   const turnstileOrigin = "https://challenges.cloudflare.com";
 
+  // Páginas públicas: 'unsafe-inline' en vez de nonce (23/09/2026). Con nonce, TODAS las páginas
+  // tenían que renderizarse por request (`force-dynamic` en el layout raíz), y eso agotaba el CPU
+  // del plan de Vercel: cada visita a la home o a /empleos era una función corriendo, aunque esas
+  // páginas traen sus datos desde el navegador. El costo de seguridad es acotado: estas páginas no
+  // tienen sesión ni formularios de login (esos quedan en `isStrictCspRoute`, con nonce), y no
+  // renderizan HTML de terceros — React escapa todo, y el único dangerouslySetInnerHTML (JSON-LD de
+  // /empleos/[id]) ya escapa "<". Ver SEGURIDAD-PLAN.md, bloque C (actualización).
+  const scriptSrc = nonce ? `'nonce-${nonce}'` : "'unsafe-inline'";
+
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' ${clerkOrigins} ${turnstileOrigin}${isDev ? " 'unsafe-eval'" : ""};
+    script-src 'self' ${scriptSrc} ${clerkOrigins} ${turnstileOrigin}${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://res.cloudinary.com https://img.clerk.com;
     font-src 'self' data:;
@@ -66,9 +84,13 @@ export default clerkMiddleware(async (auth, request) => {
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, " ").trim();
 
+  // El CSP con nonce viaja también en el request: es de donde Next.js lo lee para ponerle el
+  // atributo nonce a sus <script> al renderizar. En las públicas no hay nonce que pasar.
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", cspHeader);
+  if (nonce) {
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", cspHeader);
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
