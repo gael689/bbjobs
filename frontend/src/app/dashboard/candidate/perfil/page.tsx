@@ -14,6 +14,7 @@ import {
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import SkillPicker from "@/components/dashboard/SkillPicker";
+import MyAccountSection from "@/components/dashboard/MyAccountSection";
 import {
   GENDER_LABEL, AVAILABILITY_LABEL, SUMMARY_MAX_LENGTH, SLUG_IDIOMAS, SLUG_OTRA,
   OTRO_IDIOMA,
@@ -1096,6 +1097,7 @@ export default function CandidatePerfilPage() {
           </button>
         </div>
       </div>
+      <MyAccountSection role="candidate" />
     </div>
   );
 }

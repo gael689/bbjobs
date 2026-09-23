@@ -10,7 +10,8 @@
 ## Estado de implementación
 
 - [ ] **Bloque 0 — Resolver a mano el caso real** (la persona que se registró como empresa)
-- [ ] **Bloque A — La admin puede eliminar cuentas** (empresa y candidato)
+- [x] **Bloque A — La admin puede eliminar cuentas** (empresa y candidato) (23/09/2026, código;
+  falta la verificación A.8 contra una base local — ver "Pendiente de verificar")
 - [x] **Bloque B — Elegir rol antes del registro** (23/09/2026)
 - [x] **Bloque C — /contacto: teléfono obligatorio, mail opcional + panel de mensajes** (23/09/2026)
 
@@ -501,6 +502,35 @@ fijo de Talency en `contacto/page.tsx:5`).
 | D8 | Auto-borrado del propio usuario | **Ahora**, con UI en "Mi cuenta" de empresa y candidato. |
 | D9 | Confirmación en el panel de la admin | **Sin tipear el mail**: modal con nombre, mail y conteos + botón "Sí, eliminar". A Eugenia le alcanza con ver a quién borra. Se descarta el `confirm_email` de A.4/A.7. |
 | D10 | "Me equivoqué de tipo de cuenta" | **Se agrega**: si la cuenta está vacía, el propio usuario borra su perfil y vuelve al selector de rol sin perder el login de Clerk. |
+
+## Cómo quedó implementado el Bloque A (23/09/2026)
+
+Difiere del plan original en tres cosas, por las decisiones D8–D10:
+
+- **Candidato con postulaciones también va a lápida**, no sólo con desbloqueos: las empresas
+  conservan su historial ("Candidato eliminado") y las estadísticas de postulaciones no bajan.
+  Borrado total = cuenta sin postulaciones, pagos ni desbloqueos.
+- **Sin `confirm_email`** en `DELETE /admin/users/{id}`: modal con nombre, mail y conteos.
+- **Cuatro puertas, un servicio** (`services/account_deletion.py`):
+  - admin: `GET /admin/users/{id}/deletion-preview`, `DELETE /admin/users/{id}`
+    (botón al pie del perfil en Empresas y Candidatos, `components/dashboard/DeleteAccountModal.tsx`);
+  - auto-borrado: `GET /me/account/deletion-preview`, `DELETE /me/account` con "ELIMINAR"
+    (sección "Mi cuenta" al pie del perfil, `components/dashboard/MyAccountSection.tsx`);
+  - cambio de tipo: `POST /me/account/reset-role` — borra el `User` local sólo si está vacío,
+    deja vivo el login de Clerk y limpia `publicMetadata.role`; el frontend pone el rol nuevo en
+    `unsafeMetadata` y manda al onboarding. Banner en el inicio del panel **sólo de empresas**
+    (en candidatos lo verían casi todos, porque la mayoría no tiene postulaciones);
+  - webhook `user.deleted`: mismo servicio con `delete_in_clerk=False` → libera el mail.
+- Lápidas fuera de listados y contadores: admin (empresas, candidatos, métricas), público
+  (`/companies`, `/companies/{id}`), landing y recordatorio de perfil del scheduler.
+- Migración `f3b9c2d6a4e8`: `talent_unlocks.candidate_id` pasa a RESTRICT (A.6).
+- Cloudinary: `delete_by_url()` deduce `resource_type`/`delivery_type` de la URL guardada.
+
+### Pendiente de verificar
+
+A.8 completo contra Postgres **local** (no se pudo: pide contraseña y `backend/.env` apunta a
+producción). Mínimo antes de deployar: pasos 2, 3, 6 y 8 de A.8, más `alembic upgrade head` y
+`downgrade -1` de las dos migraciones.
 
 ## Riesgos generales
 

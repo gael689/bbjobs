@@ -10,6 +10,7 @@ import {
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import Paginacion from "@/components/ui/Paginacion";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
+import DeleteAccountModal, { DeleteAccountZone } from "@/components/dashboard/DeleteAccountModal";
 import {
   VERIF_CLS, VERIF_LABEL, MODERATION_CLS, MODERATION_LABEL, APP_STATUS_LABEL,
   type Company, type Job, type AdminApplication,
@@ -37,6 +38,7 @@ export default function AdminEmpresasPage() {
   const [rejectNotes, setRejectNotes] = useState("");
 
   const [viewCompany, setViewCompany] = useState<Company | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
 
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [companyJobs, setCompanyJobs] = useState<Record<string, Job[]>>({});
@@ -562,9 +564,23 @@ export default function AdminEmpresasPage() {
                   )}
                 </div>
               </div>
+
+              <DeleteAccountZone onClick={() => setDeleteUserId(viewCompany.user_id)} />
             </div>
           </div>
         </div>
+      )}
+
+      {deleteUserId && (
+        <DeleteAccountModal
+          userId={deleteUserId}
+          onClose={() => setDeleteUserId(null)}
+          onDeleted={() => {
+            setViewCompany(null);
+            recargar();
+            setRefrescoContadores(n => n + 1);
+          }}
+        />
       )}
     </div>
   );

@@ -135,8 +135,10 @@ class TalentUnlock(UUIDMixin, Base):
     company_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("company_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # RESTRICT (f3b9c2d6a4e8): borrar un candidato desbloqueado en cascada le devolvía el
+    # crédito a la empresa. El borrado de cuentas lo deja en lápida; esto es la red.
     candidate_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("candidate_profiles.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     pack_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("talent_credit_packs.id", ondelete="RESTRICT"), nullable=False, index=True

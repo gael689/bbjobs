@@ -9,6 +9,7 @@ import {
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import Paginacion from "@/components/ui/Paginacion";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import DeleteAccountModal, { DeleteAccountZone } from "@/components/dashboard/DeleteAccountModal";
 import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
   CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL, EDUCATION_LEVEL_LABEL,
@@ -46,9 +47,12 @@ export default function AdminCandidatosPage() {
   const [profile, setProfile] = useState<CandidateFullProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [activity, setActivity] = useState<CandidateActivityItem[]>([]);
+  // user_id del candidato abierto: el perfil completo no lo trae, la fila del listado sí.
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
 
   const {
-    items: candidates, total, pagina, pageSize, totalPaginas, cargando: loading, irAPagina,
+    items: candidates, total, pagina, pageSize, totalPaginas, cargando: loading, irAPagina, recargar,
   } = useListaPaginada<Candidate>("/admin/candidates", buildParams(aplicados));
 
   useEffect(() => {
@@ -247,7 +251,7 @@ export default function AdminCandidatosPage() {
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <button
-                  onClick={() => openProfile(c.id)}
+                  onClick={() => { setProfileUserId(c.user_id); openProfile(c.id); }}
                   className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                 >
                   <UserCircleIcon className="w-3.5 h-3.5" />
@@ -286,7 +290,20 @@ export default function AdminCandidatosPage() {
         activity={activity}
         cvLinkEndpoint={profile ? `/admin/candidates/${profile.id}/cv/link` : undefined}
         showCompletion
+        footer={profileUserId && <DeleteAccountZone onClick={() => setDeleteUserId(profileUserId)} />}
       />
+
+      {deleteUserId && (
+        <DeleteAccountModal
+          userId={deleteUserId}
+          onClose={() => setDeleteUserId(null)}
+          onDeleted={() => {
+            setProfile(null);
+            setProfileUserId(null);
+            recargar();
+          }}
+        />
+      )}
     </div>
   );
 }

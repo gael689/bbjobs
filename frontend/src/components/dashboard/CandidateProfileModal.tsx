@@ -65,13 +65,16 @@ interface Props {
    *  mide cuánto cargó el candidato de su propio perfil, y termina descartando buenos
    *  candidatos con el perfil a medio llenar (pedido de Eugenia, agosto/2026). */
   showCompletion?: boolean;
+  /** Contenido al pie (ej. "Eliminar cuenta" en el panel de admin). El modal es compartido con
+   *  la empresa, así que la acción se inyecta desde afuera y no vive acá. */
+  footer?: React.ReactNode;
 }
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("es-AR", { month: "short", year: "numeric" });
 }
 
-export default function CandidateProfileModal({ profile, loading, onClose, activity = [], cvLinkEndpoint, showCompletion = false }: Props) {
+export default function CandidateProfileModal({ profile, loading, onClose, activity = [], cvLinkEndpoint, showCompletion = false, footer }: Props) {
   const [cvError, setCvError] = useState(false);
 
   if (!profile && !loading) return null;
@@ -294,6 +297,7 @@ export default function CandidateProfileModal({ profile, loading, onClose, activ
                 </div>
               </div>
             )}
+            {footer}
           </div>
         )}
       </div>

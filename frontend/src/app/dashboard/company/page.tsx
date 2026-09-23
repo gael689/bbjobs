@@ -9,6 +9,7 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import type { CompanyProfile, JobPosting, ApplicantStats } from "./types";
+import { WrongRoleBanner } from "@/components/dashboard/MyAccountSection";
 
 export default function CompanyInicioPage() {
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -33,6 +34,10 @@ export default function CompanyInicioPage() {
         {profile?.legal_name ? `Hola, ${profile.legal_name}` : "Panel de empresa"}
       </h1>
       <p className="text-[#64748B] text-sm mb-6">Así está la actividad de tu empresa en BBJobs.</p>
+
+      {/* Sólo en empresas: el error real fue alguien que se registró como empresa buscando
+          trabajo. En candidatos sería ruido: la mayoría no tiene postulaciones y lo verían todos. */}
+      <WrongRoleBanner role="company" />
 
       {/* Hero — estado de verificación / CTA principal.
           Publicar ya no depende de estar verificada (ver A2 del plan del 14/08): una empresa

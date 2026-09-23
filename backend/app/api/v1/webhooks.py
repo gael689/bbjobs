@@ -5,7 +5,7 @@ from svix.webhooks import Webhook, WebhookVerificationError
 from app.api.deps import get_db
 from app.core.config import settings
 from app.db.session import async_session_maker
-from app.models.core import User
+from app.models.core import User, UserRole
 from app.models.company import CompanyProfile
 from app.models.payment import (
     MercadoPagoWebhookEvent, Payment, PaymentType, JobFeature, JobFeatureStatus,
@@ -15,6 +15,7 @@ from app.models.job import JobPosting, JobModerationStatus
 from app.integrations.mercado_pago import verify_signature, get_mp_client, webhook_signature_required
 from app.schemas.payment import TALENT_PACK_CREDITS
 from app.services.notifications import create_notification, notify_all_admins
+from app.services.account_deletion import AccountDeletionError, delete_account
 import uuid
 import datetime
 import structlog
@@ -313,11 +314,23 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
 
     if event_type == "user.deleted":
-        if user and user.is_active:
+        # Mismo servicio que el borrado desde el panel, sin volver a llamar a Clerk. Antes esto
+        # sólo desactivaba al usuario y dejaba el mail ocupado (users.email es UNIQUE): quien
+        # borraba desde el dashboard de Clerk dejaba a la persona sin poder volver a
+        # registrarse, porque el onboarding la rebotaba con email_collision. Idempotente: si el
+        # borrado vino de nuestro lado, el User ya no existe o ya no tiene clerk_user_id.
+        if user and user.deleted_at is None and user.role != UserRole.admin:
+            try:
+                await delete_account(db, user, actor=None, reason="borrada desde Clerk", delete_in_clerk=False)
+                logger.info("clerk_user_deleted_webhook", clerk_user_id=clerk_user_id)
+            except AccountDeletionError as e:
+                logger.error("clerk_user_deleted_webhook_error", clerk_user_id=clerk_user_id, error=e.message)
+        elif user and user.is_active:
+            # Admin borrado desde Clerk: no se toca su historia, sólo se corta el acceso.
             user.is_active = False
             user.deleted_at = datetime.datetime.now(datetime.timezone.utc)
             await db.commit()
-            logger.info("clerk_user_deleted_webhook", clerk_user_id=clerk_user_id)
+            logger.info("clerk_admin_deleted_webhook", clerk_user_id=clerk_user_id)
 
     elif event_type == "user.updated":
         if user:

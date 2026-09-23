@@ -76,10 +76,13 @@ _SOURCE_SUBQUERIES = {
     ),
     LandingStatSource.verified_companies: (
         select(func.count()).select_from(CompanyProfile).where(
-            CompanyProfile.verification_status == VerificationStatus.verified
+            CompanyProfile.verification_status == VerificationStatus.verified,
+            CompanyProfile.deleted_at.is_(None),
         )
     ),
-    LandingStatSource.registered_candidates: select(func.count()).select_from(CandidateProfile),
+    LandingStatSource.registered_candidates: (
+        select(func.count()).select_from(CandidateProfile).where(CandidateProfile.deleted_at.is_(None))
+    ),
     LandingStatSource.total_applications: select(func.count()).select_from(Application),
 }
 

@@ -17,6 +17,7 @@ from app.models.contact import ContactMessage
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
+from app.services.account_deletion import AccountDeletionError, delete_account, preview_deletion
 from app.services.profile_completion import compute_profile_completion_bulk
 from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, get_highest_education_level,
@@ -176,16 +177,22 @@ async def get_dashboard_metrics(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    total_companies = (await db.execute(select(func.count()).select_from(CompanyProfile))).scalar()
+    # deleted_at: las cuentas dadas de baja en modo lápida (services/account_deletion.py)
+    # conservan la fila, pero no cuentan como empresas ni candidatos del portal.
+    total_companies = (await db.execute(
+        select(func.count()).select_from(CompanyProfile).where(CompanyProfile.deleted_at.is_(None))
+    )).scalar()
     pending_companies = (await db.execute(
         select(func.count()).select_from(CompanyProfile)
-        .where(CompanyProfile.verification_status == VerificationStatus.pending)
+        .where(CompanyProfile.verification_status == VerificationStatus.pending, CompanyProfile.deleted_at.is_(None))
     )).scalar()
     verified_companies = (await db.execute(
         select(func.count()).select_from(CompanyProfile)
-        .where(CompanyProfile.verification_status == VerificationStatus.verified)
+        .where(CompanyProfile.verification_status == VerificationStatus.verified, CompanyProfile.deleted_at.is_(None))
     )).scalar()
-    total_candidates = (await db.execute(select(func.count()).select_from(CandidateProfile))).scalar()
+    total_candidates = (await db.execute(
+        select(func.count()).select_from(CandidateProfile).where(CandidateProfile.deleted_at.is_(None))
+    )).scalar()
     total_jobs = (await db.execute(
         select(func.count()).select_from(JobPosting).where(JobPosting.deleted_at.is_(None))
     )).scalar()
@@ -275,7 +282,7 @@ async def list_companies(
     # rubro (ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, B1).
     q = select(CompanyProfile, Industry.name).join(
         Industry, CompanyProfile.industry_id == Industry.id
-    )
+    ).where(CompanyProfile.deleted_at.is_(None))
     if status:
         q = q.where(CompanyProfile.verification_status == status)
     # Las pendientes primero (es lo que hay que atender), y de ahí las más nuevas. El desempate
@@ -509,7 +516,7 @@ async def list_candidates(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(CandidateProfile)
+    query = select(CandidateProfile).where(CandidateProfile.deleted_at.is_(None))
     if q:
         search_term = f"%{q}%"
         query = query.where(
@@ -1273,3 +1280,59 @@ async def set_job_featured_admin(
 
     await db.commit()
     return {"status": "ok", "job_id": job_id, "is_featured": job.is_featured}
+
+
+# ── Eliminar cuentas (MODIFICACIONES-EUGENIA-2026-09-23-PLAN.md, Bloque A) ──────────────────
+# Pedido de Eugenia: que quien se registró por error (ej. como empresa buscando trabajo) pueda
+# volver a registrarse con el mismo mail. Toda la lógica vive en services/account_deletion.py,
+# compartida con el auto-borrado y el webhook de Clerk. Por `user_id` y no por perfil: los dos
+# listados ya lo exponen y es un solo endpoint para empresas y candidatos.
+
+class DeletionPreviewResponse(BaseModel):
+    user_id: uuid.UUID
+    role: str
+    email: str
+    display_name: str
+    mode: str  # "full" | "tombstone"
+    counts: dict[str, int]
+
+
+async def _get_deletable_user(db: AsyncSession, user_id: uuid.UUID, admin: User) -> User:
+    target = (await db.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
+    # El botón no aparece en las cuentas de admin, pero la guarda va acá: un admin borrando a
+    # otro (o a sí mismo) es la forma de dejar a Talency sin acceso al panel.
+    if target.role == UserRole.admin or target.id == admin.id:
+        raise HTTPException(status_code=403, detail="Las cuentas de administrador no se pueden eliminar")
+    return target
+
+
+@router.get("/admin/users/{user_id}/deletion-preview", response_model=DeletionPreviewResponse)
+async def admin_deletion_preview(
+    user_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _get_deletable_user(db, user_id, admin)
+    p = await preview_deletion(db, target)
+    return DeletionPreviewResponse(
+        user_id=p.user_id, role=p.role, email=p.email, display_name=p.display_name,
+        mode=p.mode.value, counts=p.counts,
+    )
+
+
+@router.delete("/admin/users/{user_id}")
+async def admin_delete_account(
+    user_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _get_deletable_user(db, user_id, admin)
+    try:
+        p = await delete_account(db, target, actor=admin, reason="eliminada por admin")
+    except AccountDeletionError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    return {"status": "ok", "mode": p.mode.value}

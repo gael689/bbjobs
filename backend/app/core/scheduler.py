@@ -109,7 +109,7 @@ async def send_profile_reminders():
     proactivamente para candidatos que no se postulan a nada."""
     logger.info("running_job_send_profile_reminders")
     async with async_session_maker() as db:
-        res = await db.execute(select(CandidateProfile))
+        res = await db.execute(select(CandidateProfile).where(CandidateProfile.deleted_at.is_(None)))
         candidates = list(res.scalars().all())
 
         # Acá no hay pantalla que paginar: la tarea los recorre a todos por definición, así que

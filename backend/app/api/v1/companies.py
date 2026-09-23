@@ -48,7 +48,10 @@ async def list_verified_companies(
 ):
     """Público — usado en /empresas para mostrar 'empresas que confían en nosotros'.
     Sólo expone nombre/logo/sitio, nunca CUIT ni datos de contacto."""
-    query = select(CompanyProfile).where(CompanyProfile.verification_status == VerificationStatus.verified)
+    query = select(CompanyProfile).where(
+        CompanyProfile.verification_status == VerificationStatus.verified,
+        CompanyProfile.deleted_at.is_(None),
+    )
     if with_logo_only:
         query = query.where(CompanyProfile.logo_url.is_not(None))
     query = query.order_by(CompanyProfile.verified_at.desc()).limit(limit)
@@ -70,6 +73,7 @@ async def get_company_public_profile(
         select(CompanyProfile).where(
             CompanyProfile.id == company_id,
             CompanyProfile.verification_status == VerificationStatus.verified,
+            CompanyProfile.deleted_at.is_(None),
         )
     )
     company = result.scalar_one_or_none()

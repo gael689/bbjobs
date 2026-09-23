@@ -143,3 +143,30 @@ def delete_file(public_id: str, resource_type: str = "image", delivery_type: str
         cloudinary.uploader.destroy(public_id, resource_type=resource_type, type=delivery_type)
     except Exception as e:
         logger.error("cloudinary_delete_error", public_id=public_id, error=str(e))
+
+
+# Imagen (foto de candidato, logo de empresa): el public_id va sin la extensión.
+_IMAGE_URL_RE = re.compile(
+    r"/image/(?P<delivery_type>upload|private|authenticated)/"
+    r"(?:s--[^/]+--/)?"
+    r"(?:v\d+/)?"
+    r"(?P<public_id>.+?)(?:\.[A-Za-z0-9]+)?$"
+)
+
+
+def delete_by_url(stored_url: str | None) -> None:
+    """Borra el asset a partir de la URL guardada en la base, deduciendo `resource_type` y
+    `delivery_type` de la propia URL. Sirve para CV (raw, `private` los nuevos y `upload` los
+    viejos), documentos de verificación (raw) y fotos o logos (image). Best-effort: una URL que
+    no se entiende sólo se loguea."""
+    if not stored_url:
+        return
+    raw = _RAW_URL_RE.search(stored_url)
+    if raw:
+        delete_file(raw.group("public_id"), resource_type="raw", delivery_type=raw.group("delivery_type"))
+        return
+    img = _IMAGE_URL_RE.search(stored_url)
+    if img:
+        delete_file(img.group("public_id"), resource_type="image", delivery_type=img.group("delivery_type"))
+        return
+    logger.warning("cloudinary_delete_url_no_parseable", url=stored_url)

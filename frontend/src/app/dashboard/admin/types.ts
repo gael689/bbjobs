@@ -2,6 +2,7 @@ export type VerifStatus = "pending" | "verified" | "rejected" | "suspended";
 
 export interface Company {
   id: string;
+  user_id: string;
   legal_name: string;
   cuit: string;
   industry_name?: string;
@@ -26,6 +27,7 @@ export type CandidateAvailability = "full_time" | "part_time" | "ambos";
 
 export interface Candidate {
   id: string;
+  user_id: string;
   first_name: string;
   last_name: string;
   phone: string;

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { achicarImagen } from "@/lib/imagen";
 import { BuildingOffice2Icon, CloudArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { CompanyProfile } from "../types";
+import MyAccountSection from "@/components/dashboard/MyAccountSection";
 
 export default function CompanyPerfilPage() {
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -240,6 +241,7 @@ export default function CompanyPerfilPage() {
         </form>
         </div>
       </div>
+      <MyAccountSection role="company" />
     </div>
   );
 }
