@@ -31,7 +31,10 @@ async def submit_contact_message(
         db,
         type="contact_message_received",
         title="Nuevo mensaje de contacto",
-        body=f"{payload.name} escribió ({'empresa' if payload.topic.value == 'empresa' else 'general'}).",
+        body=(
+            f"{payload.name} escribió ({'empresa' if payload.topic.value == 'empresa' else 'general'})"
+            f" · Tel: {payload.phone}"
+        ),
         link="/dashboard/admin/mensajes",
     )
 

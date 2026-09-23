@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ChatBubbleLeftRightIcon, CheckCircleIcon, EnvelopeIcon, PhoneIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { ContactMessage } from "../types";
+import { telLink, waLink } from "@/lib/telefono";
 
 export default function AdminMensajesPage() {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
@@ -120,16 +121,38 @@ export default function AdminMensajesPage() {
                       </button>
                     </div>
                   </div>
+                  {/* El teléfono es el dato principal: es obligatorio desde el 23/09/2026 y Talency
+                      responde por WhatsApp. Los mensajes anteriores pueden no tenerlo. */}
+                  {m.phone && (
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-[#1C2230]">
+                        <PhoneIcon className="w-4 h-4 text-[#64748B]" />{m.phone}
+                      </span>
+                      {waLink(m.phone) && (
+                        <a
+                          href={waLink(m.phone)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold bg-[#25D366] hover:bg-[#1EBE5A] text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+                      <a
+                        href={telLink(m.phone)}
+                        className="text-xs font-bold border border-[#DDE3EC] text-[#1C2230] px-3 py-1.5 rounded-lg hover:bg-[#FAFBFD] transition-colors"
+                      >
+                        Llamar
+                      </a>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 text-xs text-[#64748B] mb-3 flex-wrap">
-                    <a href={`mailto:${m.email}`} className="flex items-center gap-1 hover:text-[#1E8EA3]">
-                      <EnvelopeIcon className="w-3.5 h-3.5" />{m.email}
-                    </a>
-                    {m.phone && (
-                      <a href={`tel:${m.phone}`} className="flex items-center gap-1 hover:text-[#1E8EA3]">
-                        <PhoneIcon className="w-3.5 h-3.5" />{m.phone}
+                    {m.email && (
+                      <a href={`mailto:${m.email}`} className="flex items-center gap-1 hover:text-[#1E8EA3]">
+                        <EnvelopeIcon className="w-3.5 h-3.5" />{m.email}
                       </a>
                     )}
-                    <span>{new Date(m.created_at).toLocaleDateString("es-AR")}</span>
+                    <span>{new Date(m.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })} h</span>
                   </div>
                   <p className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line bg-[#FAFBFD] rounded-xl px-4 py-3">{m.message}</p>
                 </div>

@@ -25,15 +25,21 @@ export default function ContactForm({ topic = "general" }: { topic?: "general" |
     try {
       await api.post("/contact", {
         name,
-        email,
-        phone: phone || undefined,
+        phone: phone.trim(),
+        email: email.trim() || undefined,
         company_name: topic === "empresa" ? companyName || undefined : undefined,
         topic,
         message,
       });
       setSent(true);
-    } catch {
-      setError("No pudimos enviar tu mensaje. Probá de nuevo o escribinos por WhatsApp.");
+    } catch (err: unknown) {
+      // El 422 del backend casi siempre es el teléfono (muy corto) o un mail mal escrito.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setError(
+        status === 422
+          ? "Revisá el teléfono (con característica, ej. 2914 123456) y el mail si lo completaste."
+          : "No pudimos enviar tu mensaje. Probá de nuevo o escribinos por WhatsApp."
+      );
     } finally {
       setSending(false);
     }
@@ -53,21 +59,33 @@ export default function ContactForm({ topic = "general" }: { topic?: "general" |
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-[#DDE3EC] rounded-2xl p-6 space-y-4">
+      {/* Teléfono obligatorio y mail opcional (pedido de Eugenia, 23/09/2026): Talency responde
+          por WhatsApp, y el teléfono es lo único imprescindible para devolver el contacto. */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Nombre</label>
-          <input required value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre" className={inputCls} />
+          <input required value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" className={inputCls} />
         </div>
         <div>
-          <label className={labelCls}>Email</label>
-          <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vos@email.com" className={inputCls} />
+          <label className={labelCls}>Teléfono / WhatsApp</label>
+          <input
+            required
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            minLength={8}
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            placeholder="2914 000000"
+            className={inputCls}
+          />
         </div>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className={labelCls}>Teléfono (opcional)</label>
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="2914 000000" className={inputCls} />
+          <label className={labelCls}>Email (opcional)</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vos@email.com" autoComplete="email" className={inputCls} />
         </div>
         {topic === "empresa" && (
           <div>

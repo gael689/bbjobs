@@ -256,7 +256,7 @@ export interface Skill {
 export interface ContactMessage {
   id: string;
   name: string;
-  email: string;
+  email?: string | null;
   phone?: string;
   company_name?: string;
   topic: "general" | "empresa";
