@@ -24,7 +24,12 @@ export default function LoginPage() {
   // SIEMPRE tiene que pasar por /onboarding antes de poder postularse (ahí se crea su User
   // local — ver onboarding.py). Si usáramos `redirect_url` ahí, Clerk saltaría directo al
   // destino después del alta y se saltearía el onboarding.
-  const signUpUrl = redirectUrl ? `/register?next=${encodeURIComponent(redirectUrl)}` : "/register";
+  //
+  // Quien venía a postularse (/empleos/...) es un postulante seguro: va con el rol elegido. El
+  // resto cae en el selector de /register, que pregunta antes de crear la cuenta.
+  const signUpUrl = redirectUrl
+    ? `/register?${redirectUrl.startsWith("/empleos") ? "type=candidate&" : ""}next=${encodeURIComponent(redirectUrl)}`
+    : "/register";
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-12 pb-12 bg-mesh relative overflow-x-hidden">

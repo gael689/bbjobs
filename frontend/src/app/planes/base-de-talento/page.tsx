@@ -281,7 +281,7 @@ export default function BaseDeTalentoInfoPage() {
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Link
-              href="/register"
+              href="/register?type=company"
               className="text-sm font-bold text-[#1C2230] bg-white hover:bg-[#E6F4F7] px-7 py-3.5 rounded-xl transition-colors"
             >
               Crear cuenta de empresa

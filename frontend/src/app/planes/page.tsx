@@ -164,7 +164,7 @@ export default function PlanesPage() {
 
                 <div className="px-7 pb-7 space-y-1">
                   <CtaPlan
-                    href="/register"
+                    href="/register?type=company"
                     hrefLogueado={plan.ctaLogueado}
                     className={`block text-center text-sm font-bold px-5 py-3.5 rounded-xl transition-colors ${
                       plan.destacado

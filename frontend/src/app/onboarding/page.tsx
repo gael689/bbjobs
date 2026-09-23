@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
+import RoleChooser, { RoleBanner, SIGNUP_ROLE_KEY, type SignupRole } from "@/components/auth/RoleChooser";
 
 interface Industry { id: string; name: string; }
 
@@ -72,18 +73,21 @@ export default function OnboardingPage() {
   const metaRole = user?.unsafeMetadata?.role;
   const [storedRole] = useState(() => {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem("bbjobs_signup_role");
+    return localStorage.getItem(SIGNUP_ROLE_KEY);
   });
-  const detectedRole: "candidate" | "company" =
+  // Si el rol no llegó por ningún lado (ej. alta por Google desde /login, que Clerk pasa a
+  // sign-up sin pasar por el selector de /register), NO se asume candidato: se pregunta.
+  const detectedRole: SignupRole | null =
     metaRole === "company" || metaRole === "candidate"
       ? metaRole
-      : storedRole === "company"
-      ? "company"
-      : "candidate";
+      : storedRole === "company" || storedRole === "candidate"
+      ? storedRole
+      : null;
   // Red de seguridad manual: por si el detectado no coincide con lo que la persona
   // realmente quiso (ej. cambió de opinión, o ningún respaldo llegó bien).
-  const [manualRole, setManualRole] = useState<"candidate" | "company" | null>(null);
-  const role = manualRole ?? detectedRole;
+  const [manualRole, setManualRole] = useState<SignupRole | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const role: SignupRole | null = choosing ? null : manualRole ?? detectedRole;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
@@ -144,7 +148,7 @@ export default function OnboardingPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    localStorage.removeItem("bbjobs_signup_role");
+    localStorage.removeItem(SIGNUP_ROLE_KEY);
     try {
       if (role === "candidate") {
         const res = await api.post("/me/onboarding/candidate", {
@@ -217,19 +221,21 @@ export default function OnboardingPage() {
         </div>
 
         <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 shadow-sm">
-          <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-xl p-3.5 mb-3 text-sm text-[#1C2230] font-medium">
-            {role === "candidate"
-              ? "✓ Subí tu CV  ·  ✓ Postulate con un click  ·  ✓ Tu perfil es privado"
-              : "✓ Publicá búsquedas  ·  ✓ Recibí postulaciones  ·  ✓ Empresa verificada por Talency"}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setManualRole(role === "candidate" ? "company" : "candidate")}
-            className="text-xs font-bold text-[#1E8EA3] hover:underline mb-6 block"
-          >
-            {role === "candidate" ? "¿Sos una empresa? Cambiar a registro de empresa" : "¿Buscás trabajo? Cambiar a registro de candidato"}
-          </button>
+          {!role ? (
+            <>
+              <p className="text-sm font-bold text-[#1C2230] mb-4">¿Cómo querés usar BBJobs?</p>
+              <RoleChooser onChoose={r => { setManualRole(r); setChoosing(false); }} />
+            </>
+          ) : (
+            <>
+              <RoleBanner role={role} onChange={() => setChoosing(true)} />
+              {role === "company" && (
+                <p className="text-xs text-[#64748B] -mt-3 mb-5">
+                  Esta cuenta es para empresas que publican búsquedas. Si buscás trabajo, tocá “Cambiar”.
+                </p>
+              )}
+            </>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl mb-5 font-medium">
@@ -237,6 +243,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
+          {role && (
           <form onSubmit={handleSubmit} className="space-y-4">
 
             {/* ── Candidato ── */}
@@ -394,6 +401,7 @@ export default function OnboardingPage() {
                 : role === "company" ? "Crear cuenta de empresa" : "Terminar mi registro"}
             </button>
           </form>
+          )}
         </div>
       </div>
     </div>
