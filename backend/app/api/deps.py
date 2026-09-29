@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from fastapi import Depends, HTTPException, status
+import structlog
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -9,7 +10,11 @@ from app.models.company import CompanyProfile, VerificationStatus
 from app.db.rls import set_rls_context
 from app.integrations.clerk_client import verify_session_token, ClerkTokenError
 
-bearer_scheme = HTTPBearer()
+logger = structlog.get_logger("app.auth")
+
+# auto_error=False: con el comportamiento por defecto un pedido sin header sale como 401/403
+# genérico sin dejar rastro. Acá se responde a mano para poder loguear el motivo.
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_db():
@@ -23,20 +28,40 @@ class ClerkIdentity:
     clerk_user_id: str
 
 
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_clerk_identity(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> ClerkIdentity:
+    # El motivo del rechazo se loguea (nunca el token): antes todos los 401 se veían igual y
+    # no había manera de distinguir un token vencido de un origen no autorizado.
+    if credentials is None:
+        logger.warning("auth_rejected", reason="no_authorization_header",
+                       method=request.method, path=request.url.path)
+        raise _unauthorized()
     try:
-        payload = verify_session_token(credentials.credentials)
-    except ClerkTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        payload = await verify_session_token(credentials.credentials)
+    except ClerkTokenError as e:
+        logger.warning("auth_rejected", reason=e.reason, transient=e.transient,
+                       method=request.method, path=request.url.path)
+        if e.transient:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No pudimos verificar tu sesión en este momento. Probá de nuevo en unos segundos.",
+            )
+        raise _unauthorized()
     clerk_user_id = payload.get("sub")
     if not clerk_user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+        logger.warning("auth_rejected", reason="token_without_sub",
+                       method=request.method, path=request.url.path)
+        raise _unauthorized()
     return ClerkIdentity(clerk_user_id=clerk_user_id)
 
 

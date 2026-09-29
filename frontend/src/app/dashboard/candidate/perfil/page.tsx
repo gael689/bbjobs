@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/api";
+import { mensajeDeError, fechaLocal } from "@/lib/apiError";
 import { abrirCv } from "@/lib/cv";
 import { achicarImagen } from "@/lib/imagen";
 import {
@@ -40,13 +41,13 @@ type PersonalForm = {
 
 /** Hoy en formato YYYY-MM-DD, para el atributo `max` de los <input type="date">.
  *  El backend valida lo mismo: el tope del formulario se puede saltear. */
-const HOY = new Date().toISOString().slice(0, 10);
+const HOY = fechaLocal();
 
 /** Fecha de nacimiento más reciente admitida: hay que tener 18 años cumplidos. */
 const MAX_FECHA_NACIMIENTO = (() => {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 18);
-  return d.toISOString().slice(0, 10);
+  return fechaLocal(d);
 })();
 
 const EMPTY_PERSONAL_FORM: PersonalForm = {
@@ -66,14 +67,7 @@ const EMPTY_PERSONAL_FORM: PersonalForm = {
  * a ciegas, se rinde y avanza de paso creyendo que guardó.
  */
 function motivoDelError(err: unknown, porDefecto: string): string {
-  const detalle = (err as { response?: { data?: { detail?: unknown } } })
-    ?.response?.data?.detail;
-  if (typeof detalle === "string" && detalle.trim()) return detalle;
-  if (Array.isArray(detalle)) {
-    const msg = (detalle[0] as { msg?: string })?.msg;
-    if (msg) return msg.replace(/^Value error,\s*/, "");
-  }
-  return porDefecto;
+  return mensajeDeError(err, porDefecto);
 }
 
 const STEPS: { key: string; label: string; missingKeys: string[] }[] = [
@@ -144,7 +138,11 @@ export default function CandidatePerfilPage() {
         const firstIncomplete = STEPS.findIndex(s => data.missing_fields.some(m => s.missingKeys.includes(m.key)));
         setStep(firstIncomplete === -1 ? 0 : firstIncomplete);
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      // Antes se tragaba: si el perfil no cargaba, el formulario quedaba vacío sin decir por qué
+      // y la persona lo llenaba creyendo que era la primera vez.
+      toast(motivoDelError(err, "No pudimos cargar tu perfil. Recargá la página."));
+    });
     api.get("/me/candidate/experience").then(r => setExperiences(r.data)).catch(() => {});
     api.get("/me/candidate/education").then(r => setEducations(r.data)).catch(() => {});
     api.get("/me/candidate/languages").then(r => setLanguages(r.data)).catch(() => {});
@@ -186,8 +184,8 @@ export default function CandidatePerfilPage() {
       setProfile(r.data);
       toast("Datos personales guardados");
       return true;
-    } catch {
-      toast("Error al guardar los datos personales");
+    } catch (err) {
+      toast(motivoDelError(err, "Error al guardar los datos personales"));
       return false;
     } finally {
       setSavingPersonal(false);
@@ -207,8 +205,8 @@ export default function CandidatePerfilPage() {
       const r = await api.post("/me/candidate/photo", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setProfile(r.data);
       toast("Foto de perfil actualizada");
-    } catch {
-      toast("Error al subir la foto");
+    } catch (err) {
+      toast(motivoDelError(err, "Error al subir la foto"));
     } finally {
       setPhotoUploading(false);
     }
@@ -225,8 +223,8 @@ export default function CandidatePerfilPage() {
       const r = await api.post("/me/candidate/cv", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setProfile(r.data);
       toast("CV actualizado correctamente");
-    } catch {
-      toast("Error al subir el CV");
+    } catch (err) {
+      toast(motivoDelError(err, "Error al subir el CV"));
     } finally {
       setCvUploading(false);
     }
@@ -258,7 +256,7 @@ export default function CandidatePerfilPage() {
       setExperiences(prev => prev.filter(e => e.id !== id));
       refreshProfile();
       toast("Experiencia eliminada");
-    } catch { toast("Error al eliminar"); }
+    } catch (err) { toast(motivoDelError(err, "Error al eliminar")); }
   }
 
   async function addEducation(e: React.FormEvent) {
@@ -289,7 +287,7 @@ export default function CandidatePerfilPage() {
       setEducations(prev => prev.filter(e => e.id !== id));
       refreshProfile();
       toast("Educación eliminada");
-    } catch { toast("Error al eliminar"); }
+    } catch (err) { toast(motivoDelError(err, "Error al eliminar")); }
   }
 
   async function addLanguage(e: React.FormEvent) {
@@ -320,7 +318,7 @@ export default function CandidatePerfilPage() {
       setLanguages(prev => prev.filter(l => l.id !== id));
       refreshProfile();
       toast("Idioma eliminado");
-    } catch { toast("Error al eliminar"); }
+    } catch (err) { toast(motivoDelError(err, "Error al eliminar")); }
   }
 
   const selectedSkillIds = [...mySkills.soft, ...mySkills.technical].map(s => s.skill_id);

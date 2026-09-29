@@ -636,7 +636,10 @@ async def list_jobs(
     result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
     items = [
         JobAdminResponse.model_validate(job, from_attributes=True).model_copy(
-            update={"company_verification_status": verification_status}
+            # La columna es String: llega "verified", no el enum. model_copy(update=) no valida,
+            # así que sin convertirlo Pydantic avisa en cada fila y satura los logs de Railway
+            # (500 líneas/seg), tapando los errores de verdad.
+            update={"company_verification_status": VerificationStatus(verification_status) if verification_status else None}
         )
         for job, verification_status in result.all()
     ]

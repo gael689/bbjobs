@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useClerk, useAuth } from "@clerk/nextjs";
 import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
-import { api } from "@/lib/api";
+import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 const NAV_BADGE_POLL_MS = 45_000;
@@ -109,7 +109,7 @@ export default function DashboardShell({
     if (!isSignedIn) return;
     let cancelled = false;
     const tick = () => {
-      if (document.hidden) return;
+      if (document.hidden || isSessionExpired()) return;
       api.get("/me/notifications/unread-count")
         .then(res => { if (!cancelled) setNavUnreadCount(res.data.count ?? 0); })
         .catch(() => {});

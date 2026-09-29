@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, isSessionExpired } from "@/lib/api";
 import { useAuth } from "@clerk/nextjs";
 
 export interface NotificationItemData {
@@ -84,7 +84,7 @@ export function useNotifications() {
 
     let cancelled = false;
     const tick = () => {
-      if (document.hidden) return;
+      if (document.hidden || isSessionExpired()) return;
       api
         .get("/me/notifications/unread-count")
         .then((res) => {

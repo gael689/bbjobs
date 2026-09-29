@@ -11,19 +11,43 @@ from functools import lru_cache
 from typing import Any, Mapping
 
 from clerk_backend_api import Clerk
-from clerk_backend_api.security import verify_token, TokenVerificationError
+from clerk_backend_api.security import (
+    verify_token_async, TokenVerificationError, TokenVerificationErrorReason,
+)
 from clerk_backend_api.security.types import VerifyTokenOptions
 
 from app.core.config import settings
 
 
+# Motivos por los que NO es culpa del token sino de no poder consultar a Clerk (JWKS caído,
+# sin red, etc.). El pedido no es "no autorizado": es un problema nuestro o de Clerk, y
+# responderle 401 hace que el frontend crea que la sesión venció y le pida loguearse de nuevo.
+_TRANSIENT_REASONS = {
+    TokenVerificationErrorReason.JWK_FAILED_TO_LOAD,
+    TokenVerificationErrorReason.JWK_REMOTE_INVALID,
+    TokenVerificationErrorReason.SERVER_ERROR,
+}
+
+
 class ClerkTokenError(Exception):
-    """El session token de Clerk no pudo verificarse (firma, expiración, azp, etc.)."""
+    """El session token de Clerk no pudo verificarse (firma, expiración, azp, etc.).
+
+    `reason` es el código de Clerk (p. ej. "token-expired", "token-invalid-authorized-parties")
+    para poder loguearlo: sin él todos los rechazos se ven igual y no hay forma de saber si el
+    problema es un token vencido, un origen no autorizado o una clave de otra instancia.
+    `transient` marca los fallos que no son del token (ver _TRANSIENT_REASONS)."""
+
+    def __init__(self, message: str, *, reason: str = "unknown", transient: bool = False):
+        super().__init__(message)
+        self.reason = reason
+        self.transient = transient
 
 
-def verify_session_token(token: str) -> dict[str, Any]:
+async def verify_session_token(token: str) -> dict[str, Any]:
+    # Async a propósito: la versión sincrónica, llamada desde un `async def`, bloquea el event
+    # loop cada vez que hay que pedir el JWKS a Clerk (cada 5 min y tras cada deploy).
     try:
-        return verify_token(
+        return await verify_token_async(
             token,
             VerifyTokenOptions(
                 secret_key=settings.CLERK_SECRET_KEY,
@@ -31,7 +55,9 @@ def verify_session_token(token: str) -> dict[str, Any]:
             ),
         )
     except TokenVerificationError as e:
-        raise ClerkTokenError(str(e)) from e
+        raise ClerkTokenError(
+            str(e), reason=e.reason.value[0], transient=e.reason in _TRANSIENT_REASONS,
+        ) from e
 
 
 @lru_cache

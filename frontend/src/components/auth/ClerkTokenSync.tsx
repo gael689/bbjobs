@@ -13,7 +13,7 @@ export default function ClerkTokenSync() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    setTokenGetter(() => getToken());
+    setTokenGetter((opts) => getToken(opts));
     return () => setTokenGetter(null);
   }, [isLoaded, getToken]);
 
