@@ -65,6 +65,19 @@ cargar el CV.
   tope mantiene la versión con la que se probó todo). Pendiente aparte: fijar el resto de las
   dependencias (hoy cada build resuelve las últimas versiones).
 
+- [x] **H · Aviso único a las cuentas existentes** (29/09/2026)
+  Con +1000 usuarios no se puede avisar por mensaje, y sólo lo necesita quien ya tenía cuenta.
+  `components/auth/AvisoCorreccion.tsx` (montado en `app/layout.tsx`) muestra un cartel con X,
+  "Entendido" y Esc a quien tiene la sesión iniciada y una cuenta creada **antes del
+  29/09/2026 10:00 (AR)**. Cuentas nuevas y visitantes no lo ven. Regla en
+  `lib/avisoCorreccion.ts` (probada: cuenta vieja/nueva, ya cerrado, sin fecha, vencido).
+  Decisiones: (1) la fecha sale de `user.createdAt` de Clerk, sin tocar la base ni migrar;
+  (2) "ya lo vio" se guarda en `localStorage` por id de usuario, así que en otro dispositivo o
+  navegador sale una vez más — se aceptó a cambio de no escribir ~1000 filas en producción;
+  (3) se retira solo el 13/10/2026. Alternativa descartada: una notificación por usuario en la
+  campanita (persistente entre dispositivos, pero exige escribir en masa en la base y es menos
+  visible).
+
 ## Verificación en producción (pendiente hasta el deploy)
 
 1. Railway → filtrar `auth_rejected`: ver la distribución de `reason`. Esperado: casi sin

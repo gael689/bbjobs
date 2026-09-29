@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ClerkTokenSync from "@/components/auth/ClerkTokenSync";
 import SessionExpiredBanner from "@/components/auth/SessionExpiredBanner";
+import AvisoCorreccion from "@/components/auth/AvisoCorreccion";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", display: "swap", weight: ["400","500","600","700","800"] });
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ClerkProvider appearance={clerkAppearance} localization={esES}>
           <ClerkTokenSync />
           <SessionExpiredBanner />
+          <AvisoCorreccion />
           <Header />
           <main className="flex-1 w-full relative z-10">{children}</main>
           <Footer />
