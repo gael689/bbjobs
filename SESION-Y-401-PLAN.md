@@ -56,6 +56,15 @@ cargar el CV.
   `HOY` y `MAX_FECHA_NACIMIENTO` usaban `toISOString()` (UTC): en Argentina, pasadas las 21 h el
   tope del input quedaba corrido un día. Ahora `fechaLocal()`.
 
+- [x] **G · Incidente del deploy: `greenlet` faltante** (29/09/2026)
+  El primer deploy de este cambio se cayó al arrancar (`ImportError: The SQLAlchemy asyncio module
+  requires that the Python 'greenlet' library`). No lo causó el código: `pyproject.toml` no fija
+  versiones y el build de Railway instaló **SQLAlchemy 2.1.1**, que ya no trae `greenlet` como
+  dependencia. Como el `CMD` corre `alembic upgrade head` antes de uvicorn, el servicio quedó
+  caído hasta el arreglo. Fix: `sqlalchemy[asyncio]>=2.0.30,<2.1` (el extra instala `greenlet`; el
+  tope mantiene la versión con la que se probó todo). Pendiente aparte: fijar el resto de las
+  dependencias (hoy cada build resuelve las últimas versiones).
+
 ## Verificación en producción (pendiente hasta el deploy)
 
 1. Railway → filtrar `auth_rejected`: ver la distribución de `reason`. Esperado: casi sin
