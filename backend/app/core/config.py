@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     MP_WEBHOOK_SECRET: str | None = None
 
     # Mails — Resend. Sin RESEND_API_KEY el sistema funciona igual que antes: los mails se
-    # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3.1).
+    # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3).
     RESEND_API_KEY: str | None = None
     # El dominio del remitente tiene que estar verificado en Resend (SPF/DKIM) o los mails caen
     # en spam o directamente se rechazan.
