@@ -16,6 +16,9 @@ class JobAlert(UUIDMixin, Base):
     zone_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("zones.id", ondelete="CASCADE"), nullable=True)
     modality: Mapped[JobPostingModality | None] = mapped_column(String(50), nullable=True)
     
+    # `instant` (al aprobarse la búsqueda), `daily` (un solo mail con todo lo nuevo del día) o
+    # `weekly` (los lunes). El PDF de Eugenia: "en el momento, una vez por día o una vez por semana".
+    frequency: Mapped[str] = mapped_column(String(10), default="daily", server_default="daily", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

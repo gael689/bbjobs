@@ -1176,11 +1176,15 @@ class SiteSettingsResponse(BaseModel):
     volumen los haga significativos, sin tocar código."""
     stats_visibles_para_candidatos: bool
     stats_visibles_en_landing: bool
+    emails_automaticos_activos: bool
+    ia_recomendaciones_activas: bool
 
 
 class SiteSettingsUpdate(BaseModel):
     stats_visibles_para_candidatos: Optional[bool] = None
     stats_visibles_en_landing: Optional[bool] = None
+    emails_automaticos_activos: Optional[bool] = None
+    ia_recomendaciones_activas: Optional[bool] = None
 
 
 @router.get("/admin/settings", response_model=SiteSettingsResponse)

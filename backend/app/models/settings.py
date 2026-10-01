@@ -18,11 +18,19 @@ class SettingKey(str, enum.Enum):
     # ¿La home muestra el bloque público de estadísticas del mercado?
     stats_visibles_en_landing = "stats_visibles_en_landing"
 
+    # Interruptores de los módulos de mails e IA (MODULOS-MAILS-IA-PLAN.md §3). Apagados hasta
+    # que existan las cuentas de Resend / Gemini y Talency decida salir: así se puede deployar el
+    # código sin que cambie nada de lo que ve nadie.
+    emails_automaticos_activos = "emails_automaticos_activos"
+    ia_recomendaciones_activas = "ia_recomendaciones_activas"
+
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
 SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.stats_visibles_para_candidatos: False,
     SettingKey.stats_visibles_en_landing: False,
+    SettingKey.emails_automaticos_activos: False,
+    SettingKey.ia_recomendaciones_activas: False,
 }
 
 

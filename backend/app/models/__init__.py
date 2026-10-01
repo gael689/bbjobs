@@ -7,12 +7,25 @@ from app.models.candidate import CandidateProfile, Experience, Education, Candid
 from app.models.job import JobPosting, JobPostingSkill, Application, JobPostingModality, JobPostingStatus, ApplicationStatus
 from app.models.payment import Plan, Subscription, JobFeature, Payment, MercadoPagoWebhookEvent, SubscriptionStatus, JobFeatureStatus, PaymentType
 from app.models.tests import PsychometricTest, TestQuestion, TestQuestionOption, TestSubmission, TestAnswer, ScoringMethod, QuestionType, TestSubmissionStatus
+from app.models.email import (
+    EmailOutbox, EmailTemplate, EmailPreference, EmailSuppression, EmailCampaign, EmailDigestState,
+    EmailCategory, EmailStatus, CampaignStatus,
+)
 from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notification
 from app.models.contact import ContactMessage, ContactTopic
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.landing import LandingStat
 
 __all__ = [
+    "EmailOutbox",
+    "EmailTemplate",
+    "EmailPreference",
+    "EmailSuppression",
+    "EmailCampaign",
+    "EmailDigestState",
+    "EmailCategory",
+    "EmailStatus",
+    "CampaignStatus",
     "Base",
     "UUIDMixin",
     "User",

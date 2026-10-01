@@ -55,16 +55,62 @@ class Settings(BaseSettings):
     # En Railway se deduce sola de RAILWAY_PUBLIC_DOMAIN — está sólo para poder pisarla.
     MP_NOTIFICATION_URL: str | None = None
     RAILWAY_PUBLIC_DOMAIN: str | None = None
+    # URL pública del backend con el prefijo /api/v1 — se usa en los links de baja de los mails.
+    API_PUBLIC_URL: str | None = None
 
     MP_ACCESS_TOKEN: str | None = None
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None
+
+    # Mails — Resend. Sin RESEND_API_KEY el sistema funciona igual que antes: los mails se
+    # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3.1).
+    RESEND_API_KEY: str | None = None
+    # El dominio del remitente tiene que estar verificado en Resend (SPF/DKIM) o los mails caen
+    # en spam o directamente se rechazan.
+    RESEND_FROM_EMAIL: str = "BBJobs <avisos@bbjobs.com.ar>"
+    RESEND_REPLY_TO: str | None = None
+    # Secret de svix (empieza con `whsec_`) del webhook de eventos de Resend.
+    RESEND_WEBHOOK_SECRET: str | None = None
+
+    # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
+    # rota, y de esa manera cambiarlos no necesita un deploy de código.
+    GEMINI_API_KEY: str | None = None
+    GEMINI_GENERATION_MODEL: str = "gemini-2.5-flash-lite"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    # El modelo de embeddings permite truncar la dimensión. 768 pesa 4 veces menos que los 3072
+    # nativos con una pérdida de calidad que no se nota para ranking de perfiles.
+    GEMINI_EMBEDDING_DIM: int = 768
+    # Techos duros por corrida de las tareas programadas: si un bug las mete en un bucle, esto
+    # es lo que evita que se coman el presupuesto de la cuenta de Google.
+    AI_MAX_EMBEDDINGS_PER_RUN: int = 500
+    AI_MAX_RERANKS_PER_RUN: int = 50
+    # Cuántos candidatos de la Base de Talento (que no se postularon) ve una empresa en las
+    # recomendaciones. El resto se muestra tapado, como incentivo al pack de créditos.
+    RECS_TALENT_FREE_COUNT: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def migrations_database_url(self) -> str:
         return self.MIGRATIONS_DATABASE_URL or self.DATABASE_URL
+
+    @property
+    def public_api_base_url(self) -> str:
+        """Dónde nos pueden llamar desde afuera (links de baja de un click, webhooks). En Railway
+        sale sola del dominio público; en local cae a localhost."""
+        if self.API_PUBLIC_URL:
+            return self.API_PUBLIC_URL.rstrip("/")
+        if self.RAILWAY_PUBLIC_DOMAIN:
+            return f"https://{self.RAILWAY_PUBLIC_DOMAIN}/api/v1"
+        return "http://localhost:8000/api/v1"
+
+    @property
+    def email_provider_configured(self) -> bool:
+        return bool(self.RESEND_API_KEY)
+
+    @property
+    def ai_provider_configured(self) -> bool:
+        return bool(self.GEMINI_API_KEY)
 
     @property
     def cors_origins(self) -> List[str]:
