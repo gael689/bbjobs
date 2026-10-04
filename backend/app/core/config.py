@@ -112,6 +112,13 @@ class Settings(BaseSettings):
     # Cuántos candidatos de la Base de Talento (que no se postularon) ve una empresa en las
     # recomendaciones. El resto se muestra tapado, como incentivo al pack de créditos.
     RECS_TALENT_FREE_COUNT: int = 3
+    # Con un pack de la Base de Talento activo, la empresa ve más perfiles ciegos por búsqueda.
+    RECS_TALENT_PACK_COUNT: int = 10
+    # Refrescos manuales de recomendados por empresa y por día (auditoría LLM10).
+    RECS_REFRESH_PER_DAY: int = 10
+    # Tope de gasto diario en IA (USD). Al pasarlo, la IA se apaga sola hasta mañana y los
+    # recomendados siguen con el puntaje híbrido (regla R13). ~USD 30/mes = 1/día.
+    AI_DAILY_BUDGET_USD: float = 1.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

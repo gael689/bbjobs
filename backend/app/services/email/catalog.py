@@ -109,6 +109,8 @@ RULES: dict[str, Rule] = {
     "talent_pack_active": _CUENTA,
     "talent_pack_rejected": _CUENTA,
     "application_new": Rule(C.postulaciones, mode="digest"),  # resumen diario de la empresa
+    # Candidatos nuevos que encajan (IA, de noche): una por empresa por noche, ya agrupada.
+    "recommended_candidates_new": _POSTULACION,
 
     # ── Revisión de CV (postulante; son de un pago: críticos) ──
     "cv_review_paid": _CUENTA,

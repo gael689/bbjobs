@@ -29,6 +29,9 @@ def test_gate_is_closed_by_default():
     ("GET", "/api/v1/me/candidate/cv-review"),
     ("POST", "/api/v1/me/candidate/cv-review/checkout"),
     ("GET", "/api/v1/admin/cv-reviews"),
+    ("GET", "/api/v1/me/company/jobs/00000000-0000-0000-0000-000000000000/recommendations"),
+    ("GET", "/api/v1/me/candidate/ai-view"),
+    ("GET", "/api/v1/admin/ai/usage"),
 ])
 async def test_new_routes_are_404_with_the_gate_closed(client, monkeypatch, method, path):
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)

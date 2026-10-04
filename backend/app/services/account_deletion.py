@@ -45,6 +45,7 @@ from app.models.company import CompanyProfile, CompanyVerificationDocument, Veri
 from app.models.core import User, UserRole
 from app.models.history import CandidateActivityLog
 from app.models.job import Application, JobPosting
+from app.models.ai import CandidateAiIndex, CandidateChunk, CandidateCvText, JobRecommendation
 from app.models.email import EmailOutbox, EmailStatus
 from app.models.payment import (
     CvReviewOrder, CvReviewStatus, Payment, TalentCreditPack,
@@ -186,6 +187,10 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
             await db.execute(delete(model).where(model.candidate_id == p.id))
         await db.execute(
             Application.__table__.update().where(Application.candidate_id == p.id).values(cover_letter=None))
+        # IA: fragmentos, texto del CV, índice y recomendaciones. En la lápida la fila del
+        # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
+        for model in (CandidateChunk, CandidateCvText, CandidateAiIndex, JobRecommendation):
+            await db.execute(delete(model).where(model.candidate_id == p.id))
         # Revisión de CV: queda el registro contable, se va todo dato de contacto. Una orden
         # sin pagar se cancela; una pagada queda como está para que Talency decida la devolución.
         await db.execute(

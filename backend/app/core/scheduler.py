@@ -154,6 +154,22 @@ async def cv_review_housekeeping():
         logger.error("cv_review_housekeeping_error", error=str(exc)[:300])
 
 
+async def ai_index_tick():
+    from app.services.ai.jobs import index_tick
+    try:
+        await index_tick()
+    except Exception as exc:
+        logger.error("ai_index_tick_error", error=str(exc)[:300])
+
+
+async def ai_nightly():
+    from app.services.ai.jobs import nightly
+    try:
+        await nightly()
+    except Exception as exc:
+        logger.error("ai_nightly_error", error=str(exc)[:300])
+
+
 async def dispatch_emails():
     from app.services.email.dispatcher import dispatch_due
     try:
@@ -172,5 +188,8 @@ def start_scheduler():
     if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
         scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
         scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
+        # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
+        scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)
+        scheduler.add_job(ai_nightly, "cron", hour=6, minute=0, timezone="UTC", max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("scheduler_started")
