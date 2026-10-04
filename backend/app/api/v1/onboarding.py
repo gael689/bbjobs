@@ -110,8 +110,11 @@ async def onboarding_company(
     result_cuit = await db.execute(select(CompanyProfile).where(CompanyProfile.cuit == payload.cuit))
     existing_company = result_cuit.scalar_one_or_none()
     if existing_company:
-        if str(existing_company.verification_status) in (
-            str(VerificationStatus.suspended), str(VerificationStatus.rejected)
+        # Sin str(): desde Python 3.11 str(VerificationStatus.suspended) es
+        # "VerificationStatus.suspended" y nunca igualaba al "suspended" que viene de la base.
+        # Un (str, Enum) se compara directo contra el texto.
+        if existing_company.verification_status in (
+            VerificationStatus.suspended, VerificationStatus.rejected
         ):
             raise HTTPException(
                 status_code=409,
