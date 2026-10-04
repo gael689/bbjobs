@@ -25,6 +25,10 @@ TEXT = "#1C2230"
 MUTED = "#64748B"
 BORDER = "#DDE3EC"
 BG = "#FAFBFD"
+# La marca no es sólo celeste: el logo lleva acentos cálidos y la paleta, el naranja pastel.
+SECONDARY = "#D4B7A2"
+SECONDARY_LIGHT = "#F7EFE9"
+LOGO_PATH = "/logo.png"
 
 _VAR_RE = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
 _FONT = "'DM Sans', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -125,11 +129,17 @@ def render_email(
         footer_lines.append(e(footer_note))
     if unsubscribe_url:
         footer_lines.append(
-            f'<a href="{e(unsubscribe_url, quote=True)}" style="color:{MUTED};">'
+            f'<a href="{e(unsubscribe_url, quote=True)}" style="color:{TEXT};">'
             f'Dejar de recibir estos mails</a>'
         )
     footer_lines.append("BBJobs · Bahía Blanca · una iniciativa de Talency")
     footer_html = "<br>".join(footer_lines)
+    logo_url = absolute_url(LOGO_PATH)
+    logo_html = (
+        f'<td style="padding-right:8px;vertical-align:middle;"><img src="{e(logo_url, quote=True)}" alt="" '
+        f'width="26" height="32" style="display:block;width:26px;height:32px;"></td>'
+        if logo_url else ""
+    )
 
     document = (
         f'<!doctype html><html lang="es"><head><meta charset="utf-8">'
@@ -140,13 +150,20 @@ def render_email(
         f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{BG};">'
         f'<tr><td align="center" style="padding:24px 12px;">'
         f'<table role="presentation" width="560" cellspacing="0" cellpadding="0" '
-        f'style="width:100%;max-width:560px;background:#ffffff;border:1px solid {BORDER};border-radius:12px;">'
-        f'<tr><td style="padding:24px 32px 0;font-size:22px;font-weight:800;color:{TEAL};">BBJobs</td></tr>'
-        f'<tr><td style="padding:16px 32px 8px;">'
+        f'style="width:100%;max-width:560px;background:#ffffff;border:1px solid {BORDER};border-radius:12px;'
+        f'overflow:hidden;">'
+        # Encabezado como el del sitio: el logo y "BB" celeste + "JOBS" oscuro, en itálica. Si el
+        # cliente bloquea imágenes, la marca escrita se sigue leyendo.
+        f'<tr><td style="padding:20px 32px 16px;border-bottom:4px solid {SECONDARY};">'
+        f'<table role="presentation" cellspacing="0" cellpadding="0"><tr>'
+        f'{logo_html}'
+        f'<td style="font-size:24px;font-weight:800;font-style:italic;letter-spacing:-0.5px;color:{TEXT};">'
+        f'<span style="color:{TEAL};">BB</span>JOBS</td></tr></table></td></tr>'
+        f'<tr><td style="padding:24px 32px 8px;">'
         f'<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{TEXT};">{e(heading)}</h1>'
         f'{image_html}{paragraphs_html}{items_html}{cta_html}</td></tr>'
-        f'<tr><td style="padding:16px 32px 28px;border-top:1px solid {BORDER};'
-        f'font-size:12px;line-height:1.6;color:{MUTED};">{footer_html}</td></tr>'
+        f'<tr><td style="padding:16px 32px 24px;background:{SECONDARY_LIGHT};'
+        f'font-size:12px;line-height:1.6;color:{TEXT};">{footer_html}</td></tr>'
         f'</table></td></tr></table></body></html>'
     )
 

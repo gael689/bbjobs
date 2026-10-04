@@ -161,7 +161,8 @@ async def notify_new_fits(db, now: datetime) -> int:
         await create_notification(
             db, user_id=user_id, type="recommended_candidates_new",
             title="Hay candidatos nuevos que encajan con tus búsquedas",
-            body=f"Encontramos {bucket['count']} perfil(es) que encajan con {titles}. Miralos en Recomendados.",
+            body=(f"Encontramos {'1 perfil que encaja' if bucket['count'] == 1 else str(bucket['count']) + ' perfiles que encajan'}"
+                  f" con {titles}. Miralos en Recomendados."),
             link="/dashboard/company/postulaciones",
         )
         sent += 1

@@ -173,7 +173,7 @@ async def test_team_digest_waits_for_830_and_goes_once(maker):
     assert (await _tick(maker, early)).equipo == 0
     assert (await _tick(maker, MONDAY_9)).equipo == 1
     assert (await _tick(maker, MONDAY_9 + timedelta(minutes=15))).equipo == 0
-    assert "empresa(s) para verificar" in (await _outbox(maker, "digest_equipo"))[0].html
+    assert "1 empresa para verificar" in (await _outbox(maker, "digest_equipo"))[0].html
 
 
 async def test_unhealthy_account_brakes_reminders_but_not_postulaciones(maker):

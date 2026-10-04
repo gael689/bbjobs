@@ -303,19 +303,23 @@ async def team_items(db: AsyncSession, now: datetime) -> list[EmailItem]:
     pending_companies = (await db.execute(select(func.count()).select_from(CompanyProfile).where(
         CompanyProfile.verification_status == VerificationStatus.pending.value))).scalar_one()
     if pending_companies:
-        items.append(EmailItem(f"{pending_companies} empresa(s) para verificar", None, "/dashboard/admin/empresas"))
+        items.append(EmailItem("1 empresa para verificar" if pending_companies == 1
+                               else f"{pending_companies} empresas para verificar", None, "/dashboard/admin/empresas"))
     pending_jobs = (await db.execute(select(func.count()).select_from(JobPosting).where(
         JobPosting.moderation_status == JobModerationStatus.pending_review, JobPosting.deleted_at.is_(None)))).scalar_one()
     if pending_jobs:
-        items.append(EmailItem(f"{pending_jobs} búsqueda(s) para revisar", None, "/dashboard/admin/busquedas"))
+        items.append(EmailItem("1 búsqueda para revisar" if pending_jobs == 1
+                               else f"{pending_jobs} búsquedas para revisar", None, "/dashboard/admin/busquedas"))
     open_msgs = (await db.execute(select(func.count()).select_from(ContactMessage).where(
         ContactMessage.resolved.is_(False)))).scalar_one()
     if open_msgs:
-        items.append(EmailItem(f"{open_msgs} mensaje(s) de contacto sin resolver", None, "/dashboard/admin/mensajes"))
+        items.append(EmailItem("1 mensaje de contacto sin resolver" if open_msgs == 1
+                               else f"{open_msgs} mensajes de contacto sin resolver", None, "/dashboard/admin/mensajes"))
     open_reviews = (await db.execute(select(func.count()).select_from(CvReviewOrder).where(
         CvReviewOrder.status.in_([CvReviewStatus.paid.value, CvReviewStatus.in_progress.value])))).scalar_one()
     if open_reviews:
-        items.append(EmailItem(f"{open_reviews} revisión(es) de CV abiertas", None, "/dashboard/admin/revisiones-cv"))
+        items.append(EmailItem("1 revisión de CV abierta" if open_reviews == 1
+                               else f"{open_reviews} revisiones de CV abiertas", None, "/dashboard/admin/revisiones-cv"))
     health = await email_health(db, now)
     if health["sent"]:
         items.append(EmailItem(
