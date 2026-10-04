@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.services.email.policy import AR_TZ
 from app.services.email.prospect_dispatch import SimulatedProspectSender, in_window
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
