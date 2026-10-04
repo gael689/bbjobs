@@ -64,6 +64,9 @@ class FakeAI(AIProvider):
 
     async def generate_json(self, *, system, prompt, model, feature, company_id=None, max_output_tokens=2048,
                             service_tier="standard"):
+        from app.services.ai.requirements import ReqList
+        from app.services.ai.rerank import RerankOut
+
         usage = AIUsage(model="gemini-3.5-flash-lite", input_tokens=1000, output_tokens=200)
         if model is ReqList:
             data = {"requisitos": [

@@ -71,6 +71,24 @@ def domain_of_email(email: str | None) -> str | None:
     return None if domain in FREE_PROVIDERS else domain or None
 
 
+# Plataformas donde muchas empresas "tienen su web": su dominio no identifica a ninguna. Sin
+# esto, `web.facebook.com` o `algo.my.canva.site` se volvían el dominio de la empresa y el cruce
+# descartaba como duplicadas a empresas distintas (6 de 50 en la prueba con datos reales del
+# 04/10) y podía marcar como "registrada" a una que no lo está.
+PLATFORM_DOMAINS = frozenset({
+    "facebook.com", "fb.com", "instagram.com", "linkedin.com", "twitter.com", "x.com", "tiktok.com",
+    "youtube.com", "wa.me", "whatsapp.com", "linktr.ee", "linkin.bio", "beacons.ai", "canva.site",
+    "my.canva.site", "wixsite.com", "wix.com", "blogspot.com", "wordpress.com", "sites.google.com",
+    "business.site", "google.com", "goo.gl", "g.page", "mercadolibre.com.ar", "mercadoshops.com.ar",
+    "tiendanube.com", "mitiendanube.com", "empretienda.com.ar", "carrd.co", "webnode.com", "jimdo.com",
+    "godaddysites.com", "square.site", "ueniweb.com", "negocio.site", "glovoapp.com", "pedidosya.com.ar",
+})
+
+
+def is_platform_domain(host: str) -> bool:
+    return any(host == d or host.endswith("." + d) for d in PLATFORM_DOMAINS)
+
+
 def domain_of_url(url: str | None) -> str | None:
     if not url:
         return None
@@ -78,7 +96,9 @@ def domain_of_url(url: str | None) -> str | None:
     host = host.split(":")[0]
     if host.startswith("www."):
         host = host[4:]
-    return host or None
+    if not host or is_platform_domain(host):
+        return None
+    return host
 
 
 def is_competitor(name: str | None, category: str | None) -> bool:

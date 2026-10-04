@@ -76,3 +76,17 @@ async def test_sync_without_secret_is_503_and_bad_signature_401(client, monkeypa
     resp = await client.post("/api/v1/integrations/leadgen/sync", content=b"{}",
                              headers={"x-bbjobs-timestamp": str(int(time.time())), "x-bbjobs-signature": "mal"})
     assert resp.status_code == 401
+
+
+@pytest.mark.parametrize("url", [
+    "https://web.facebook.com/panaderia.laespiga", "https://www.instagram.com/x", "puntoexacto.my.canva.site",
+    "https://linktr.ee/algo", "https://sites.google.com/view/x", "https://negocio.wixsite.com/x", "https://wa.me/549291",
+])
+def test_platform_websites_do_not_identify_a_company(url):
+    # Encontrado cruzando con datos reales: empresas distintas con su Facebook como "web"
+    # quedaban como duplicadas entre sí.
+    assert svc.domain_of_url(url) is None
+
+
+def test_own_domain_still_counts():
+    assert svc.domain_of_url("https://www.metalurgicasur.com.ar") == "metalurgicasur.com.ar"
