@@ -92,7 +92,31 @@ dentro del sitio**: todo el contacto es por fuera.
   solo lo revisás y lo aprobás.
 - Antes de enviar ves **cuántas personas lo van a recibir**.
 
-## 6. Qué necesitamos de vos
+## 6. Empresas para ofrecerles tus servicios
+
+Una herramienta nueva en tu panel con **una base de empresas de la zona** (para empezar, una
+muestra de las que ya tenemos relevadas), para ofrecerles la selección de personal y los demás
+servicios de Talency, e invitarlas a usar BBJobs.
+
+- Cada empresa trae su rubro, su localidad, su teléfono y, cuando lo tiene publicado, su mail.
+- Filtrás (por rubro, zona, si tiene mail…), elegís a quién escribirle (de a una, varias o todas las que cumplan un filtro)
+  y las sumás a una campaña. **Nada sale sin que lo apruebes.**
+- Cada empresa tiene su ficha: en qué etapa está (contactada, respondió, reunión, cliente),
+  tus notas y un botón para escribirle por WhatsApp vos misma.
+- Si una empresa de la lista se registra en BBJobs, se marca sola.
+- Las empresas que ya están en BBJobs y las consultoras de RRHH nunca entran en la lista.
+- Quien pida no recibir más mails no vuelve a recibir nunca.
+
+**Campañas a quienes ya están en BBJobs:** por ejemplo, ofrecer la revisión de CV a los
+postulantes que ya cargaron el suyo, o la selección de personal a las empresas que tienen una
+búsqueda con muchos postulantes. Vos elegís el grupo de una lista y el sistema te dice cuántas
+personas son.
+
+**Para que decidas vos:** qué rubros y zonas buscar, y qué servicios de Talency ofrecer.
+
+Mientras lo terminamos, en tu panel vas a ver estas secciones marcadas como **"En desarrollo"**.
+
+## 7. Qué necesitamos de vos
 
 1. El **precio** y lo que **incluye** la Revisión de CV.
 2. Confirmar los **avisos** de la sección 3 y los **horarios**.
