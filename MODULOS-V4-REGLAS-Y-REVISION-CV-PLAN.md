@@ -371,10 +371,37 @@ Todo se puede escribir y probar **sin ninguna cuenta**, con el proveedor simulad
 - **Migración sobre `payments`.** Es una tabla contable y con datos reales: se prueba ida y vuelta en una base local y se mira cada consulta que une `payments` con `company_profiles` (`admin.py:838`, `account_deletion.py:114`) antes de mergear.
 - **Exceso de mails.** Los topes R4/R5 y la política de ocaso R8 existen para esto; hay que medirlos en las primeras semanas con `EMAIL_DAILY_CAP` bajo.
 
-## 10. Para retomar
+## 10. Para retomar — estado al 04/10/2026 (noche)
 
-1. Leer **§1 y §2** de este documento y **§12** de la v3.
-2. Estado: **solo planificación**. No hay código nuevo de esta v4.
-3. Primer paso concreto: **T0**, y después **T1 y T2 en paralelo** si hay dos sesiones.
-4. Antes de tocar mails o Gemini, cargar las skills `resend`, `email-best-practices` y `gemini-api-dev`.
-5. Probar migraciones **solo** contra una base local descartable.
+**Todo el backend de este plan está escrito**, en la rama `feat/mails-ia`, detrás de la
+compuerta `MODULOS_NUEVOS_ACTIVOS` (false en producción: rutas nuevas → 404; ver
+`app/core/features.py`). Manda la auditoría (`AUDITORIA-RAG-Y-MODULOS-2026-10-04.md`).
+
+| Tanda | Estado | Commit |
+|---|---|---|
+| Fix historial de estados + CUIT de suspendidas | ✅ en `main` local, **sin pushear** | `61ef319` |
+| T0 base (Gemini SDK, Resend, tokens, render) | ✅ | `e04bf89` |
+| T1 motor de avisos | ✅ (integración probada en local) | `906eacc` |
+| Compuerta de módulos | ✅ | `0292787` |
+| T2 Revisión de CV | ✅ | `b452ff5` |
+| P1 Prospección (backend) | ✅ | `a15942b` |
+| T5a núcleo RAG / T5b pgvector + endpoints | ✅ | `35f3267`, `632e18c` |
+| T3 alertas y resúmenes | ✅ | `66df44a` |
+| T4 campañas + prospección por canal propio + redactora IA | ✅ | `7492415`, `c4b9d4b` |
+| Medición de CVs reales (script) | ✅ escrito, **falta correrlo** | `0a2d5e3` |
+| P2 módulo "Pasar a BBJobs" del centro | ✅ escrito, **sin commitear en el centro** (convive con Plenia sin commitear) | — |
+| T7 frontend | en curso | — |
+
+**Pendiente de verificar:** los tests de integración de T2, P1, T3, T4 y T5 (corren con
+`backend/scripts/probar_local_mails.ps1`, que arma una base descartable con pgvector).
+
+**Pendiente de decisiones:** precio de la Revisión de CV (D15), cuenta de Resend de prospección
+(DP1, al final), los pesos con el etiquetado de Eugenia (R13), abogado (términos, consentimiento).
+
+**Para el lanzamiento (T9):** cuentas (Resend avisos + prospección, Gemini con facturación),
+DNS de `avisos.`, `novedades.` y `contacto.`, `MODULOS_NUEVOS_ACTIVOS=true` en Railway y
+`NEXT_PUBLIC_MODULOS_NUEVOS=true` en Vercel, calentamiento (`EMAIL_DAILY_CAP`), y prender los
+interruptores desde "Mails e IA".
+
+Antes de tocar mails o Gemini, cargar las skills `resend`, `email-best-practices` y
+`gemini-api-dev`. Probar migraciones **sólo** contra una base local descartable.
