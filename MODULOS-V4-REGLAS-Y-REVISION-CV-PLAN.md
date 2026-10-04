@@ -396,8 +396,42 @@ compuerta `MODULOS_NUEVOS_ACTIVOS` (false en producción: rutas nuevas → 404; 
 **Pendiente de verificar:** los tests de integración de T2, P1, T3, T4 y T5 (corren con
 `backend/scripts/probar_local_mails.ps1`, que arma una base descartable con pgvector).
 
-**Pendiente de decisiones:** precio de la Revisión de CV (D15), cuenta de Resend de prospección
-(DP1, al final), los pesos con el etiquetado de Eugenia (R13), abogado (términos, consentimiento).
+**Decidido por Gael (04/10, noche):** D15 = **ARS 12.000** (queda el valor del código) · DP1 =
+**otra cuenta de Resend** para la prospección.
+
+### Pasos que restan, en orden
+
+**A. Verificar (sin cuentas)**
+1. Correr `backend/scripts/probar_local_mails.ps1` (68 tests de integración + migraciones ida y vuelta). Corregir lo que falle.
+2. Correr `backend/scripts/medir_cvs_reales.py --muestra 40` y revisar 30 a mano. Si hay fugas: ajustar `redact.py` (o sumar NER) antes de usar CVs.
+3. Probar a mano en local con `MODULOS_NUEVOS_ACTIVOS=true`, `EMAIL_MODE=simulate`, `PROSPECT_MODE=simulate` y `NEXT_PUBLIC_MODULOS_NUEVOS=true`: cada pantalla del admin, Revisión de CV con MP sandbox, alertas, recomendados (con `GEMINI_API_KEY` de prueba o sin IA), una sincronización real desde el centro.
+4. Push del fix de estados (`main`, `61ef319`) — independiente de todo lo demás.
+
+**B. Centro**
+5. Commitear el módulo "Pasar a BBJobs" (convive con Plenia sin commitear).
+6. `bbjobs_sync_url` + `bbjobs_sync_secret` en `config.json`; el mismo secreto como `LEADGEN_SYNC_SECRET` en Railway.
+
+**C. Eugenia**
+7. Qué incluye la Revisión de CV y qué plazo promete (D16–D18); textos de la pantalla.
+8. Avisos: cuáles sí y horarios (D1, D2, D20, D21).
+9. Etiquetar 3 búsquedas (40 candidatos c/u) con `scripts/evaluacion_rag.py exportar` → decidir rerank sí/no con `medir` (R13).
+10. Rubros/zonas a prospectar y servicios a ofrecer (DP3, DP4).
+11. Escribir los textos de las campañas (o usar la redactora y aprobar).
+
+**D. Legal**
+12. Términos y privacidad: IA (orientativa, decide la empresa), CV procesado y anonimizado, subprocesadores (Resend, Google), Revisión de CV (por fuera, sin garantía de empleo), bajas, consentimiento de novedades (D10).
+
+**E. Cuentas y DNS (último)**
+13. Resend avisos (Pro) y **otra cuenta** de Resend para prospección. Dominios `avisos.`, `novedades.` y `contacto.bbjobs.com.ar` con SPF/DKIM/DMARC sin tocar los de Clerk; tracking sólo en `novedades.`.
+14. Webhooks: `/api/v1/webhooks/resend` y `/api/v1/webhooks/resend-prospeccion` → secretos en Railway.
+15. Gemini (AI Studio) con **facturación activada** y tope de gasto; confirmar el precio de `gemini-embedding-001`.
+16. Variables en Railway: `RESEND_*`, `PROSPECT_*`, `GEMINI_API_KEY`, `LEADGEN_SYNC_SECRET`, `AI_DAILY_BUDGET_USD`, `EMAIL_DAILY_CAP=150`.
+
+**F. Lanzamiento**
+17. Merge `feat/mails-ia` → `main` (el deploy corre las migraciones; con la compuerta cerrada no cambia nada visible).
+18. `MODULOS_NUEVOS_ACTIVOS=true` en Railway y `NEXT_PUBLIC_MODULOS_NUEVOS=true` en Vercel.
+19. Prender desde "Mails e IA", en este orden: Revisión de CV → mails (calentamiento: `EMAIL_DAILY_CAP` 150 → subir por semana, 1–2 semanas sólo transaccionales) → IA (backfill de embeddings, evaluación) → campañas → prospección (`PROSPECT_DAILY_CAP` 20 → subir de a poco).
+20. Mandar el mail único de "¿querés recibir novedades?" a la base existente (D10).
 
 **Para el lanzamiento (T9):** cuentas (Resend avisos + prospección, Gemini con facturación),
 DNS de `avisos.`, `novedades.` y `contacto.`, `MODULOS_NUEVOS_ACTIVOS=true` en Railway y
