@@ -14,9 +14,13 @@ import hmac
 import uuid
 
 from app.core.config import settings
-from app.models.email import EmailCategory
+from app.models.email import ALWAYS_SENT, EmailCategory
 
 _DOMAIN = b"bbjobs-unsub-v1:"
+
+
+class NotUnsubscribable(ValueError):
+    """La categoría llega siempre (`ALWAYS_SENT`): no existe un link para darse de baja."""
 
 
 def _b64(data: bytes) -> str:
@@ -32,20 +36,27 @@ def _sign(payload: bytes) -> bytes:
 
 
 def make_unsubscribe_token(user_id: uuid.UUID, category: EmailCategory | str) -> str:
-    category = EmailCategory(category).value
-    payload = f"{user_id}:{category}".encode()
+    category = EmailCategory(category)
+    if category in ALWAYS_SENT:
+        raise NotUnsubscribable(f"La categoría '{category.value}' no se puede apagar")
+    payload = f"{user_id}:{category.value}".encode()
     return f"{_b64(payload)}.{_b64(_sign(payload))}"
 
 
 def verify_unsubscribe_token(token: str) -> tuple[uuid.UUID, EmailCategory] | None:
-    """Devuelve (user_id, categoría) si la firma es válida, `None` en cualquier otro caso."""
+    """Devuelve (user_id, categoría) si la firma es válida y la categoría se puede apagar;
+    `None` en cualquier otro caso. Rechazar `ALWAYS_SENT` acá también importa: un token de
+    `cuenta` firmado por una versión vieja del código no tiene que poder apagar nada (M16)."""
     try:
         payload_b64, signature_b64 = token.split(".", 1)
         payload = _unb64(payload_b64)
         if not hmac.compare_digest(_unb64(signature_b64), _sign(payload)):
             return None
         user_id, category = payload.decode().split(":", 1)
-        return uuid.UUID(user_id), EmailCategory(category)
+        parsed = EmailCategory(category)
+        if parsed in ALWAYS_SENT:
+            return None
+        return uuid.UUID(user_id), parsed
     except (ValueError, UnicodeDecodeError):
         return None
 
@@ -57,5 +68,7 @@ def unsubscribe_page_url(user_id: uuid.UUID, category: EmailCategory | str) -> s
 
 def unsubscribe_api_url(user_id: uuid.UUID, category: EmailCategory | str) -> str:
     """Endpoint de baja de un click (RFC 8058) que usan Gmail/Yahoo desde el header
-    `List-Unsubscribe`."""
+    `List-Unsubscribe`. **Da de baja sólo por POST**: los antivirus y escáneres de correo abren
+    los links con GET, y una baja por GET daría de baja a gente que nunca hizo click (M15). El
+    GET de esa URL tiene que redirigir a la página `/baja` con su botón de confirmar."""
     return f"{settings.public_api_base_url}/email/unsubscribe?t={make_unsubscribe_token(user_id, category)}"

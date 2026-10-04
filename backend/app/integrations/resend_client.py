@@ -7,12 +7,15 @@ Dos reglas que ordenan el módulo:
 
 1. **Distinguir error transitorio de permanente.** 429 y 5xx se reintentan; un 422 (mail mal
    formado, dominio sin verificar) no se arregla reintentando y hacerlo sólo quema el rate limit.
-   `EmailSendError.transient` es lo que el dispatcher consulta.
+   Un 409 (misma clave de idempotencia con otro contenido) también es permanente.
+   `EmailSendError.transient` es lo que el dispatcher consulta. El límite por defecto de la
+   cuenta es de 2 pedidos por segundo: lo respeta el dispatcher, no este módulo.
 2. **Idempotencia.** Cada envío lleva `Idempotency-Key`: si la respuesta se pierde y reintentamos,
    Resend no manda el mail dos veces.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import httpx
@@ -26,6 +29,24 @@ RESEND_BASE_URL = "https://api.resend.com"
 # Resend acepta hasta 100 mails por llamada en /emails/batch.
 MAX_BATCH_SIZE = 100
 _TIMEOUT_SECONDS = 20.0
+# Resend: claves de hasta 256 caracteres, vigentes 24 h. Formato recomendado `<evento>/<id>`.
+_MAX_IDEMPOTENCY_KEY = 256
+# Los tags sólo admiten letras ASCII, dígitos, `_` y `-`. Un tag inválido hace rechazar el lote
+# entero (batch es todo o nada), así que se limpian acá y no se confía en quien los arma.
+_TAG_BAD_CHARS = re.compile(r"[^A-Za-z0-9_-]")
+_MAX_TAG = 256
+
+
+def idempotency_key(event: str, entity_id: object) -> str:
+    """`<evento>/<id>`, el formato que recomienda Resend (p. ej. `outbox/3f1c…`)."""
+    key = f"{event}/{entity_id}"
+    if len(key) > _MAX_IDEMPOTENCY_KEY:
+        raise ValueError("La clave de idempotencia supera los 256 caracteres")
+    return key
+
+
+def clean_tag(value: str) -> str:
+    return _TAG_BAD_CHARS.sub("_", value)[:_MAX_TAG] or "_"
 
 
 class EmailSendError(Exception):
@@ -76,7 +97,7 @@ def _payload(msg: OutgoingEmail) -> dict:
     if reply_to:
         body["reply_to"] = reply_to
     if msg.tags:
-        body["tags"] = [{"name": k, "value": v} for k, v in msg.tags.items()]
+        body["tags"] = [{"name": clean_tag(k), "value": clean_tag(v)} for k, v in msg.tags.items()]
     return body
 
 

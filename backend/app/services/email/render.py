@@ -18,6 +18,9 @@ from urllib.parse import urlparse
 from app.core.config import settings
 
 TEAL = "#1E8EA3"
+# El fondo del botón es el teal oscuro: con texto blanco, #1E8EA3 da 3,85:1 (no llega al AA de
+# 4,5) y #187B8E da 4,93:1. El teal de marca queda para el logo, que es texto grande.
+BUTTON = "#187B8E"
 TEXT = "#1C2230"
 MUTED = "#64748B"
 BORDER = "#DDE3EC"
@@ -44,7 +47,8 @@ def absolute_url(link: str | None) -> str | None:
     de una campaña no debe llegar a un mail."""
     if not link:
         return None
-    if link.startswith("/"):
+    # `//host` es una URL "relativa al protocolo" que apunta a otro dominio, no una ruta nuestra.
+    if link.startswith("/") and not link.startswith("//"):
         return f"{settings.FRONTEND_URL.rstrip('/')}{link}"
     parsed = urlparse(link)
     if parsed.scheme in ("http", "https") and parsed.netloc:
@@ -84,7 +88,7 @@ def render_email(
     )
     cta_html = (
         f'<table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px 0 8px;"><tr>'
-        f'<td style="background:{TEAL};border-radius:8px;">'
+        f'<td style="background:{BUTTON};border-radius:8px;">'
         f'<a href="{e(cta_url, quote=True)}" style="display:inline-block;padding:12px 24px;'
         f'font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">{e(cta_label or "Ver más")}</a>'
         f'</td></tr></table>'

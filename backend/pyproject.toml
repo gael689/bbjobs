@@ -21,7 +21,8 @@ dependencies = [
     "cloudinary>=1.36.0",
     "clerk-backend-api>=6.0.1",
     "svix>=1.96.1",
-    "httpx>=0.27.0"
+    "httpx>=0.27.0",
+    "google-genai>=2.25"
 ]
 
 [project.optional-dependencies]

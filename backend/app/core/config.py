@@ -71,12 +71,22 @@ class Settings(BaseSettings):
     RESEND_REPLY_TO: str | None = None
     # Secret de svix (empieza con `whsec_`) del webhook de eventos de Resend.
     RESEND_WEBHOOK_SECRET: str | None = None
+    # auto | off | simulate | resend — ver services/email/provider.py. `auto` = resend si hay
+    # key, off si no. `simulate` se elige a mano (desarrollo, vista previa para Eugenia).
+    EMAIL_MODE: str = "auto"
 
     # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
     # rota, y de esa manera cambiarlos no necesita un deploy de código.
     GEMINI_API_KEY: str | None = None
-    GEMINI_GENERATION_MODEL: str = "gemini-2.5-flash-lite"
+    # `gemini-2.5-*` quedó legado. 3.5 Flash-Lite: el de menor costo de la familia actual
+    # (USD 0,30 entrada / 2,50 salida por millón, verificado el 04/10/2026).
+    GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
+    # `-001` y no `-2` por precio (auditoría P11). Se apaga el 14/05/2028; los vectores de uno y
+    # otro no son comparables, así que cambiarlo obliga a reindexar todo.
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    # Reproducibilidad del rerank (auditoría R17): misma semilla y pensamiento mínimo.
+    GEMINI_THINKING_LEVEL: str = "minimal"
+    GEMINI_SEED: int = 20261004
     # El modelo de embeddings permite truncar la dimensión. 768 pesa 4 veces menos que los 3072
     # nativos con una pérdida de calidad que no se nota para ranking de perfiles.
     GEMINI_EMBEDDING_DIM: int = 768
