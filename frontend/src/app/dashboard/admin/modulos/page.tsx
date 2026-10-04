@@ -39,7 +39,8 @@ const FUNCIONES: Record<string, string> = {
   campana_audiencia: "Interpretar audiencias",
 };
 
-const usd = (n: number) => `USD ${n.toFixed(2)}`;
+// Una búsqueda cuesta medio centavo: con 2 decimales todo el gasto real se leía "USD 0.00".
+const usd = (n: number) => `USD ${n > 0 && n < 0.01 ? n.toFixed(4) : n.toFixed(2)}`;
 
 function TablaUso({ titulo, filas, etiqueta }: { titulo: string; filas: FilaUso[]; etiqueta: (k: string | null) => string }) {
   return (
