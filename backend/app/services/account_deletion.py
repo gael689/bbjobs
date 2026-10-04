@@ -199,7 +199,9 @@ async def _tombstone_company(db: AsyncSession, user: User, now: datetime) -> Non
     if c:
         # CUIT: se libera salvo que la empresa esté suspendida o rechazada — si no, borrar la
         # cuenta serviría para esquivar el bloqueo de onboarding.py (decisión D3).
-        if str(c.verification_status) not in (str(VerificationStatus.suspended), str(VerificationStatus.rejected)):
+        # Sin str(): ver onboarding.py — con str() la condición daba siempre verdadero y el CUIT
+        # de una empresa suspendida se liberaba igual (corregido el 04/10/2026).
+        if c.verification_status not in (VerificationStatus.suspended, VerificationStatus.rejected):
             c.cuit = f"ELIM-{c.id.hex}"
         c.is_anonymized = True
         c.legal_name = "Empresa eliminada"

@@ -134,7 +134,7 @@ async def apply_to_job(
     await db.flush()
 
     await log_application_status_change(
-        db, application_id=app.id, from_status=None, to_status=str(ApplicationStatus.new),
+        db, application_id=app.id, from_status=None, to_status=ApplicationStatus.new,
     )
     await log_candidate_activity(
         db, candidate_id=candidate.id, event_type="application",
@@ -580,7 +580,7 @@ async def update_application_status(
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    previous_status = str(app.status)
+    previous_status = app.status
     app.status = payload.status
     app.status_updated_at = datetime.datetime.now(datetime.timezone.utc)
 
@@ -588,7 +588,7 @@ async def update_application_status(
         app.seen_at = datetime.datetime.now(datetime.timezone.utc)
 
     await log_application_status_change(
-        db, application_id=app.id, from_status=previous_status, to_status=str(payload.status),
+        db, application_id=app.id, from_status=previous_status, to_status=payload.status,
         changed_by_user_id=company.user_id,
     )
 
