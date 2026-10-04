@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Iterable
 
-WEIGHTS_VERSION = "2026-10-04"
+WEIGHTS_VERSION = "2026-10-04b"  # sin datos = 0,4 y encaje ajustado por cobertura
 
 # Pesos del puntaje híbrido. Son el punto de partida y se calibran con el etiquetado de Eugenia
 # (auditoría R13). Sólo cuentan los criterios que la búsqueda declara y de los que hay dato.
@@ -154,17 +154,22 @@ class RequirementEval:
     verdict: str       # si | parcial | no | sin_datos
 
 
-_VERDICT = {"si": 1.0, "parcial": 0.5, "no": 0.0}
+# "Sin datos" no es un "no" (0), pero tampoco un "sí" (1): vale algo menos que la mitad. La
+# prueba con Gemini real del 04/10 lo mostró: calculando sólo sobre los requisitos con dato, un
+# candidato del que se sabía 1 requisito de 4 (y lo cumplía) sacaba 100 % y quedaba arriba de
+# quien cumplía 3 de 4.
+NO_DATA = 0.4
+_VERDICT = {"si": 1.0, "parcial": 0.5, "no": 0.0, "sin_datos": NO_DATA}
 
 
 def requirements_score(evals: list[RequirementEval]) -> tuple[float | None, bool]:
-    """(puntaje 0..1 sobre los requisitos con dato, ¿algún excluyente da "no"?)"""
-    known = [(e, 2.0 if e.kind == "excluyente" else 1.0) for e in evals if e.verdict in _VERDICT]
+    """(puntaje 0..1 sobre todos los requisitos, ¿algún excluyente da "no"?). `None` si no hay
+    ninguna evaluación con dato (todo `sin_datos`): ahí manda el híbrido."""
     failed_excluding = any(e.kind == "excluyente" and e.verdict == "no" for e in evals)
-    if not known:
+    if not any(e.verdict in ("si", "parcial", "no") for e in evals):
         return None, failed_excluding
-    total = sum(w for _, w in known)
-    return sum(_VERDICT[e.verdict] * w for e, w in known) / total, failed_excluding
+    weighted = [(_VERDICT.get(e.verdict, NO_DATA), 2.0 if e.kind == "excluyente" else 1.0) for e in evals]
+    return sum(v * w for v, w in weighted) / sum(w for _, w in weighted), failed_excluding
 
 
 def final_score(hybrid: Hybrid, semantic_pct: float | None, req_score: float | None, failed_excluding: bool) -> int:
@@ -172,10 +177,13 @@ def final_score(hybrid: Hybrid, semantic_pct: float | None, req_score: float | N
     (rerank apagado o fallido): 0,75·híbrido + 0,25·semántica. Un excluyente con "no" y
     evidencia tapa el puntaje en 49: puede aparecer, nunca como "recomendado"."""
     sem = semantic_pct if semantic_pct is not None else 0.5
+    # El encaje se calcula sobre lo que se sabe; para ordenar se lo acerca a NO_DATA según
+    # cuánto falta saber. Sin esto, con sólo zona y modalidad (30 % de cobertura) daba 1,0.
+    fit = hybrid.coverage * hybrid.fit + (1 - hybrid.coverage) * NO_DATA
     if req_score is None:
-        score = 0.75 * hybrid.fit + 0.25 * sem
+        score = 0.75 * fit + 0.25 * sem
     else:
-        score = 0.55 * req_score + 0.30 * hybrid.fit + 0.15 * sem
+        score = 0.55 * req_score + 0.30 * fit + 0.15 * sem
     value = round(100 * score)
     if failed_excluding:
         value = min(value, EXCLUDING_FAIL_CAP)

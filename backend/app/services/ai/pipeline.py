@@ -192,6 +192,9 @@ class JobContext:
     req_vectors: dict[str, np.ndarray]
     required_skill_ids: set
     optional_skill_ids: set
+    # Requisitos que salen del catálogo de habilidades (r1..rk, en el orden de `from_structured`):
+    # si el candidato tiene la habilidad cargada, ese requisito es "sí" sin depender de la IA.
+    skill_reqs: dict
 
 
 async def job_context(db: AsyncSession, provider: AIProvider | None, job: JobPosting) -> JobContext:
@@ -243,6 +246,7 @@ async def job_context(db: AsyncSession, provider: AIProvider | None, job: JobPos
         req_vectors={rid: np.asarray(v, dtype=np.float32) for rid, v in vec_rows},
         required_skill_ids={sid for sid, _, r in skill_rows if r},
         optional_skill_ids={sid for sid, _, r in skill_rows if not r},
+        skill_reqs={f"r{i}": sid for i, (sid, _, _) in enumerate(skill_rows, start=1)},
     )
 
 
@@ -384,6 +388,11 @@ async def compute_recommendations(
                     logger.warning("ai_rerank_fallo", job_id=str(job.id), error=str(exc)[:200])
 
         if req_evals:
+            skill_ids = data[cid][1]
+            req_evals = [
+                {**e, "verdict": "si"} if ctx.skill_reqs.get(e["req_id"]) in skill_ids else e
+                for e in req_evals
+            ]
             req_score, failed = scoring.requirements_score([scoring.RequirementEval(**e) for e in req_evals])
         else:
             req_score, failed = None, False

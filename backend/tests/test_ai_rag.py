@@ -121,11 +121,32 @@ def test_failed_excluding_requirement_caps_the_score():
     assert failed and score <= scoring.EXCLUDING_FAIL_CAP
 
 
-def test_sin_datos_does_not_count_as_no():
-    req, failed = scoring.requirements_score([
-        scoring.RequirementEval("r1", "excluyente", "sin_datos"), scoring.RequirementEval("r2", "deseable", "si"),
-    ])
-    assert req == 1.0 and not failed
+def test_sin_datos_is_neither_a_no_nor_a_yes():
+    def req(verdict):
+        return scoring.requirements_score([
+            scoring.RequirementEval("r1", "excluyente", verdict), scoring.RequirementEval("r2", "deseable", "si"),
+        ])
+    no_data, failed = req("sin_datos")
+    assert req("no")[0] < no_data < req("si")[0] and not failed
+
+
+def test_gemini_case_one_known_requirement_does_not_beat_three():
+    # Prueba real con Gemini (04/10): Diego (sólo licencia, el resto sin datos) quedaba en 97,
+    # arriba de candidatos que cumplían más, porque se promediaba sólo lo conocido.
+    E = scoring.RequirementEval
+    diego = [E("r1", "excluyente", "sin_datos"), E("r2", "excluyente", "sin_datos"), E("r3", "deseable", "si"),
+             E("r4", "deseable", "sin_datos")]
+    lucia = [E("r1", "excluyente", "si"), E("r2", "excluyente", "si"), E("r3", "deseable", "si"),
+             E("r4", "deseable", "sin_datos")]
+    thin = scoring.Hybrid(fit=1.0, coverage=0.3)     # sólo zona y modalidad
+    full = scoring.Hybrid(fit=1.0, coverage=0.65)
+    d = scoring.final_score(thin, 0.8, *scoring.requirements_score(diego))
+    l = scoring.final_score(full, 1.0, *scoring.requirements_score(lucia))
+    assert l - d >= 20 and d < scoring.RECOMMENDED_THRESHOLD
+
+
+def test_low_coverage_pulls_the_hybrid_toward_neutral():
+    assert scoring.final_score(scoring.Hybrid(1.0, 0.3), 0.5, None, False) <         scoring.final_score(scoring.Hybrid(1.0, 1.0), 0.5, None, False)
 
 
 def test_final_score_is_reproducible_and_bounded():
@@ -155,13 +176,19 @@ def test_literal_evidence_from_the_right_fragment_is_kept():
 
 @pytest.mark.parametrize("item", [
     {"id": "r1", "cumple": "si", "evidencia": "maneja autoelevadores", "fragmento": "f1"},   # no es literal
-    {"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevador", "fragmento": "f2"},  # otro fragmento
     {"id": "r1", "cumple": "si", "evidencia": "stock", "fragmento": "f1"},                   # muy corta
     {"id": "r1", "cumple": "no", "evidencia": "", "fragmento": ""},                          # "no" sin evidencia
 ])
 def test_invalid_evidence_degrades_to_no_data(item):
     r = validate(_out([item]), ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
     assert r.evals[0].verdict == "sin_datos" and r.degraded == 1
+
+
+def test_literal_evidence_with_the_wrong_fragment_id_is_accepted():
+    # Gemini real citó bien el texto pero con otro id: es la misma ficha, se acepta.
+    r = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevador", "fragmento": "f2"}]),
+                 ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
+    assert r.evals[0].verdict == "si"
 
 
 def test_blind_profiles_never_leak_employer_names():
@@ -191,3 +218,14 @@ def test_self_assessment_is_not_evidence_but_real_tasks_are():
     bad = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "Cumplo todos los requisitos del puesto", "fragmento": "f1"}]),
                    ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
     assert ok.evals[0].verdict == "si" and bad.evals[0].verdict == "sin_datos"
+
+
+def test_literal_but_irrelevant_evidence_is_rejected():
+    # Gemini real citó «Zona: Centro» como prueba de manejar autoelevador.
+    frags = [Fragment("f1", "Zona: Centro. Puesto: Operario. Tareas: manejo de autoelevadores en depósito.")]
+    reqs = [Requirement("r1", "Manejo de autoelevador", "excluyente", "habilidad")]
+    bad = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "Zona: Centro. Puesto: Operario", "fragmento": "f1"}]),
+                   ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
+    good = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevadores en depósito", "fragmento": "f1"}]),
+                    ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
+    assert bad.evals[0].verdict == "sin_datos" and good.evals[0].verdict == "si"

@@ -115,6 +115,10 @@ async def extract(
         max_output_tokens=1500,
     )
     kept, dropped = filter_protected(result.data.requisitos)
+    # Lo que ya viene del catálogo no se evalúa dos veces (con Gemini real pasó: "Manejo de
+    # Autoelevador" del formulario + "Experiencia en manejo de autoelevador" del texto).
+    skill_names = [n.lower() for n, _ in technical_skills]
+    kept = [it for it in kept if not any(n and n.split()[0] in it.texto.lower() for n in skill_names)]
     structured = from_structured(technical_skills)
     extracted = [
         Requirement(id=f"r{len(structured) + i}", texto=it.texto.strip(), tipo=it.tipo, categoria=it.categoria)

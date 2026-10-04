@@ -23,7 +23,7 @@ from app.integrations.gemini_client import AIProvider, AIUsage, ServiceTier
 from app.services.ai.requirements import Requirement
 from app.services.ai.scoring import RequirementEval
 
-PROMPT_VERSION = "rerank-2026-10-04"
+PROMPT_VERSION = "rerank-2026-10-04b"  # evidencia válida en cualquier fragmento de la ficha
 MIN_EVIDENCE_CHARS = 12
 MAX_REASONS = 3
 MAX_REASON_CHARS = 200
@@ -86,6 +86,22 @@ class RerankResult:
     notes: list[str] = field(default_factory=list)
 
 
+_STOP = {"experiencia", "manejo", "conocimiento", "conocimientos", "disponibilidad", "capacidad",
+         "deseable", "excluyente", "requisito", "minima", "minimo", "para", "con", "como", "sobre"}
+
+
+def _stems(text: str) -> set[str]:
+    """Raíces (5 letras) de las palabras significativas: 'autoelevador'/'autoelevadores' coinciden."""
+    return {w[:5] for w in re.findall(r"[a-z0-9]{4,}", _norm(text)) if w not in _STOP}
+
+
+def relevant(evidence: str, requirement: str) -> bool:
+    """La cita tiene que tener que ver con el requisito: al menos una palabra significativa en
+    común. Con Gemini real pasó que citó «Zona: Centro» como prueba de manejar autoelevador:
+    literal, pero irrelevante."""
+    return bool(_stems(evidence) & _stems(requirement))
+
+
 def _mentions(text: str, names: list[str]) -> bool:
     t = _norm(text)
     return any(len(n) >= 3 and _norm(n) in t for n in names if n)
@@ -111,13 +127,14 @@ def validate(
         verdict = item.cumple if item else "sin_datos"
         evidence = (item.evidencia or "").strip() if item else ""
         if verdict != "sin_datos":
-            frag = by_id.get((item.fragmento or "").strip())
-            ok = (
-                len(evidence) >= MIN_EVIDENCE_CHARS
-                and not _SELF.search(evidence)
-                and frag is not None
-                and _norm(evidence) in frag
-            )
+            # Literal en el fragmento citado o en otro fragmento de ESTE candidato (va una ficha
+            # por llamada, así que no hay riesgo de mezclar con otro). Con Gemini real pasó que
+            # citó bien el texto pero con el id de fragmento equivocado.
+            needle = _norm(evidence)
+            cited = by_id.get((item.fragmento or "").strip())
+            literal = (cited is not None and needle in cited) or any(needle in f for f in by_id.values())
+            ok = (len(evidence) >= MIN_EVIDENCE_CHARS and not _SELF.search(evidence) and literal
+                  and relevant(evidence, req.texto))
             if ok and (_CONTACT.search(evidence) or (blind and _mentions(evidence, forbidden_names))):
                 ok = False
             if not ok:
