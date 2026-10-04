@@ -20,7 +20,8 @@ Todo vive en `feat/mails-ia`, detrás de `MODULOS_NUEVOS_ACTIVOS` (en producció
 
 ## Gael
 
-1. **Mandarle a Eugenia** `AVISOS-AUTOMATICOS-EUGENIA.pdf`.
+1. **Mandarle a Eugenia** `AVISOS-AUTOMATICOS-EUGENIA.pdf`, `VIERON-TU-CV-Y-NOTAS-EUGENIA.pdf` y
+   `NOVEDADES-BBJOBS-OCTUBRE-2026.pdf` (resumen informativo de lo hecho).
 2. **Centro → push**: `main` está 2 commits adelante (tu Plenia + el módulo BBJobs).
 3. **Railway (cuenta de BBJobs)**: la CLI está logueada con Plenia. Con la de BBJobs, desde `centro\`:
    `python -c "import json;print(json.load(open('config.json'))['bbjobs_sync_secret'])" | railway variable set LEADGEN_SYNC_SECRET --stdin --skip-deploys`
@@ -58,7 +59,7 @@ Todo vive en `feat/mails-ia`, detrás de `MODULOS_NUEVOS_ACTIVOS` (en producció
    separados por la parte semántica, que varía entre corridas.
 5. Rubros y zonas a prospectar, servicios a ofrecer y textos de campañas.
 
-## Claude (cuando des el OK)
+## Claude — próxima sesión (prompt listo en `PROXIMA-SESION-PROMPT.md`)
 
 1. **Construir "Vieron tu CV" y las notas privadas/visibles** — plan en
    `AVISOS-POR-ACCION-Y-NOTAS-PLAN.md`. Se puede arrancar con las propuestas y ajustar con lo que
