@@ -390,7 +390,8 @@ compuerta `MODULOS_NUEVOS_ACTIVOS` (false en producción: rutas nuevas → 404; 
 | T4 campañas + prospección por canal propio + redactora IA | ✅ | `7492415`, `c4b9d4b` |
 | Medición de CVs reales (script) | ✅ escrito, **falta correrlo** | `0a2d5e3` |
 | P2 módulo "Pasar a BBJobs" del centro | ✅ escrito, **sin commitear en el centro** (convive con Plenia sin commitear) | — |
-| T7 frontend | en curso | — |
+| T7 frontend (admin con "En desarrollo"; postulante/empresa ocultos sin `NEXT_PUBLIC_MODULOS_NUEVOS`) | ✅ eslint, tsc y `next build` OK | `c92060b` |
+| Evaluación del RAG (script) y retención 90 días | ✅ | `88b3a15`, `085f4e1` |
 
 **Pendiente de verificar:** los tests de integración de T2, P1, T3, T4 y T5 (corren con
 `backend/scripts/probar_local_mails.ps1`, que arma una base descartable con pgvector).
