@@ -123,5 +123,31 @@ def test_cuit_check_digit():
     assert not cuit_is_valid("123")
 
 
+def test_name_is_redacted_with_or_without_accents():
+    # Medición de CVs reales del 04/10: en la base "Gimenez", en el CV "GIMÉNEZ" (y al revés).
+    names = ["Lucia Gimenez", "Ramón Nuñez"]
+    out = redact("LUCÍA GIMÉNEZ\nAdministrativa\nRamon Nunez, jefe de turno", known_names=names)
+    assert leaks(out.text, known_names=names, known_phones=[], known_emails=[]) == []
+    assert "Administrativa" in out.text
+
+
+def test_name_particles_are_not_redacted_everywhere():
+    # "María de los Ángeles": tachar "los" borraba la palabra en todo el CV.
+    names = ["María de los Ángeles", "Ferro"]
+    out = redact("MARÍA DE LOS ÁNGELES FERRO\nAtención de los clientes y de las cajas", known_names=names)
+    assert "Atención de los clientes y de las cajas" in out.text
+    assert leaks(out.text, known_names=names, known_phones=[], known_emails=[]) == []
+
+
+def test_references_section_is_dropped_until_next_section():
+    cv = ("EXPERIENCIA\nCajera en supermercado 2019-2022\n"
+          "REFERENCIAS LABORALES\nCarlos Ibarra – Gerente – Almacén Sur\nMarta Ríos, encargada\n"
+          "EDUCACIÓN\nSecundario completo\nReferencias disponibles a pedido.")
+    out = redact(cv)
+    assert "Ibarra" not in out.text and "Marta" not in out.text
+    assert "Cajera en supermercado 2019-2022" in out.text and "Secundario completo" in out.text
+    assert out.stats["referencias"] == 1
+
+
 def test_leaks_detects_what_slipped():
     assert "mail" in leaks("escribime a ana@x.com", known_names=[], known_phones=[], known_emails=["ana@x.com"])

@@ -48,6 +48,35 @@ def _plain(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn").lower()
 
 
+# Partículas de nombres compuestos ("María de los Ángeles"): no son el nombre. La medición de
+# CVs reales del 04/10 mostró que tachar "los" lo borraba en todo el CV.
+_NAME_PARTICLES = {"de", "del", "la", "las", "los", "lo", "y", "e", "da", "das", "do", "dos", "di", "van", "von", "san"}
+_ACCENTED = {"a": "aáàâäã", "e": "eéèêë", "i": "iíìîï", "o": "oóòôöõ", "u": "uúùûü", "n": "nñ", "c": "cç"}
+
+
+def _name_parts(name: str | None) -> list[str]:
+    return [p for p in re.split(r"[\s,]+", (name or "").strip())
+            if len(p) >= 3 and _plain(p) not in _NAME_PARTICLES]
+
+
+def _accent_insensitive(part: str) -> str:
+    """Patrón que encuentra la palabra con o sin acentos: en la base dice "Gimenez" y en el CV
+    "GIMÉNEZ" (medición del 04/10: 12 nombres se escapaban así)."""
+    return "".join(f"[{_ACCENTED[c]}]" if c in _ACCENTED else re.escape(c) for c in _plain(part))
+
+
+# Sección de referencias: son nombres y teléfonos de terceros, que no aportan nada para comparar
+# con una búsqueda. Se descarta desde el título hasta la próxima sección (medición del 04/10: 9 de
+# 33 CVs traían nombres de terceros ahí).
+_REFERENCES_HEADING = re.compile(
+    r"^\W*referencias?(\s+(laborales|personales|comerciales|profesionales))?\s*:?\s*$", re.IGNORECASE)
+_SECTION_HEADING = re.compile(
+    r"^\W*(experiencia|educaci[oó]n|formaci[oó]n|estudios|habilidades|competencias|conocimientos|"
+    r"idiomas|cursos|capacitaci|certificac|perfil|resumen|objetivo|aptitudes|herramientas|"
+    r"inform[aá]tica|disponibilidad|licencias?|otros|datos\s+adicionales|intereses|logros)\b", re.IGNORECASE)
+_MAX_REFERENCE_LINES = 25
+
+
 def cuit_is_valid(digits: str) -> bool:
     """Dígito verificador de CUIL/CUIT (módulo 11)."""
     if len(digits) != 11 or not digits.isdigit():
@@ -82,7 +111,18 @@ def redact(
         return out
 
     kept: list[str] = []
+    in_references = 0   # líneas que faltan descartar de una sección de referencias
     for line in text.splitlines():
+        if _REFERENCES_HEADING.match(line.strip()):
+            in_references = _MAX_REFERENCE_LINES
+            out.add("referencias")
+            continue
+        if in_references:
+            if _SECTION_HEADING.match(line.strip()):
+                in_references = 0
+            else:
+                in_references -= 1
+                continue
         if _PERSONAL_LINE.search(line) and not _DRIVER_LICENSE.search(line):
             out.add("lineas_personales")
             continue
@@ -102,10 +142,9 @@ def redact(
             text, n = re.subn(r"[\d(+][\d\s().+-]*" + pattern, TOKEN, text)
             out.add("telefono_propio", n)
     for name in known_names or []:
-        for part in re.split(r"\s+", (name or "").strip()):
-            if len(part) >= 3:
-                text, n = re.subn(rf"\b{re.escape(part)}\b", TOKEN, text, flags=re.IGNORECASE)
-                out.add("nombre_propio", n)
+        for part in _name_parts(name):
+            text, n = re.subn(rf"\b{_accent_insensitive(part)}\b", TOKEN, text, flags=re.IGNORECASE)
+            out.add("nombre_propio", n)
 
     text, n = _EMAIL.subn(TOKEN, text)
     out.add("mails", n)
@@ -153,8 +192,8 @@ def leaks(text: str, *, known_names: list[str], known_phones: list[str], known_e
     found = []
     plain = _plain(text)
     for name in known_names:
-        for part in re.split(r"\s+", name or ""):
-            if len(part) >= 3 and re.search(rf"\b{re.escape(_plain(part))}\b", plain):
+        for part in _name_parts(name):
+            if re.search(rf"\b{re.escape(_plain(part))}\b", plain):
                 found.append(f"nombre:{part}")
     digits = re.sub(r"\D", "", text)
     for phone in known_phones:
