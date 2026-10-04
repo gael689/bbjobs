@@ -5,7 +5,7 @@ from app.models.catalogs import Industry, Zone, ContractType, Skill, SkillCatego
 from app.models.company import CompanyProfile, CompanyVerificationDocument, VerificationStatus
 from app.models.candidate import CandidateProfile, Experience, Education, CandidateSkill, Language, EducationLevel, LanguageLevel
 from app.models.job import JobPosting, JobPostingSkill, Application, JobPostingModality, JobPostingStatus, ApplicationStatus
-from app.models.payment import Plan, Subscription, JobFeature, Payment, MercadoPagoWebhookEvent, SubscriptionStatus, JobFeatureStatus, PaymentType
+from app.models.payment import Plan, Subscription, JobFeature, Payment, MercadoPagoWebhookEvent, SubscriptionStatus, JobFeatureStatus, PaymentType, CvReviewOrder, CvReviewStatus
 from app.models.tests import PsychometricTest, TestQuestion, TestQuestionOption, TestSubmission, TestAnswer, ScoringMethod, QuestionType, TestSubmissionStatus
 from app.models.email import (
     EmailOutbox, EmailTemplate, EmailPreference, EmailSuppression, EmailCampaign, EmailDigestState,
@@ -65,6 +65,8 @@ __all__ = [
     "SubscriptionStatus",
     "JobFeatureStatus",
     "PaymentType",
+    "CvReviewOrder",
+    "CvReviewStatus",
     "PsychometricTest",
     "TestQuestion",
     "TestQuestionOption",

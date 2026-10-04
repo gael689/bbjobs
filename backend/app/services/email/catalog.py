@@ -110,8 +110,19 @@ RULES: dict[str, Rule] = {
     "talent_pack_rejected": _CUENTA,
     "application_new": Rule(C.postulaciones, mode="digest"),  # resumen diario de la empresa
 
+    # ── Revisión de CV (postulante; son de un pago: críticos) ──
+    "cv_review_paid": _CUENTA,
+    "cv_review_payment_rejected": _CUENTA,
+    "cv_review_in_progress": _CUENTA,
+    "cv_review_delivered": _CUENTA,
+
     # ── Admin ──
     "admin_payment_received": Rule(C.admin, critical=True),
+    "admin_payment_refunded": Rule(C.admin, critical=True),
+    # Hay una persona que pagó y espera: sale al instante, a cualquier hora.
+    "admin_cv_review_new": Rule(C.admin, critical=True),
+    "admin_cv_review_duplicate_payment": Rule(C.admin, critical=True),
+    "admin_cv_review_overdue": Rule(C.admin),
     "admin_company_pending": Rule(C.admin, mode="digest"),
     "admin_company_reapplied": Rule(C.admin, mode="digest"),
     "job_pending_review": Rule(C.admin, mode="digest"),

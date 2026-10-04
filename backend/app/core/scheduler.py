@@ -141,6 +141,19 @@ async def send_profile_reminders():
             await db.commit()
 
 
+async def cv_review_housekeeping():
+    """Revisión de CV: vence las órdenes sin pagar y avisa de las pagadas sin tomar."""
+    from app.services.cv_review import housekeeping
+    try:
+        async with async_session_maker() as db:
+            stats = await housekeeping(db)
+            if any(stats.values()):
+                logger.info("cv_review_housekeeping", **stats)
+                await db.commit()
+    except Exception as exc:
+        logger.error("cv_review_housekeeping_error", error=str(exc)[:300])
+
+
 async def dispatch_emails():
     from app.services.email.dispatcher import dispatch_due
     try:
@@ -158,5 +171,6 @@ def start_scheduler():
     from app.core.features import new_modules_enabled
     if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
         scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
+        scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("scheduler_started")

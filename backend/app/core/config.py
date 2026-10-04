@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # la empresa veía un precio y se le cobraba otro.
     # Dejar en None en operación normal.
     TALENT_PACK_PRICE: float | None = None
+    # Revisión de CV: precio provisorio de ARS 12.000 en el código hasta que lo defina Eugenia.
+    CV_REVIEW_PRICE: float | None = None
     FEATURED_JOB_PRICE: float | None = None
 
     # A dónde le decimos a Mercado Pago que mande los avisos de pago. Se manda en CADA

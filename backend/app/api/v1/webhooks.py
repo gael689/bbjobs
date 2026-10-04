@@ -23,6 +23,14 @@ import structlog
 logger = structlog.get_logger("app.api.webhooks")
 router = APIRouter()
 
+# Cómo se nombra cada producto en los avisos al equipo de Talency.
+_PRODUCTO = {
+    PaymentType.job_feature.value: "destacar una búsqueda",
+    PaymentType.talent_pack.value: "un pack de la Base de Talento",
+    PaymentType.cv_review.value: "una revisión de CV",
+}
+
+
 async def process_mp_payment(event_id: str):
     # Sesión propia — no se reusa la del request que disparó el BackgroundTasks, que puede
     # estar cerrada/devuelta al pool para cuando esta tarea corre.
@@ -57,8 +65,29 @@ async def process_mp_payment(event_id: str):
                 payment = res_pay.scalar_one_or_none()
 
                 if payment:
+                    previous_mp_status = payment.mp_status
                     payment.mp_payment_id = str(data_id)
                     payment.mp_status = mp_status
+
+                    # Devolución o contracargo hechos desde Mercado Pago (auditoría C14). Antes no
+                    # se enteraba nadie. Para el destacado y el pack sólo se avisa: revocar lo
+                    # comprado lo decide Talency.
+                    if mp_status in ("refunded", "charged_back") and previous_mp_status != mp_status:
+                        await notify_all_admins(
+                            db, type="admin_payment_refunded",
+                            title="Pago devuelto o desconocido",
+                            body=(f"Mercado Pago informa que se {'devolvió' if mp_status == 'refunded' else 'desconoció (contracargo)'} "
+                                  f"un pago de ${payment.amount:.0f} {payment.currency} por "
+                                  f"{_PRODUCTO.get(getattr(payment.type, 'value', payment.type), 'un producto')}."),
+                            link="/dashboard/admin/pagos",
+                        )
+
+                    # Revisión de CV (pago de un postulante). Igual que el pack: no existe
+                    # ningún JobFeature con este payment_id, así que las ramas del destacado
+                    # de abajo no hacen nada.
+                    if payment.type == PaymentType.cv_review:
+                        from app.services.cv_review import process_payment as procesar_revision_cv
+                        await procesar_revision_cv(db, payment, mp_status, previous_mp_status)
 
                     # Pack de la Base de Talento. Va antes del bloque del destacado y no lo
                     # interfiere: para un pago de pack no existe ningún JobFeature con este
