@@ -54,6 +54,8 @@ class Rule:
     cta_label: str = "Ver en BBJobs"
     # Los resúmenes ya agrupan varios avisos en uno: nunca los recorta el tope por persona (M21).
     exempt_daily_cap: bool = False
+    # Como mucho un mail de este tipo por persona por día (el resto queda sólo en la web).
+    once_per_day: bool = False
 
     @property
     def unsubscribable(self) -> bool:
@@ -75,6 +77,24 @@ async def _application_still_discarded(db: AsyncSession, application_id: uuid.UU
     return status == ApplicationStatus.discarded
 
 
+async def _fewer_than_three_reminders(db: AsyncSession, candidate_id: uuid.UUID) -> bool:
+    """v4 §3.1: el recordatorio de perfil incompleto se corta tras 3 mails sin que el perfil
+    cambie. `ref_id` es el candidato."""
+    from sqlalchemy import func, select
+
+    from app.models.candidate import CandidateProfile
+    from app.models.email import EmailOutbox, EmailStatus
+
+    profile = (await db.execute(select(CandidateProfile).where(CandidateProfile.id == candidate_id))).scalar_one_or_none()
+    if profile is None:
+        return False
+    sent = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
+        EmailOutbox.user_id == profile.user_id, EmailOutbox.template_key == "profile_incomplete",
+        EmailOutbox.status == EmailStatus.sent.value, EmailOutbox.sent_at >= profile.updated_at,
+    ))).scalar_one()
+    return sent < 3
+
+
 C = EmailCategory
 _CUENTA = Rule(C.cuenta, critical=True)
 _BUSQUEDAS = Rule(C.busquedas)
@@ -91,9 +111,18 @@ RULES: dict[str, Rule] = {
     "application_discarded": Rule(
         C.postulaciones, delay=timedelta(hours=24), still_valid=_application_still_discarded,
     ),
-    "profile_incomplete": Rule(C.recordatorios, cta_label="Completar mi perfil"),
+    "profile_incomplete": Rule(C.recordatorios, cta_label="Completar mi perfil",
+                               still_valid=_fewer_than_three_reminders),
+    "welcome_candidate": Rule(C.cuenta, cta_label="Completar mi perfil"),
+    "application_sent": Rule(C.postulaciones, once_per_day=True),
+    "talent_profile_unlocked": Rule(C.postulaciones, once_per_day=True),
+    "candidate_reactivation": Rule(C.recordatorios, cta_label="Ver búsquedas"),
 
     # ── Empresa ──
+    "welcome_company": Rule(C.cuenta),
+    "company_onboarding_guide": Rule(C.recordatorios, cta_label="Publicar una búsqueda"),
+    "job_no_applications": Rule(C.recordatorios, cta_label="Revisar la búsqueda"),
+    "talent_pack_low": _CUENTA,
     "company_verified": _CUENTA,
     "company_rejected": _CUENTA,
     "company_suspended": _CUENTA,

@@ -84,11 +84,23 @@ async def queue_email_for_notification(
     if override is not None and not override.enabled:
         return None
 
+    now = now or datetime.now(timezone.utc)
+    if rule.once_per_day:
+        from sqlalchemy import func
+
+        from app.services.email.policy import local_day_start
+
+        today = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
+            EmailOutbox.user_id == user.id, EmailOutbox.template_key == type,
+            EmailOutbox.created_at >= local_day_start(now),
+        ))).scalar_one()
+        if today:
+            return None   # ya hubo uno hoy: éste queda sólo en la web
+
     subject, rendered = build_content(
         user_id=user.id, category=rule.category, title=title, body=body, link=link,
         cta_label=rule.cta_label, unsubscribable=rule.unsubscribable, override=override,
     )
-    now = now or datetime.now(timezone.utc)
     row = EmailOutbox(
         id=uuid.uuid4(),
         user_id=user.id,

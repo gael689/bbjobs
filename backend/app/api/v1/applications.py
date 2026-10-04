@@ -153,6 +153,10 @@ async def apply_to_job(
             link="/dashboard/company/postulaciones",
         )
 
+    # Confirmación al postulante (módulo en desarrollo: sólo con la compuerta abierta).
+    from app.services.lifecycle import on_application_sent
+    await on_application_sent(db, current_user.id, job)
+
     # Recordatorio de perfil incompleto — disparo contextual tras postularse, con throttle
     # para no repetir antes de REMINDER_MIN_INTERVAL_DAYS (ver services/profile_completion.py).
     completion = await compute_profile_completion_for_candidate(db, candidate)
@@ -167,6 +171,7 @@ async def apply_to_job(
                 "cargar datos — completalo para destacar frente a otros candidatos."
             ),
             link="/dashboard/candidate/perfil",
+            ref_id=candidate.id,   # tope de 3 mails sin cambios en el perfil (catálogo)
         )
         candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
 

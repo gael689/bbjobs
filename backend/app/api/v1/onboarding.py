@@ -86,6 +86,9 @@ async def onboarding_candidate(
         talent_pool_decided_at=now,
     ))
 
+    from app.services.lifecycle import on_candidate_onboarded
+    await on_candidate_onboarded(db, user)   # sólo con la compuerta abierta
+
     await db.commit()
 
     try:
@@ -170,6 +173,8 @@ async def onboarding_company(
     if new_modules_enabled():
         from app.services.prospects import mark_registered_for_company
         await mark_registered_for_company(db, company, email)
+        from app.services.lifecycle import on_company_onboarded
+        await on_company_onboarded(db, user)
 
     await db.commit()
 

@@ -132,6 +132,7 @@ async def send_profile_reminders():
                         "cargar datos — completalo para destacar frente a otros candidatos."
                     ),
                     link="/dashboard/candidate/perfil",
+                    ref_id=candidate.id,   # tope de 3 mails sin cambios en el perfil (catálogo)
                 )
                 candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
                 sent += 1
@@ -217,6 +218,19 @@ async def campaigns_conversions():
         logger.error("campaigns_conversions_error", error=str(exc)[:300])
 
 
+async def lifecycle_daily():
+    """Guía de arranque, búsquedas sin postulaciones y reactivaciones (una vez por día)."""
+    from app.services.lifecycle import daily
+    try:
+        async with async_session_maker() as db:
+            stats = await daily(db)
+            await db.commit()
+            if any(stats.values()):
+                logger.info("lifecycle_daily", **stats)
+    except Exception as exc:
+        logger.error("lifecycle_daily_error", error=str(exc)[:300])
+
+
 async def dispatch_emails():
     from app.services.email.dispatcher import dispatch_due
     try:
@@ -236,6 +250,8 @@ def start_scheduler():
         scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
         scheduler.add_job(email_digests, "interval", minutes=15, max_instances=1, coalesce=True)
         scheduler.add_job(campaigns_tick, "interval", minutes=5, max_instances=1, coalesce=True)
+        # 10:00 de Argentina (13:00 UTC): dentro de la franja de envío.
+        scheduler.add_job(lifecycle_daily, "cron", hour=13, minute=0, timezone="UTC", max_instances=1, coalesce=True)
         scheduler.add_job(campaigns_conversions, "cron", hour=7, minute=0, timezone="UTC", max_instances=1, coalesce=True)
         scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
         # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).

@@ -631,6 +631,13 @@ async def unlock_talent_profile(
     if usados_por_pack.get(elegido.id, 0) + 1 >= elegido.credits_total:
         elegido.status = TalentPackStatus.exhausted
 
+    # Avisos nuevos (sólo con la compuerta abierta): al postulante, que una empresa vio su
+    # perfil; a la empresa, si le quedan pocos contactos.
+    from app.services.lifecycle import on_pack_consumed, on_talent_unlocked
+    await db.flush()
+    await on_talent_unlocked(db, profile)
+    await on_pack_consumed(db, company)
+
     await db.commit()
     return await _armar_perfil(db, profile, unlocked=True)
 
