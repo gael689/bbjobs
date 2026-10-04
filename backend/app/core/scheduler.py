@@ -141,9 +141,20 @@ async def send_profile_reminders():
             await db.commit()
 
 
+async def dispatch_emails():
+    from app.services.email.dispatcher import dispatch_due
+    try:
+        await dispatch_due()
+    except Exception as exc:  # una vuelta fallida no puede tumbar el scheduler
+        logger.error("email_dispatch_error", error=str(exc)[:300])
+
+
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
     scheduler.add_job(notify_expiring_soon, "interval", hours=1)
     scheduler.add_job(send_profile_reminders, "interval", hours=24)
+    # Cola de mails: cada 60 s. Con EMAIL_MODE=off no hace casi nada (una consulta vacía).
+    # max_instances=1: si una vuelta tarda más de un minuto, la siguiente espera.
+    scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("scheduler_started")

@@ -60,6 +60,9 @@ def upgrade() -> None:
         sa.Column('provider_message_id', sa.String(100), nullable=True),
         sa.Column('dedupe_key', sa.String(200), nullable=True, unique=True),
         sa.Column('campaign_id', UUID(as_uuid=True), sa.ForeignKey('email_campaigns.id', ondelete='CASCADE'), nullable=True),
+        # Entidad del aviso (postulación, búsqueda…), sin FK porque varía según el tipo. Sirve
+        # para revalidar al enviar: "No avanza" diferido 24 h se cancela si el estado cambió.
+        sa.Column('ref_id', UUID(as_uuid=True), nullable=True),
         _ts('scheduled_at', nullable=False, server_default=sa.func.now()),
         _ts('claimed_at', nullable=True),
         _ts('sent_at', nullable=True),

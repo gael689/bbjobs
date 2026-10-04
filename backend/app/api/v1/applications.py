@@ -649,6 +649,9 @@ async def update_application_status(
                 title=notif_title,
                 body=notif_body.format(job_title=job.title),
                 link="/dashboard/candidate/postulaciones",
+                # Para revalidar al enviar: "No avanza" sale 24 h después y se cancela si la
+                # empresa cambió el estado en el medio (auditoría R9/M18).
+                ref_id=app.id,
             )
 
     await db.commit()

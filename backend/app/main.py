@@ -16,7 +16,7 @@ from app.core.limiter import limiter
 from app.api.v1 import (
     health, companies, candidates, skills, catalogs,
     jobs, applications, tests, plans, subscriptions, payments, talent, webhooks,
-    admin, notifications, account, me, onboarding, contact, landing
+    admin, notifications, account, me, onboarding, contact, landing, emails
 )
 
 setup_logging()
@@ -94,3 +94,4 @@ app.include_router(me.router, prefix="/api/v1", tags=["me"])
 app.include_router(onboarding.router, prefix="/api/v1", tags=["onboarding"])
 app.include_router(contact.router, prefix="/api/v1", tags=["contact"])
 app.include_router(landing.router, prefix="/api/v1", tags=["landing"])
+app.include_router(emails.router, prefix="/api/v1", tags=["emails"])

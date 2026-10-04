@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -69,6 +69,9 @@ class EmailOutbox(UUIDMixin, Base):
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("email_campaigns.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # Entidad del aviso (postulación, búsqueda…), sin FK porque varía según el tipo. Sirve para
+    # revalidar al enviar (ver `services/email/catalog.py`, `still_valid`).
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     scheduled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

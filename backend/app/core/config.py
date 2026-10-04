@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     # auto | off | simulate | resend — ver services/email/provider.py. `auto` = resend si hay
     # key, off si no. `simulate` se elige a mano (desarrollo, vista previa para Eugenia).
     EMAIL_MODE: str = "auto"
+    # Tope de mails por día (día de Argentina) para el calentamiento del dominio (v3 M3): un
+    # dominio nuevo arranca en ~150/día. Se sube a mano semana a semana; 0 = sin tope. Los de la
+    # categoría `cuenta` (pagos, verificación) salen aunque se haya llegado al tope.
+    EMAIL_DAILY_CAP: int = 150
 
     # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
     # rota, y de esa manera cambiarlos no necesita un deploy de código.
