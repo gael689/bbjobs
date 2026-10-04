@@ -75,8 +75,11 @@ async def _world(maker, published=None):
             u = User(id=uuid.uuid4(), email=f"{name}-{tag}@mail.com", role="candidate", is_active=True)
             db.add(u)
             await db.flush()
+            # updated_at cerca de la fecha simulada (2030): si no, la regla de ocaso (90 días sin
+            # actividad) los excluye del resumen semanal, que es lo correcto.
             p = CandidateProfile(id=uuid.uuid4(), user_id=u.id, first_name=name, last_name="T", phone="2915550000",
-                                 location_zone_id=zone.id, accepts_onsite=True)
+                                 location_zone_id=zone.id, accepts_onsite=True,
+                                 updated_at=MONDAY_9 - timedelta(days=1))
             db.add(p)
             candidates.append((u, p))
         await db.flush()

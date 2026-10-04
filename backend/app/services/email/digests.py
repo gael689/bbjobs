@@ -279,7 +279,7 @@ async def send_company_daily(db: AsyncSession, now: datetime) -> int:
                     JobRecommendation.job_id == job.id, JobRecommendation.source == "applicant",
                     JobRecommendation.final_score >= 70)
             )).scalar_one()
-            detail = f"{n} postulación{'es' if n != 1 else ''} nueva{'s' if n != 1 else ''}"
+            detail = "1 postulación nueva" if n == 1 else f"{n} postulaciones nuevas"
             if top:
                 detail += f" · {top} con buen encaje"
             items.append(EmailItem(title=job.title, detail=detail, url="/dashboard/company/postulaciones"))

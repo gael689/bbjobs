@@ -138,6 +138,9 @@ async def test_company_already_in_bbjobs_is_marked_registered(client, maker):
 async def test_admin_list_filters_and_bulk_by_filter(client, maker):
     admin = User(id=uuid.uuid4(), email="eugenia@talency.com", role="admin", is_active=True)
     candidate = User(id=uuid.uuid4(), email="cand@mail.com", role="candidate", is_active=True)
+    async with maker() as db:   # el admin queda en el historial (actor_user_id): tiene que existir
+        db.add_all([admin, candidate])
+        await db.commit()
     await _sync(client, [company("aaa0001"), company("bbb0002", name="Panadería", category="Gastronomía",
                                                      emails=[])])
     from app.main import app

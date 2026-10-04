@@ -93,8 +93,10 @@ async def _people(maker):
 
 async def _campaign(maker, **kw):
     async with maker() as db:
-        c = EmailCampaign(id=uuid.uuid4(), name="Prueba", subject="Hola {{nombre}}", body="Texto de la campaña.",
-                          status=CampaignStatus.draft.value, recipients_total=0, audience={}, follow_ups=[], **kw)
+        fields = dict(name="Prueba", subject="Hola {{nombre}}", body="Texto de la campaña.",
+                      status=CampaignStatus.draft.value, recipients_total=0, audience={}, follow_ups=[])
+        fields.update(kw)
+        c = EmailCampaign(id=uuid.uuid4(), **fields)
         db.add(c)
         await db.commit()
         return c
