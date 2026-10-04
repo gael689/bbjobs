@@ -131,6 +131,14 @@ RULES: dict[str, Rule] = {
     "admin_company_reapplied": Rule(C.admin, mode="digest"),
     "job_pending_review": Rule(C.admin, mode="digest"),
     "contact_message_received": Rule(C.admin, mode="digest"),
+    "admin_email_health": Rule(C.admin, critical=True),
+    "admin_campaign_draft_ready": Rule(C.admin),
+
+    # ── Resúmenes (T3): los arma services/email/digests.py y van directo a la cola ──
+    "digest_alertas": Rule(C.alertas, mode="digest", exempt_daily_cap=True),
+    "digest_para_vos": Rule(C.alertas, mode="digest", exempt_daily_cap=True),
+    "digest_empresa": Rule(C.postulaciones, mode="digest", exempt_daily_cap=True),
+    "digest_equipo": Rule(C.admin, mode="digest", exempt_daily_cap=True),
 }
 
 _NO_EMAIL = Rule(C.postulaciones, mode="none")

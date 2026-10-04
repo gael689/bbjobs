@@ -100,7 +100,9 @@ async def _sent_today(db: AsyncSession, now: datetime) -> int:
 async def _claim(db: AsyncSession, now: datetime, limit: int, only_critical: bool) -> list[EmailOutbox]:
     query = (
         select(EmailOutbox)
-        .where(EmailOutbox.status == EmailStatus.pending.value, EmailOutbox.scheduled_at <= now)
+        .where(EmailOutbox.status == EmailStatus.pending.value, EmailOutbox.scheduled_at <= now,
+               # La prospección va por su propio canal (prospect_dispatch.py), nunca por éste.
+               EmailOutbox.category != EmailCategory.prospeccion.value)
         .order_by(_priority_order(), EmailOutbox.scheduled_at)
         .limit(limit)
         .with_for_update(skip_locked=True)
@@ -238,7 +240,8 @@ async def dispatch_due(
         if provider is None:
             result = await db.execute(
                 update(EmailOutbox)
-                .where(EmailOutbox.status == EmailStatus.pending.value, EmailOutbox.scheduled_at <= now)
+                .where(EmailOutbox.status == EmailStatus.pending.value, EmailOutbox.scheduled_at <= now,
+                       EmailOutbox.category != EmailCategory.prospeccion.value)
                 .values(status=EmailStatus.skipped.value, last_error="sin proveedor de mails (EMAIL_MODE=off)")
             )
             stats.skipped += result.rowcount or 0

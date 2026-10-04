@@ -163,3 +163,14 @@ def test_discarded_waits_24h_and_revalidates():
 
 def test_company_new_applications_go_to_the_digest_not_one_by_one():
     assert RULES["application_new"].mode == "digest"
+
+
+def test_every_digest_key_used_in_code_has_its_own_rule():
+    # Una clave sin regla caía en silencio al valor por defecto (categoría equivocada y sin
+    # exención del tope): pasó con los resúmenes de T3 y no lo detectó ningún otro test.
+    source = (Path(__file__).resolve().parents[1] / "app" / "services" / "email" / "digests.py").read_text(encoding="utf-8")
+    keys = set(re.findall(r'key="(digest_[a-z_]+)"', source))
+    assert len(keys) == 4, keys
+    for key in keys:
+        assert key in RULES, key
+        assert RULES[key].exempt_daily_cap and RULES[key].mode == "digest"

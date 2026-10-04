@@ -90,6 +90,18 @@ class Settings(BaseSettings):
     # categoría `cuenta` (pagos, verificación) salen aunque se haya llegado al tope.
     EMAIL_DAILY_CAP: int = 150
 
+    # Prospección (mails a empresas que no están en BBJobs): canal SEPARADO de los avisos, con su
+    # propia API key (idealmente otra cuenta de Resend: la política de uso de Resend prohíbe el
+    # mail en frío y una suspensión no puede cortar los avisos del portal) y su subdominio.
+    # PROSPECT_MODE: auto (resend si hay key, off si no) | off | simulate | resend.
+    PROSPECT_MODE: str = "auto"
+    PROSPECT_RESEND_API_KEY: str | None = None
+    PROSPECT_FROM_EMAIL: str = "Talency · BBJobs <contacto@contacto.bbjobs.com.ar>"
+    PROSPECT_REPLY_TO: str | None = None
+    PROSPECT_RESEND_WEBHOOK_SECRET: str | None = None
+    # Mails de prospección por día hábil (calentamiento propio; arranca bajo).
+    PROSPECT_DAILY_CAP: int = 20
+
     # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
     # rota, y de esa manera cambiarlos no necesita un deploy de código.
     GEMINI_API_KEY: str | None = None

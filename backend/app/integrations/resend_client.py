@@ -82,9 +82,9 @@ def _make_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=RESEND_BASE_URL, timeout=_TIMEOUT_SECONDS)
 
 
-def _payload(msg: OutgoingEmail) -> dict:
+def _payload(msg: OutgoingEmail, from_email: str | None = None) -> dict:
     body: dict = {
-        "from": settings.RESEND_FROM_EMAIL,
+        "from": from_email or settings.RESEND_FROM_EMAIL,
         "to": [msg.to],
         "subject": msg.subject,
         "html": msg.html,
@@ -93,7 +93,7 @@ def _payload(msg: OutgoingEmail) -> dict:
         body["text"] = msg.text
     if msg.headers:
         body["headers"] = msg.headers
-    reply_to = msg.reply_to or settings.RESEND_REPLY_TO
+    reply_to = msg.reply_to or (None if from_email else settings.RESEND_REPLY_TO)
     if reply_to:
         body["reply_to"] = reply_to
     if msg.tags:
@@ -114,21 +114,24 @@ def _classify(response: httpx.Response) -> EmailSendError:
     )
 
 
-def _headers(idempotency_key: str | None) -> dict[str, str]:
-    headers = {"Authorization": f"Bearer {settings.RESEND_API_KEY}"}
+def _headers(idempotency_key: str | None, api_key: str | None = None) -> dict[str, str]:
+    headers = {"Authorization": f"Bearer {api_key or settings.RESEND_API_KEY}"}
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
     return headers
 
 
-async def send_email(msg: OutgoingEmail) -> str:
-    """Manda un mail y devuelve el id que le asignó Resend. Levanta `EmailSendError`."""
-    if not is_configured():
+async def send_email(msg: OutgoingEmail, *, api_key: str | None = None, from_email: str | None = None) -> str:
+    """Manda un mail y devuelve el id que le asignó Resend. Levanta `EmailSendError`.
+
+    `api_key`/`from_email` permiten mandar por otra cuenta (la de prospección); sin ellos se
+    usan los de los avisos."""
+    if not (api_key or is_configured()):
         raise EmailSendError("RESEND_API_KEY no configurada", transient=False)
     try:
         async with _make_client() as client:
             response = await client.post(
-                "/emails", json=_payload(msg), headers=_headers(msg.idempotency_key)
+                "/emails", json=_payload(msg, from_email), headers=_headers(msg.idempotency_key, api_key)
             )
     except httpx.HTTPError as exc:
         # Timeout / conexión caída: no sabemos si llegó. La Idempotency-Key hace seguro el reintento.

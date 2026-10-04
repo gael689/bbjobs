@@ -182,6 +182,38 @@ async def email_digests():
         logger.error("email_digests_error", error=str(exc)[:300])
 
 
+async def campaigns_tick():
+    """Campañas aprobadas a la cola, despacho de prospección, borrador mensual."""
+    from app.services.email.campaigns import materialize_due
+    from app.services.email.monthly import prepare_monthly_draft
+    from app.services.email.prospect_dispatch import dispatch_prospects
+    try:
+        async with async_session_maker() as db:
+            await materialize_due(db)
+            await prepare_monthly_draft(db)
+            await db.commit()
+        await dispatch_prospects()
+    except Exception as exc:
+        logger.error("campaigns_tick_error", error=str(exc)[:300])
+
+
+async def campaigns_conversions():
+    from sqlalchemy import select as _select
+    from app.models.email import EmailCampaign, CampaignStatus
+    from app.services.email.campaigns import measure_conversions
+    try:
+        async with async_session_maker() as db:
+            sent = (await db.execute(_select(EmailCampaign).where(
+                EmailCampaign.status == CampaignStatus.sent.value,
+                EmailCampaign.sent_at >= datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=15),
+            ))).scalars().all()
+            for c in sent:
+                await measure_conversions(db, c)
+            await db.commit()
+    except Exception as exc:
+        logger.error("campaigns_conversions_error", error=str(exc)[:300])
+
+
 async def dispatch_emails():
     from app.services.email.dispatcher import dispatch_due
     try:
@@ -200,6 +232,8 @@ def start_scheduler():
     if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
         scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
         scheduler.add_job(email_digests, "interval", minutes=15, max_instances=1, coalesce=True)
+        scheduler.add_job(campaigns_tick, "interval", minutes=5, max_instances=1, coalesce=True)
+        scheduler.add_job(campaigns_conversions, "cron", hour=7, minute=0, timezone="UTC", max_instances=1, coalesce=True)
         scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
         # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
         scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)

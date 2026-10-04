@@ -27,7 +27,7 @@ if TEST_DB:
     from app.services.email.policy import AR_TZ
     from app.services.email.provider import SimulatedProvider
 
-# Lunes 9 de marzo de 2030, 09:00 de Argentina.
+# Lunes 4 de marzo de 2030, 09:00 de Argentina.
 MONDAY_9 = datetime(2030, 3, 4, 9, 0, tzinfo=AR_TZ).astimezone(timezone.utc) if TEST_DB else None
 
 

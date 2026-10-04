@@ -27,6 +27,9 @@ class EmailCategory(str, enum.Enum):
     recordatorios = "recordatorios"      # perfil incompleto, búsqueda por vencer
     novedades = "novedades"              # campañas de Talency
     admin = "admin"                      # avisos para el equipo de Talency
+    # Mails a empresas que todavía no están en BBJobs. Salen por otro canal (API key y
+    # subdominio propios: services/email/prospect_sender.py), nunca por la cuenta de los avisos.
+    prospeccion = "prospeccion"
 
 
 # Los de la cuenta "llegan siempre" (PDF hoja 01): sin ellos una empresa no se entera de que la
@@ -72,6 +75,11 @@ class EmailOutbox(UUIDMixin, Base):
     # Entidad del aviso (postulación, búsqueda…), sin FK porque varía según el tipo. Sirve para
     # revalidar al enviar (ver `services/email/catalog.py`, `still_valid`).
     ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Mails de prospección: a quién (los prospectos no son usuarios) y qué toque es (1, 2, 3).
+    prospect_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("prospects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    touch: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     scheduled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -171,6 +179,19 @@ class EmailCampaign(UUIDMixin, Base):
     created_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # users (ofertas a quienes ya están en BBJobs) | prospects (empresas que todavía no)
+    target: Mapped[str] = mapped_column(String(20), nullable=False, default="users")
+    audience_key: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    product: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    approved_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Sólo prospectos: [{"after_days": 7, "subject": "...", "body": "..."}, ...] (máximo 2).
+    follow_ups: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    conversions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conversions_measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    generated_by_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

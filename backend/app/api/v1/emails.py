@@ -32,7 +32,7 @@ from app.models.email import (
     EmailStatus,
     EmailSuppression,
 )
-from app.services.email.tokens import verify_unsubscribe_token
+from app.services.email.tokens import verify_prospect_token, verify_unsubscribe_token
 
 logger = structlog.get_logger("app.api.email")
 # Módulo en desarrollo: 404 en todas sus rutas mientras la compuerta esté cerrada.
@@ -90,6 +90,31 @@ async def unsubscribe(t: str = Query(..., max_length=500), db: AsyncSession = De
     await db.commit()
     logger.info("email_baja", category=category.value)
     return UnsubscribeResult(ok=True, category=category.value)
+
+
+# ── Bajas de empresas prospecto ──────────────────────────────────────────────────────────
+
+@router.get("/email/unsubscribe-prospect")
+async def unsubscribe_prospect_landing(t: str = Query(..., max_length=500)):
+    return RedirectResponse(f"{settings.FRONTEND_URL.rstrip('/')}/baja?tipo=empresa&t={quote(t, safe='')}", status_code=303)
+
+
+@router.post("/email/unsubscribe-prospect", response_model=UnsubscribeResult)
+async def unsubscribe_prospect(t: str = Query(..., max_length=500), db: AsyncSession = Depends(get_db)):
+    """La empresa no recibe nada más de BBJobs, nunca: todas sus direcciones a la supresión."""
+    from app.models.prospect import Prospect, ProspectEmail, ProspectEvent
+
+    prospect_id = verify_prospect_token(t)
+    if prospect_id is None:
+        raise HTTPException(status_code=400, detail="Link de baja inválido")
+    prospect = (await db.execute(select(Prospect).where(Prospect.id == prospect_id))).scalar_one_or_none()
+    if prospect is not None:
+        emails = (await db.execute(select(ProspectEmail.email).where(ProspectEmail.prospect_id == prospect.id))).scalars().all()
+        await _suppress(db, list(emails), "baja_prospecto")
+        prospect.do_not_contact, prospect.do_not_contact_reason = True, "baja"
+        db.add(ProspectEvent(prospect_id=prospect.id, kind="baja", detail="Pidió no recibir más mails"))
+        await db.commit()
+    return UnsubscribeResult(ok=True, category="prospeccion")
 
 
 # ── Preferencias ("Mi cuenta") ───────────────────────────────────────────────────────────
@@ -160,17 +185,28 @@ async def _suppress(db: AsyncSession, emails: list[str], reason: str) -> None:
         await db.execute(stmt.on_conflict_do_nothing(index_elements=["email"]))
 
 
+@router.post("/webhooks/resend-prospeccion")
+async def resend_prospect_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Mismo tratamiento que el de los avisos, para la cuenta de prospección. Un rebote o una
+    queja también deja a la empresa como "no contactar"."""
+    return await _handle_resend_event(request, db, settings.PROSPECT_RESEND_WEBHOOK_SECRET)
+
+
 @router.post("/webhooks/resend")
 async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    return await _handle_resend_event(request, db, settings.RESEND_WEBHOOK_SECRET)
+
+
+async def _handle_resend_event(request: Request, db: AsyncSession, secret: str | None):
     """Idempotente sin tabla de eventos: cada efecto es "poner una fecha si estaba vacía" o
     "insertar una supresión si no existía". Resend reintenta y el mismo evento puede llegar
     dos veces (v3 M6) sin cambiar el resultado."""
-    if not settings.RESEND_WEBHOOK_SECRET:
+    if not secret:
         # Sin secret no hay contra qué verificar: se rechaza (falla cerrado), nunca se acepta.
         raise HTTPException(status_code=503, detail="Webhook de Resend no configurado")
     body = await request.body()
     try:
-        event = Webhook(settings.RESEND_WEBHOOK_SECRET).verify(body, dict(request.headers))
+        event = Webhook(secret).verify(body, dict(request.headers))
     except WebhookVerificationError:
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
@@ -198,6 +234,13 @@ async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             if event_type == "email.failed":
                 row.status = EmailStatus.failed.value
                 row.last_error = str(data.get("failed") or data.get("reason") or "email.failed")[:1000]
+            if row.prospect_id and event_type in _SUPPRESS:
+                from app.models.prospect import Prospect, ProspectEvent
+
+                prospect = (await db.execute(select(Prospect).where(Prospect.id == row.prospect_id))).scalar_one_or_none()
+                if prospect is not None and not prospect.do_not_contact:
+                    prospect.do_not_contact, prospect.do_not_contact_reason = True, _SUPPRESS[event_type]
+                    db.add(ProspectEvent(prospect_id=prospect.id, kind="baja", detail=f"Resend: {event_type}"))
 
     await db.commit()
     return {"status": "ok"}

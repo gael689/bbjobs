@@ -72,3 +72,37 @@ def unsubscribe_api_url(user_id: uuid.UUID, category: EmailCategory | str) -> st
     los links con GET, y una baja por GET daría de baja a gente que nunca hizo click (M15). El
     GET de esa URL tiene que redirigir a la página `/baja` con su botón de confirmar."""
     return f"{settings.public_api_base_url}/email/unsubscribe?t={make_unsubscribe_token(user_id, category)}"
+
+
+# ── Bajas de empresas prospecto (no son usuarios) ──────────────────────────────────────────
+
+_PROSPECT_DOMAIN = b"bbjobs-unsub-prospect-v1:"
+
+
+def _sign_prospect(payload: bytes) -> bytes:
+    return hmac.new(settings.SECRET_KEY.encode(), _PROSPECT_DOMAIN + payload, hashlib.sha256).digest()
+
+
+def make_prospect_token(prospect_id: uuid.UUID) -> str:
+    payload = str(prospect_id).encode()
+    return f"{_b64(payload)}.{_b64(_sign_prospect(payload))}"
+
+
+def verify_prospect_token(token: str) -> uuid.UUID | None:
+    """Otro dominio de firma que el de usuarios: un token de una no sirve para la otra."""
+    try:
+        payload_b64, signature_b64 = token.split(".", 1)
+        payload = _unb64(payload_b64)
+        if not hmac.compare_digest(_unb64(signature_b64), _sign_prospect(payload)):
+            return None
+        return uuid.UUID(payload.decode())
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def prospect_unsubscribe_page_url(prospect_id: uuid.UUID) -> str:
+    return f"{settings.FRONTEND_URL.rstrip('/')}/baja?tipo=empresa&t={make_prospect_token(prospect_id)}"
+
+
+def prospect_unsubscribe_api_url(prospect_id: uuid.UUID) -> str:
+    return f"{settings.public_api_base_url}/email/unsubscribe-prospect?t={make_prospect_token(prospect_id)}"
