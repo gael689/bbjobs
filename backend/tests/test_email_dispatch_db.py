@@ -52,6 +52,7 @@ async def maker(monkeypatch):
     async with session_maker() as db:
         db.add(SiteSetting(key=SettingKey.emails_automaticos_activos.value, enabled=True))
         await db.commit()
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
     monkeypatch.setattr(settings, "EMAIL_MODE", "simulate")
     monkeypatch.setattr(settings, "EMAIL_DAILY_CAP", 0)
     monkeypatch.setattr(dispatcher, "REQUEST_INTERVAL_SECONDS", 0)
@@ -106,6 +107,17 @@ async def test_rollback_of_the_event_drops_the_email_too(maker):
         await create_notification(db, user_id=uid, type="application_selected", title="t", body="b")
         await db.rollback()
     async with maker() as db:
+        assert (await db.execute(select(EmailOutbox))).first() is None
+
+
+async def test_nothing_is_enqueued_with_the_gate_closed(maker, monkeypatch):
+    # Compuerta de módulos en desarrollo cerrada (producción): aunque el interruptor esté
+    # prendido, no se encola nada.
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
+    uid = await _user(maker)
+    async with maker() as db:
+        await create_notification(db, user_id=uid, type="application_selected", title="t", body="b")
+        await db.commit()
         assert (await db.execute(select(EmailOutbox))).first() is None
 
 

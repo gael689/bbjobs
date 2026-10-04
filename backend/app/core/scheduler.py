@@ -155,6 +155,8 @@ def start_scheduler():
     scheduler.add_job(send_profile_reminders, "interval", hours=24)
     # Cola de mails: cada 60 s. Con EMAIL_MODE=off no hace casi nada (una consulta vacía).
     # max_instances=1: si una vuelta tarda más de un minuto, la siguiente espera.
-    scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
+    from app.core.features import new_modules_enabled
+    if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
+        scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("scheduler_started")

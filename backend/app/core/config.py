@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None
 
+    # Compuerta de los módulos en desarrollo (mails, IA, Revisión de CV): ver core/features.py.
+    # Apagada por defecto; en producción NO se prende hasta el lanzamiento. En local, `true`
+    # para desarrollar y probar.
+    MODULOS_NUEVOS_ACTIVOS: bool = False
+
     # Mails — Resend. Sin RESEND_API_KEY el sistema funciona igual que antes: los mails se
     # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3).
     RESEND_API_KEY: str | None = None

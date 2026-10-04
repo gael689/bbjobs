@@ -17,6 +17,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.features import new_modules_enabled
 from app.models.core import User
 from app.models.email import EmailOutbox, EmailStatus, EmailTemplate
 from app.models.settings import SettingKey
@@ -30,7 +31,7 @@ logger = structlog.get_logger("app.services.email.outbox")
 
 
 async def emails_enabled(db: AsyncSession) -> bool:
-    if resolve_mode() == "off":
+    if not new_modules_enabled() or resolve_mode() == "off":
         return False
     return await get_setting(db, SettingKey.emails_automaticos_activos)
 

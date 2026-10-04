@@ -25,7 +25,8 @@ from app.services.applicant_stats import (
 from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_admin_reopen
 from app.services.settings import get_all_settings, set_setting
-from app.models.settings import SettingKey
+from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
+from app.core.features import new_modules_enabled
 from app.integrations.clerk_client import create_clerk_user
 from app.integrations.cloudinary_client import signed_document_url
 from app.schemas.candidate import calculate_age, CandidateFullProfile
@@ -1176,8 +1177,10 @@ class SiteSettingsResponse(BaseModel):
     volumen los haga significativos, sin tocar código."""
     stats_visibles_para_candidatos: bool
     stats_visibles_en_landing: bool
-    emails_automaticos_activos: bool
-    ia_recomendaciones_activas: bool
+    # Módulos en desarrollo: None (y fuera de la respuesta) con la compuerta cerrada.
+    emails_automaticos_activos: Optional[bool] = None
+    ia_recomendaciones_activas: Optional[bool] = None
+    revision_cv_activa: Optional[bool] = None
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -1185,27 +1188,39 @@ class SiteSettingsUpdate(BaseModel):
     stats_visibles_en_landing: Optional[bool] = None
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
+    revision_cv_activa: Optional[bool] = None
 
 
-@router.get("/admin/settings", response_model=SiteSettingsResponse)
+async def _visible_settings(db: AsyncSession) -> SiteSettingsResponse:
+    valores = await get_all_settings(db)
+    if not new_modules_enabled():
+        for clave in NEW_MODULE_SETTINGS:
+            valores.pop(clave.value, None)
+    return SiteSettingsResponse(**valores)
+
+
+@router.get("/admin/settings", response_model=SiteSettingsResponse, response_model_exclude_none=True)
 async def get_site_settings(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    return SiteSettingsResponse(**await get_all_settings(db))
+    return await _visible_settings(db)
 
 
-@router.patch("/admin/settings", response_model=SiteSettingsResponse)
+@router.patch("/admin/settings", response_model=SiteSettingsResponse, response_model_exclude_none=True)
 async def update_site_settings(
     payload: SiteSettingsUpdate,
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
     for clave, valor in payload.model_dump(exclude_unset=True).items():
-        if valor is not None:
-            await set_setting(db, SettingKey(clave), valor)
+        if valor is None:
+            continue
+        if SettingKey(clave) in NEW_MODULE_SETTINGS and not new_modules_enabled():
+            continue  # módulo en desarrollo: no se puede prender desde el panel
+        await set_setting(db, SettingKey(clave), valor)
     await db.commit()
-    return SiteSettingsResponse(**await get_all_settings(db))
+    return await _visible_settings(db)
 
 
 # ── Destacado manual ─────────────────────────────────────────────────────────

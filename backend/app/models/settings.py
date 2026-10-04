@@ -23,6 +23,9 @@ class SettingKey(str, enum.Enum):
     # código sin que cambie nada de lo que ve nadie.
     emails_automaticos_activos = "emails_automaticos_activos"
     ia_recomendaciones_activas = "ia_recomendaciones_activas"
+    # Venta de la Revisión de CV (v4 §6, riesgo "cobrar sin poder atender"): se apaga si
+    # Talency no da abasto.
+    revision_cv_activa = "revision_cv_activa"
 
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
@@ -31,7 +34,16 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.stats_visibles_en_landing: False,
     SettingKey.emails_automaticos_activos: False,
     SettingKey.ia_recomendaciones_activas: False,
+    SettingKey.revision_cv_activa: False,
 }
+
+# Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no
+# se muestran en el panel de admin ni se pueden cambiar (core/features.py).
+NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
+    SettingKey.emails_automaticos_activos,
+    SettingKey.ia_recomendaciones_activas,
+    SettingKey.revision_cv_activa,
+})
 
 
 class SiteSetting(UUIDMixin, Base):

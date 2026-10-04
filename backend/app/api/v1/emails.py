@@ -22,6 +22,7 @@ from svix.webhooks import Webhook, WebhookVerificationError
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
+from app.core.features import require_new_modules
 from app.models.core import User, UserRole
 from app.models.email import (
     ALWAYS_SENT,
@@ -34,7 +35,8 @@ from app.models.email import (
 from app.services.email.tokens import verify_unsubscribe_token
 
 logger = structlog.get_logger("app.api.email")
-router = APIRouter()
+# Módulo en desarrollo: 404 en todas sus rutas mientras la compuerta esté cerrada.
+router = APIRouter(dependencies=[Depends(require_new_modules)])
 
 # Qué categorías ve cada rol en "Mi cuenta". `cuenta` aparece bloqueada (llega siempre).
 CATEGORIES_BY_ROLE: dict[UserRole, list[EmailCategory]] = {
