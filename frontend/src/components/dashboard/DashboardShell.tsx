@@ -22,6 +22,8 @@ export interface DashboardNavItem {
   /** Encabezado de sección que se dibuja *antes* de este ítem. Opcional: un nav sin ninguno
    * se renderiza como lista plana, igual que antes. */
   section?: string;
+  /** Etiqueta chica al lado del nombre, p. ej. "En desarrollo" para los módulos nuevos. */
+  badge?: string;
 }
 
 const ROLE_LABEL: Record<"candidate" | "company" | "admin", string> = {
@@ -48,7 +50,7 @@ function NavLinks({
 }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
-      {navItems.map(({ href, label, icon: Icon, exact, section }) => {
+      {navItems.map(({ href, label, icon: Icon, exact, section, badge }) => {
         const isNotifications = href.endsWith("/notificaciones");
         return (
           <div key={`g-${href}`}>
@@ -69,6 +71,11 @@ function NavLinks({
           >
             <Icon className="w-5 h-5 shrink-0" />
             <span className="flex-1">{label}</span>
+            {badge && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-white/10 text-[#E6F4F7] text-[9.5px] font-extrabold uppercase tracking-wide leading-none">
+                {badge}
+              </span>
+            )}
             {isNotifications && unreadCount > 0 && (
               <span className="shrink-0 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#D4B7A2] text-[#241C15] text-[11px] font-extrabold leading-none">
                 {unreadCount > 9 ? "9+" : unreadCount}

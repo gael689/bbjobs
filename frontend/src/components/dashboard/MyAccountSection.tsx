@@ -6,6 +6,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { ArrowsRightLeftIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { ROLE_LABEL, SIGNUP_ROLE_KEY, type SignupRole } from "@/components/auth/RoleChooser";
+import PreferenciasMail from "@/components/dashboard/PreferenciasMail";
 
 interface MyPreview {
   mode: "full" | "tombstone";
@@ -119,6 +120,8 @@ export default function MyAccountSection({ role }: { role: SignupRole }) {
   return (
     <section className="bg-white border border-[#DDE3EC] rounded-2xl p-6 mt-8">
       <h2 className="font-display font-bold text-lg text-[#1C2230] mb-4">Mi cuenta</h2>
+
+      <PreferenciasMail />
 
       {preview?.can_reset_role && (
         <div className="pb-5 mb-5 border-b border-[#DDE3EC]">

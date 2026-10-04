@@ -4,8 +4,8 @@ import { useDashboardAuth } from "@/hooks/useDashboardAuth";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, PlusCircleIcon, BriefcaseIcon, UsersIcon, ChartBarIcon, CreditCardIcon, BellIcon,
-  MagnifyingGlassCircleIcon,
-} from "@heroicons/react/24/outline";
+  MagnifyingGlassCircleIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 const NAV_ITEMS = [
   { href: "/dashboard/company", label: "Inicio", icon: HomeIcon, exact: true },
@@ -17,6 +17,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/company/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
   { href: "/dashboard/company/pagos", label: "Pagos", icon: CreditCardIcon },
   { href: "/dashboard/company/notificaciones", label: "Notificaciones", icon: BellIcon },
+  // Módulos nuevos: ocultos para las empresas hasta el lanzamiento (NEXT_PUBLIC_MODULOS_NUEVOS).
+  ...(MODULOS_NUEVOS_VISIBLES ? [
+    { href: "/dashboard/company/recomendados", label: "Candidatos recomendados", icon: SparklesIcon },
+  ] : []),
 ];
 
 export default function CompanyDashboardLayout({ children }: { children: React.ReactNode }) {
