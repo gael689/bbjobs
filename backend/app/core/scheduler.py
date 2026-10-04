@@ -170,6 +170,18 @@ async def ai_nightly():
         logger.error("ai_nightly_error", error=str(exc)[:300])
 
 
+async def email_digests():
+    from app.services.email.digests import tick
+    try:
+        async with async_session_maker() as db:
+            result = await tick(db)
+            await db.commit()
+            if any(vars(result).values()):
+                logger.info("email_digests", **vars(result))
+    except Exception as exc:
+        logger.error("email_digests_error", error=str(exc)[:300])
+
+
 async def dispatch_emails():
     from app.services.email.dispatcher import dispatch_due
     try:
@@ -187,6 +199,7 @@ def start_scheduler():
     from app.core.features import new_modules_enabled
     if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
         scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
+        scheduler.add_job(email_digests, "interval", minutes=15, max_instances=1, coalesce=True)
         scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
         # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
         scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)

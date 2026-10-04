@@ -259,6 +259,14 @@ async def dispatch_due(
             return stats
 
         enabled = await get_setting(db, SettingKey.emails_automaticos_activos)
+        # R12: con rebotes o quejas por encima del límite, novedades y recordatorios se frenan
+        # solos 24 h (los avisos de cuenta y de postulaciones siguen). Lo muestra el resumen del
+        # equipo; se destraba solo cuando los números vuelven a la normalidad.
+        from app.services.email.digests import email_health
+        health = await email_health(db, now)
+        braked = {EmailCategory.novedades.value, EmailCategory.recordatorios.value} if health["unhealthy"] else set()
+        if braked:
+            logger.error("email_freno_por_salud", **{k: v for k, v in health.items() if k != "unhealthy"})
         to_send: list[tuple[EmailOutbox, OutgoingEmail]] = []
         sent_in_run: dict = {}
         templates: dict = {}
@@ -275,6 +283,14 @@ async def dispatch_due(
                     row.last_error = "el aviso dejó de tener sentido antes de salir"
                     stats.canceled += 1
                     continue
+
+            if row.category in braked:
+                row.status = EmailStatus.pending.value
+                row.claimed_at = None
+                row.scheduled_at = now + timedelta(hours=24)
+                stats.deferred += 1
+                stats.note("freno por salud de los mails")
+                continue
 
             user, recipient = await _recipient_state(db, row)
             if recipient is None:

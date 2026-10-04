@@ -101,7 +101,7 @@ def decide(
         return Send()
     if not in_send_window(now):
         return Defer(next_window_start(now), "fuera de la franja 08–21")
-    if sent_today_noncritical >= MAX_NONCRITICAL_PER_DAY:
+    if not rule.exempt_daily_cap and sent_today_noncritical >= MAX_NONCRITICAL_PER_DAY:
         # Mañana a las 08:00. Cuando existan los resúmenes (T3) estos avisos se pliegan ahí.
         return Defer(next_window_start(local_day_start(now) + timedelta(days=1)), "tope diario por persona")
     return Send()

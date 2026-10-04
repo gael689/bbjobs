@@ -52,6 +52,8 @@ class Rule:
     # Revalidación al enviar (M18): recibe `ref_id` y dice si el aviso sigue teniendo sentido.
     still_valid: Validator | None = None
     cta_label: str = "Ver en BBJobs"
+    # Los resúmenes ya agrupan varios avisos en uno: nunca los recorta el tope por persona (M21).
+    exempt_daily_cap: bool = False
 
     @property
     def unsubscribable(self) -> bool:

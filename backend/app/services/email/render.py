@@ -31,6 +31,14 @@ _FONT = "'DM Sans', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-se
 
 
 @dataclass
+class EmailItem:
+    """Una fila de un resumen: título (con link opcional) y un detalle corto."""
+    title: str
+    detail: str | None = None
+    url: str | None = None
+
+
+@dataclass
 class RenderedEmail:
     html: str
     text: str
@@ -70,6 +78,7 @@ def render_email(
     image_url: str | None = None,
     unsubscribe_url: str | None = None,
     footer_note: str | None = None,
+    items: list[EmailItem] | None = None,
 ) -> RenderedEmail:
     """`body` es texto plano: párrafos separados por línea en blanco, saltos simples = <br>."""
     cta_url = absolute_url(cta_url)
@@ -94,6 +103,19 @@ def render_email(
         f'</td></tr></table>'
         if cta_url else ""
     )
+    items_html = ""
+    if items:
+        rows = []
+        for it in items:
+            link = absolute_url(it.url)
+            title = (f'<a href="{e(link, quote=True)}" style="color:{BUTTON};font-weight:600;text-decoration:none;">'
+                     f'{e(it.title)}</a>') if link else f'<strong style="color:{TEXT};">{e(it.title)}</strong>'
+            detail = (f'<div style="font-size:14px;color:{MUTED};margin-top:2px;">{e(it.detail)}</div>'
+                      if it.detail else "")
+            rows.append(f'<tr><td style="padding:10px 0;border-top:1px solid {BORDER};font-size:15px;'
+                        f'line-height:1.4;">{title}{detail}</td></tr>')
+        items_html = ('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+                      f'style="margin:0 0 16px;">{"".join(rows)}</table>')
     preheader_html = (
         f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{e(preheader)}</div>'
         if preheader else ""
@@ -122,13 +144,19 @@ def render_email(
         f'<tr><td style="padding:24px 32px 0;font-size:22px;font-weight:800;color:{TEAL};">BBJobs</td></tr>'
         f'<tr><td style="padding:16px 32px 8px;">'
         f'<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{TEXT};">{e(heading)}</h1>'
-        f'{image_html}{paragraphs_html}{cta_html}</td></tr>'
+        f'{image_html}{paragraphs_html}{items_html}{cta_html}</td></tr>'
         f'<tr><td style="padding:16px 32px 28px;border-top:1px solid {BORDER};'
         f'font-size:12px;line-height:1.6;color:{MUTED};">{footer_html}</td></tr>'
         f'</table></td></tr></table></body></html>'
     )
 
     text_parts = [heading, "", body.strip()]
+    for it in items or []:
+        link = absolute_url(it.url)
+        text_parts.append("")
+        text_parts.append(f"- {it.title}" + (f" ({it.detail})" if it.detail else ""))
+        if link:
+            text_parts.append(f"  {link}")
     if cta_url:
         text_parts += ["", f"{cta_label or 'Ver más'}: {cta_url}"]
     text_parts += [""]
