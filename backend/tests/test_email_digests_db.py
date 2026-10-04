@@ -191,3 +191,22 @@ async def test_unhealthy_account_brakes_reminders_but_not_postulaciones(maker):
         rows = dict((await db.execute(
             select(EmailOutbox.category, EmailOutbox.status).where(EmailOutbox.user_id == u.id))).all())
     assert rows == {"recordatorios": "pending", "postulaciones": "sent"}
+
+
+async def test_retention_empties_content_after_90_days_and_keeps_metadata(maker):
+    from app.services.email.retention import purge_old_content
+
+    old = MONDAY_9 - timedelta(days=100)
+    async with maker() as db:
+        db.add(EmailOutbox(id=uuid.uuid4(), user_id=None, to_email="x@m.com", category="postulaciones",
+                           template_key="application_selected", subject="Datos", html="<p>datos</p>", text="datos",
+                           status="sent", attempts=1, sent_at=old, delivered_at=old, created_at=old))
+        db.add(EmailOutbox(id=uuid.uuid4(), user_id=None, to_email="y@m.com", category="postulaciones",
+                           template_key="application_selected", subject="Nuevo", html="<p>nuevo</p>", text="nuevo",
+                           status="sent", attempts=1, sent_at=MONDAY_9, created_at=MONDAY_9))
+        await db.commit()
+        assert await purge_old_content(db, MONDAY_9) == 1
+        await db.commit()
+        rows = {r.to_email: r for r in (await db.execute(select(EmailOutbox))).scalars().all()}
+    assert rows["x@m.com"].html == "" and rows["x@m.com"].delivered_at is not None
+    assert rows["y@m.com"].html == "<p>nuevo</p>"

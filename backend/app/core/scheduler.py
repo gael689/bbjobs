@@ -209,6 +209,9 @@ async def campaigns_conversions():
             ))).scalars().all()
             for c in sent:
                 await measure_conversions(db, c)
+            # Retención: contenido de mails de más de 90 días (M11).
+            from app.services.email.retention import purge_old_content
+            await purge_old_content(db)
             await db.commit()
     except Exception as exc:
         logger.error("campaigns_conversions_error", error=str(exc)[:300])
