@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # para desarrollar y probar.
     MODULOS_NUEVOS_ACTIVOS: bool = False
 
+    # Prospección: secreto compartido con el centro de Gael para firmar los lotes que empuja
+    # (HMAC-SHA256). Sin secreto, el endpoint responde 503.
+    LEADGEN_SYNC_SECRET: str | None = None
+
     # Mails — Resend. Sin RESEND_API_KEY el sistema funciona igual que antes: los mails se
     # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3).
     RESEND_API_KEY: str | None = None

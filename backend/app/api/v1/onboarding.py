@@ -164,6 +164,13 @@ async def onboarding_company(
         link="/dashboard/admin/empresas",
     )
 
+    # Prospección (módulo en desarrollo): si la empresa estaba en la base de prospectos de
+    # Talency, pasa sola a "registrada".
+    from app.core.features import new_modules_enabled
+    if new_modules_enabled():
+        from app.services.prospects import mark_registered_for_company
+        await mark_registered_for_company(db, company, email)
+
     await db.commit()
 
     try:
