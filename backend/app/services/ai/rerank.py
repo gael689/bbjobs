@@ -23,7 +23,7 @@ from app.integrations.gemini_client import AIProvider, AIUsage, ServiceTier
 from app.services.ai.requirements import Requirement
 from app.services.ai.scoring import RequirementEval
 
-PROMPT_VERSION = "rerank-2026-10-04b"  # evidencia válida en cualquier fragmento de la ficha
+PROMPT_VERSION = "rerank-2026-10-06"  # motivos rearmados si la validación baja una evaluación
 MIN_EVIDENCE_CHARS = 12
 MAX_REASONS = 3
 MAX_REASON_CHARS = 200
@@ -90,9 +90,15 @@ _STOP = {"experiencia", "manejo", "conocimiento", "conocimientos", "disponibilid
          "deseable", "excluyente", "requisito", "minima", "minimo", "para", "con", "como", "sobre"}
 
 
+# Palabras distintas para lo mismo, frecuentes en los avisos de la zona. Con Gemini real pasó que
+# «conteo de inventario semanal» no valía para "control de stock" por no compartir palabras.
+_EQUIV = {"inven": "stock", "exist": "stock", "carne": "licen"}
+
+
 def _stems(text: str) -> set[str]:
     """Raíces (5 letras) de las palabras significativas: 'autoelevador'/'autoelevadores' coinciden."""
-    return {w[:5] for w in re.findall(r"[a-z0-9]{4,}", _norm(text)) if w not in _STOP}
+    stems = {w[:5] for w in re.findall(r"[a-z0-9]{4,}", _norm(text)) if w not in _STOP}
+    return stems | {_EQUIV[s] for s in stems if s in _EQUIV}
 
 
 def relevant(evidence: str, requirement: str) -> bool:
@@ -144,6 +150,12 @@ def validate(
         if verdict != "sin_datos":
             result.evidence[req.id] = evidence
 
+    if result.degraded:
+        # Los motivos los escribió la IA antes de la validación: si alguna evaluación no pasó,
+        # pueden afirmar algo que ya no tiene evidencia ("experiencia comprobada en control de
+        # stock" con ese requisito en sin_datos). Se rearman desde lo validado.
+        result.reasons = reasons_from_evals(result.evals, reqs)
+        return result
     for reason in out.motivos[:MAX_REASONS + 2]:
         reason = (reason or "").strip()[:MAX_REASON_CHARS]
         if not reason or _CONTACT.search(reason) or _mentions(reason, forbidden_names):
@@ -152,6 +164,28 @@ def validate(
         if len(result.reasons) < MAX_REASONS:
             result.reasons.append(reason)
     return result
+
+
+def _lista(textos: list[str]) -> str:
+    textos = [t[:1].lower() + t[1:] for t in textos]
+    return textos[0] if len(textos) == 1 else ", ".join(textos[:-1]) + " y " + textos[-1]
+
+
+def reasons_from_evals(evals: list[RequirementEval], reqs: dict[str, Requirement]) -> list[str]:
+    """Motivos armados en código a partir de las evaluaciones ya validadas."""
+    grupos: dict[str, list[str]] = {"si": [], "parcial": [], "no": [], "sin_datos": []}
+    for e in evals:
+        grupos[e.verdict].append(reqs[e.req_id].texto)
+    frases = []
+    if grupos["si"]:
+        frases.append(f"Cumple: {_lista(grupos['si'])}.")
+    if grupos["parcial"]:
+        frases.append(f"Cumple en parte: {_lista(grupos['parcial'])}.")
+    if grupos["no"]:
+        frases.append(f"No cumple: {_lista(grupos['no'])}.")
+    if grupos["sin_datos"] and len(frases) < MAX_REASONS:
+        frases.append(f"Su perfil no dice nada sobre {_lista(grupos['sin_datos'])}.")
+    return [f[:MAX_REASON_CHARS] for f in frases[:MAX_REASONS]]
 
 
 def build_prompt(ref: str, requirements: list[Requirement], fragments: list[Fragment]) -> str:

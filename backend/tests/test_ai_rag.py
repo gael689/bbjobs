@@ -5,7 +5,7 @@ import pytest
 
 from app.services.ai import scoring
 from app.services.ai.chunks import MAX_CHUNKS, CandidateData, Education, Experience, build_ficha
-from app.services.ai.requirements import PROTECTED, ReqItem, Requirement, filter_protected
+from app.services.ai.requirements import PROTECTED, ReqItem, Requirement, filter_protected, protected_in_text
 from app.services.ai.rerank import EvalItem, Fragment, RerankOut, validate
 
 TODAY = date(2026, 10, 4)
@@ -196,7 +196,9 @@ def test_blind_profiles_never_leak_employer_names():
     out = _out([item], motivos=["Trabajó en Logística Sur con autoelevador", "Tiene experiencia en depósito"])
     r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=["Logística Sur SA", "Logística Sur"], blind=True)
     assert r.evals[0].verdict == "sin_datos"
-    assert r.reasons == ["Tiene experiencia en depósito"]
+    # La evaluación bajó a sin_datos, así que los motivos se rearman desde lo validado: ninguno
+    # nombra al empleador.
+    assert r.reasons and not any("Logística" in m for m in r.reasons)
 
 
 def test_reasons_with_contact_data_are_dropped_and_capped():
@@ -229,3 +231,28 @@ def test_literal_but_irrelevant_evidence_is_rejected():
     good = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevadores en depósito", "fragmento": "f1"}]),
                     ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
     assert bad.evals[0].verdict == "sin_datos" and good.evals[0].verdict == "si"
+
+
+def test_protected_phrases_in_the_description_are_reported():
+    # La IA, por la regla 4 del prompt, ni devuelve "edad" ni "buena presencia": las informa el código.
+    out = protected_in_text("Buscamos operario/a. Manejo de autoelevador. Edad entre 25 y 35 años. Buena presencia.")
+    assert [d["texto"] for d in out] == ["Edad entre 25 y 35 años", "Buena presencia"]
+    assert protected_in_text("Trabajo en altura. Licencia de conducir B1.") == []
+
+
+def test_inventory_counts_as_evidence_for_stock():
+    frags = [Fragment("f1", "Recepción de mercadería y conteo de inventario semanal.")]
+    reqs = [Requirement("r1", "Experiencia en control de stock", "excluyente", "experiencia")]
+    r = validate(_out([{"id": "r1", "cumple": "parcial", "evidencia": "conteo de inventario semanal", "fragmento": "f1"}]),
+                 ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
+    assert r.evals[0].verdict == "parcial"
+
+
+def test_reasons_are_rebuilt_when_an_evaluation_is_degraded():
+    # Gemini real: «experiencia comprobada en control de stock» con ese requisito en sin_datos.
+    out = _out([{"id": "r1", "cumple": "si", "evidencia": "Zona: Centro, sin relación", "fragmento": "f1"},
+                {"id": "r2", "cumple": "sin_datos"}],
+               motivos=["Tiene experiencia comprobada con autoelevador."])
+    r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
+    assert r.degraded == 1
+    assert r.reasons == ["Su perfil no dice nada sobre manejo de autoelevador y licencia de conducir."]

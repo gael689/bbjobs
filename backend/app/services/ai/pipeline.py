@@ -346,6 +346,7 @@ async def compute_recommendations(
         cdata = data[cid][0]
         ficha_hash = idx.ficha_hash if idx else None
         req_evals, evidence, reasons, status = [], {}, [], "none"
+        code_reasons = False
 
         same_inputs = prev is not None and prev.rerank_status == "done" and prev.job_hash == ctx.job_hash \
             and prev.ficha_hash == ficha_hash and prev.prompt_version == rerank.PROMPT_VERSION
@@ -381,6 +382,7 @@ async def compute_recommendations(
                                     flex=service_tier == "flex")
                     req_evals = [e.__dict__ for e in res.evals]
                     evidence, reasons, status = res.evidence, res.reasons, "done"
+                    code_reasons = res.degraded > 0
                     stats["rerank"] += 1
                 except (AIError, ValueError) as exc:
                     status = "failed"
@@ -393,7 +395,11 @@ async def compute_recommendations(
                 {**e, "verdict": "si"} if ctx.skill_reqs.get(e["req_id"]) in skill_ids else e
                 for e in req_evals
             ]
-            req_score, failed = scoring.requirements_score([scoring.RequirementEval(**e) for e in req_evals])
+            evals = [scoring.RequirementEval(**e) for e in req_evals]
+            if code_reasons:
+                # Los motivos salieron de las evaluaciones: que reflejen la habilidad cargada.
+                reasons = rerank.reasons_from_evals(evals, {r.id: r for r in ctx.requirements})
+            req_score, failed = scoring.requirements_score(evals)
         else:
             req_score, failed = None, False
         final = scoring.final_score(row["hybrid"], row["semantic_pct"], req_score, failed)

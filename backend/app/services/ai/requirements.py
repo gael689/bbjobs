@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from app.integrations.gemini_client import AIProvider, AIUsage
 from app.services.ai.ingest import detect_injection, sanitize_text
 
-PROMPT_VERSION = "req-2026-10-04"
+PROMPT_VERSION = "req-2026-10-06"  # informa también las frases protegidas que la IA omite
 MAX_REQUIREMENTS = 12
 
 Categoria = Literal["experiencia", "habilidad", "formacion", "licencia", "disponibilidad",
@@ -74,6 +74,13 @@ class ExtractResult:
     usage: AIUsage | None = None
 
 
+def _clave(texto: str) -> str:
+    """El término protegido que aparece ("edad", "buena presencia"): la IA y el escaneo del aviso
+    redactan distinto la misma frase ("Edad entre 25 y 35 años" / "Edad 25 a 35")."""
+    m = PROTECTED.search(texto)
+    return re.sub(r"\W+", " ", (m.group(0) if m else texto).lower()).strip()
+
+
 def job_hash(title: str, description: str, skills: list[tuple[str, bool]]) -> str:
     raw = "\n".join([PROMPT_VERSION, title, description] + [f"{n}:{r}" for n, r in sorted(skills)])
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -98,6 +105,18 @@ def filter_protected(items: list[ReqItem]) -> tuple[list[ReqItem], list[dict]]:
     return kept, dropped
 
 
+def protected_in_text(description: str) -> list[dict]:
+    """Las frases del aviso que piden un dato protegido. La regla 4 del prompt hace que la IA ni
+    las devuelva, así que `filter_protected` no las ve: con Gemini real, "Edad entre 25 y 35
+    años. Buena presencia." quedaba fuera sin que nadie le avisara a la empresa."""
+    out = []
+    for frase in re.split(r"(?<=[.;:!?])\s+|\n+", description or ""):
+        frase = frase.strip(" .;:-•*")
+        if frase and len(frase) <= 160 and PROTECTED.search(frase):
+            out.append({"texto": frase, "motivo": "dato protegido (no se usa para ordenar)"})
+    return out
+
+
 async def extract(
     provider: AIProvider, *, title: str, description: str, technical_skills: list[tuple[str, bool]],
     company_id: str | None,
@@ -115,6 +134,8 @@ async def extract(
         max_output_tokens=1500,
     )
     kept, dropped = filter_protected(result.data.requisitos)
+    vistos = {_clave(d["texto"]) for d in dropped}
+    dropped += [d for d in protected_in_text(desc) if _clave(d["texto"]) not in vistos]
     # Lo que ya viene del catálogo no se evalúa dos veces (con Gemini real pasó: "Manejo de
     # Autoelevador" del formulario + "Experiencia en manejo de autoelevador" del texto).
     skill_names = [n.lower() for n, _ in technical_skills]
