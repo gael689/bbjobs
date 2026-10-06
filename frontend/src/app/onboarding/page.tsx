@@ -105,6 +105,8 @@ export default function OnboardingPage() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [visibleInTalentPool, setVisibleInTalentPool] = useState(false);
+  // Destildada por defecto: aceptar tiene que ser un acto expreso (Ley 25.326 art. 5).
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
   // Company fields
   const [legalName, setLegalName] = useState("");
@@ -156,6 +158,7 @@ export default function OnboardingPage() {
           last_name: lastName,
           phone,
           visible_in_talent_pool: visibleInTalentPool,
+          acepta_terminos: aceptaTerminos,
         });
         router.push(nextPath || `/dashboard/${res.data.role}`);
       } else {
@@ -173,6 +176,7 @@ export default function OnboardingPage() {
           responsible_email: responsibleEmail,
           responsible_position: responsiblePosition || undefined,
           ...(isOtro && otherIndustry ? { description: `Industria: ${otherIndustry}` } : {}),
+          acepta_terminos: aceptaTerminos,
         });
         router.push(nextPath || `/dashboard/${res.data.role}`);
       }
@@ -391,9 +395,26 @@ export default function OnboardingPage() {
               </>
             )}
 
+            <label className="flex items-start gap-3 cursor-pointer pt-2">
+              <input
+                type="checkbox"
+                required
+                checked={aceptaTerminos}
+                onChange={e => setAceptaTerminos(e.target.checked)}
+                className="w-5 h-5 accent-[#1E8EA3] mt-0.5 shrink-0"
+              />
+              <span className="text-sm text-[#1C2230]">
+                Leí y acepto los{" "}
+                <Link href="/terminos" target="_blank" className="text-[#1E8EA3] font-bold hover:underline">términos y condiciones</Link>{" "}
+                y la{" "}
+                <Link href="/privacidad" target="_blank" className="text-[#1E8EA3] font-bold hover:underline">política de privacidad</Link>,
+                incluida la transferencia de mis datos a los proveedores que figuran ahí. Tengo 18 años o más.
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !aceptaTerminos}
               className="w-full bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold py-3.5 rounded-xl transition-colors disabled:opacity-50 mt-1"
             >
               {loading

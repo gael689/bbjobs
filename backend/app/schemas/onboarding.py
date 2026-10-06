@@ -9,6 +9,10 @@ class CandidateOnboarding(BaseModel):
     phone: str
     # Casilla de la Base de Talento del registro — desactivada por defecto, igual que en el UI.
     visible_in_talent_pool: bool = False
+    # Casilla "Leí y acepto los términos y la política de privacidad". La exige el formulario; acá
+    # es opcional para no romper un frontend anterior durante un deploy. Quien no la mandó acepta
+    # al entrar al panel (ver services/legal.py).
+    acepta_terminos: bool = False
 
 
 class CompanyOnboarding(BaseModel):
@@ -23,6 +27,7 @@ class CompanyOnboarding(BaseModel):
     responsible_email: EmailStr
     responsible_position: Optional[str] = None
     description: Optional[str] = None
+    acepta_terminos: bool = False  # ver CandidateOnboarding
 
 
 class OnboardingResponse(BaseModel):

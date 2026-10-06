@@ -1,15 +1,45 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from pydantic import BaseModel
 from typing import Optional
 import uuid
 
-from app.api.deps import get_db, get_clerk_identity, ClerkIdentity
+from app.api.deps import get_db, get_clerk_identity, get_current_user, ClerkIdentity
+from app.core.legal import LEGAL_VERSION, LEGAL_VIGENTE_DESDE
 from app.models.core import User, UserRole
 from app.models.company import CompanyProfile, VerificationStatus
+from app.services.legal import pending_acceptance, record_acceptance
 
 router = APIRouter()
+
+
+class LegalStatus(BaseModel):
+    version: str
+    vigente_desde: date
+    pendiente: bool
+
+
+@router.get("/me/legal", response_model=LegalStatus)
+async def get_legal_status(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return LegalStatus(version=LEGAL_VERSION, vigente_desde=LEGAL_VIGENTE_DESDE,
+                       pendiente=await pending_acceptance(db, user))
+
+
+@router.post("/me/legal/accept", response_model=LegalStatus)
+async def accept_legal(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await record_acceptance(db, user, request)
+    await db.commit()
+    return LegalStatus(version=LEGAL_VERSION, vigente_desde=LEGAL_VIGENTE_DESDE, pendiente=False)
 
 
 class MeResponse(BaseModel):

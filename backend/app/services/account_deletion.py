@@ -45,6 +45,7 @@ from app.models.company import CompanyProfile, CompanyVerificationDocument, Veri
 from app.models.core import User, UserRole
 from app.models.history import CandidateActivityLog
 from app.models.job import Application, JobPosting
+from app.models.legal import LegalAcceptance
 from app.models.payment import Payment, TalentCreditPack, TalentPackStatus, TalentUnlock
 from app.models.tests import TestSubmission
 from app.services.job_features import end_active_feature_for_job
@@ -291,6 +292,10 @@ async def delete_account(
     ))
 
     try:
+        # Qué versión de los términos aceptó queda como prueba; la IP y el navegador, no. En el
+        # borrado completo las filas caen por CASCADE.
+        await db.execute(
+            LegalAcceptance.__table__.update().where(LegalAcceptance.user_id == user.id).values(ip=None, user_agent=None))
         if preview.mode == DeletionMode.full:
             await db.delete(user)
         elif user.role == UserRole.candidate:
