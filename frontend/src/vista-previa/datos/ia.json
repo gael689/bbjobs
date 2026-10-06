@@ -1,1 +1,280 @@
-{"disponible": false}
+{
+ "disponible": true,
+ "generado": "06/10/2026",
+ "modelo": "gemini-3.5-flash-lite",
+ "gasto_usd": 0.004541,
+ "llamadas": 7,
+ "puesto": "Operario/a de depósito con autoelevador",
+ "descripcion": "Buscamos operario/a para depósito en Bahía Blanca. Requisitos excluyentes: manejo de autoelevador y experiencia en control de stock. Deseable: licencia de conducir. Edad entre 25 y 35 años. Buena presencia. Turnos rotativos.",
+ "requisitos": [
+  {
+   "texto": "Manejo de Autoelevador",
+   "tipo": "excluyente"
+  },
+  {
+   "texto": "Experiencia en control de stock",
+   "tipo": "excluyente"
+  },
+  {
+   "texto": "Licencia de conducir",
+   "tipo": "deseable"
+  },
+  {
+   "texto": "Disponibilidad para turnos rotativos",
+   "tipo": "deseable"
+  }
+ ],
+ "descartados": [
+  {
+   "texto": "Edad entre 25 y 35 años",
+   "motivo": "dato protegido (no se usa para ordenar)"
+  },
+  {
+   "texto": "Buena presencia",
+   "motivo": "dato protegido (no se usa para ordenar)"
+  }
+ ],
+ "cv_ejemplo": {
+  "texto": "[DATO] EXPERIENCIA - Operaria de depósito 2019-2024\nManejo de autoelevador (carnet vigente) y control de stock con lector de códigos.\nLicencia de conducir B1. Preparación de pedidos y armado de pallets en turnos rotativos.\nResponsable, puntual y con ganas de aprender. Disponibilidad inmediata.",
+  "sacado": {
+   "nombre_propio": 2,
+   "lineas_personales": 1
+  }
+ },
+ "candidatos": [
+  {
+   "nombre": "Lucía Gómez",
+   "puntaje": 94,
+   "cobertura": 0.65,
+   "origen": "Se postuló",
+   "recomendado": true,
+   "motivos": [
+    "Posee experiencia en el manejo de autoelevador.",
+    "Cuenta con antecedentes en control de stock.",
+    "Tiene disponibilidad para turnos rotativos y licencia."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Cumple",
+     "evidencia": "Manejo de autoelevador (carnet vigente)"
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Cumple",
+     "evidencia": "control de stock con lector de códigos"
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Cumple",
+     "evidencia": "Licencia de conducir B1"
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Cumple",
+     "evidencia": "armado de pallets en turnos rotativos"
+    }
+   ],
+   "alerta": null
+  },
+  {
+   "nombre": "Tomás Rivas",
+   "puntaje": 62,
+   "cobertura": 0.3,
+   "origen": "Se postuló",
+   "recomendado": false,
+   "motivos": [
+    "Posee experiencia comprobable en el manejo de autoelevador.",
+    "No se menciona experiencia en control de stock.",
+    "No hay datos sobre licencia de conducir ni turnos rotativos."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Cumple",
+     "evidencia": "Experiencia con autoelevador en depósito logístico."
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    }
+   ],
+   "alerta": "El CV traía texto escondido (en blanco sobre blanco) que le pedía a la IA el puntaje máximo. Se descartó antes de leerlo: no influyó en nada."
+  },
+  {
+   "nombre": "Martín Suárez",
+   "puntaje": 56,
+   "cobertura": 0.3,
+   "origen": "Se postuló",
+   "recomendado": false,
+   "motivos": [
+    "Posee experiencia comprobable en control de stock.",
+    "No hay datos sobre manejo de autoelevador.",
+    "Falta información sobre licencia de conducir y turnos rotativos."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Cumple",
+     "evidencia": "Recepción de mercadería y conteo de inventario semanal."
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    }
+   ],
+   "alerta": null
+  },
+  {
+   "nombre": "Diego Ferreyra",
+   "puntaje": 54,
+   "cobertura": 0.3,
+   "origen": "Se postuló",
+   "recomendado": false,
+   "motivos": [
+    "Posee licencia profesional.",
+    "No se menciona el manejo de autoelevador.",
+    "No se menciona experiencia en control de stock."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Cumple",
+     "evidencia": "Licencia profesional E1."
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    }
+   ],
+   "alerta": null
+  },
+  {
+   "nombre": "Sofía Paz",
+   "puntaje": 48,
+   "cobertura": 0.3,
+   "origen": "Base de Talento (no se postuló)",
+   "recomendado": false,
+   "motivos": [
+    "No se menciona el manejo de autoelevador.",
+    "Falta información sobre experiencia en control de stock.",
+    "No hay datos sobre la licencia de conducir ni turnos."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    }
+   ],
+   "alerta": null
+  },
+  {
+   "nombre": "Carla Ibáñez",
+   "puntaje": 43,
+   "cobertura": 0.3,
+   "origen": "Base de Talento (no se postuló)",
+   "recomendado": false,
+   "motivos": [
+    "No presenta experiencia previa en manejo de autoelevador.",
+    "No se menciona experiencia en control de stock.",
+    "El perfil carece de datos sobre licencia de conducir y turnos."
+   ],
+   "requisitos": [
+    {
+     "requisito": "Manejo de Autoelevador",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Experiencia en control de stock",
+     "tipo": "excluyente",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Licencia de conducir",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    },
+    {
+     "requisito": "Disponibilidad para turnos rotativos",
+     "tipo": "deseable",
+     "veredicto": "Sin dato",
+     "evidencia": null
+    }
+   ],
+   "alerta": null
+  }
+ ]
+}

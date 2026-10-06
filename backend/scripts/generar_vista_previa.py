@@ -46,8 +46,19 @@ INSTANT: dict[str, tuple[str, str, str, str, str | None]] = {
         f"Sobre '{JOB}': sos uno de los finalistas.", "/dashboard/candidate/postulaciones"),
     "application_selected": ("candidato", "La empresa lo selecciona", "¡Te seleccionaron!",
         f"Sobre '{JOB}'.", "/dashboard/candidate/postulaciones"),
-    "application_discarded": ("candidato", "La empresa descarta la postulación (sale 24 h después, si sigue descartada)",
-        "Novedades en tu postulación", f"Sobre '{JOB}'.", "/dashboard/candidate/postulaciones"),
+    "application_discarded": ("candidato", "La empresa descarta la postulación (sale 24 h después, si sigue descartada). Si la empresa dejó una nota visible, va adentro",
+        "Novedades en tu postulación",
+        f"Tu postulación a '{JOB}' no avanzó en esta oportunidad. ¡Seguí participando en otras búsquedas!\n\n"
+        "Mensaje de la empresa: buscamos a alguien con carnet de autoelevador vigente. ¡Gracias por postularte!",
+        "/dashboard/candidate/postulaciones"),
+    "application_seen": ("candidato", "La empresa abre por primera vez su perfil o su CV desde la postulación (uno por día como máximo)",
+        "Una empresa vio tu CV", f"Logística Sur revisó tu perfil para la búsqueda '{JOB}'.",
+        "/dashboard/candidate/postulaciones"),
+    "application_note": ("candidato", "La empresa le deja un mensaje visible sin cambiar el estado (las notas privadas no avisan nada; uno por día como máximo)",
+        "La empresa te dejó un mensaje",
+        f"Logística Sur te dejó un mensaje sobre tu postulación a '{JOB}':\n\n"
+        "Gracias por postularte. La semana que viene llamamos a entrevistas.",
+        "/dashboard/candidate/postulaciones"),
     "profile_incomplete": ("candidato", "Perfil incompleto (se corta tras 3 mails sin cambios)", "Tu perfil está incompleto",
         "Tu perfil está 60% completo. Las empresas ven que te falta cargar datos — completalo para destacar frente a otros candidatos.",
         "/dashboard/candidate/perfil"),
@@ -140,7 +151,6 @@ EN_RESUMEN = {
 }
 SOLO_WEB = {
     "application_new_status": ("candidato", "Cambios de estado intermedios", "Sólo en la campanita de la web"),
-    "application_seen": ("candidato", "La empresa vio la postulación", "Sólo en la campanita de la web"),
 }
 
 RESUMENES = [

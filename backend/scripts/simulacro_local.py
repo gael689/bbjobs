@@ -110,16 +110,32 @@ async def main(salida: Path) -> None:
 
     engine = create_async_engine(settings.DATABASE_URL)
     maker = async_sessionmaker(engine, expire_on_commit=False)
-    lunes = datetime(2030, 3, 4, 9, 0, tzinfo=AR_TZ).astimezone(timezone.utc)
+    lunes = LUNES
+    perfiles, job_id = await armar_mundo(maker)
+    async with maker() as db:
+        job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one()
+    await _resto(maker, provider, perfiles, job, lunes, salida)
+    await engine.dispose()
 
+
+LUNES = datetime(2030, 3, 4, 9, 0, tzinfo=AR_TZ).astimezone(timezone.utc)
+
+
+async def armar_mundo(maker, nombres_limpios: bool = False) -> tuple[list, uuid.UUID]:
+    """Una empresa, una búsqueda y los seis postulantes de `CANDIDATOS`, con sus CVs en PDF.
+    Devuelve [(perfil, usuario, pdf)] y el id de la búsqueda. También lo usa
+    `generar_muestra_ia.py`, con `nombres_limpios` (sin el sufijo de la corrida, que se ve en la
+    muestra; sólo en una base recién creada, porque los nombres del catálogo son únicos)."""
+    lunes = LUNES
+    sufijo = "" if nombres_limpios else f" {TAG}"
     async with maker() as db:
         for key in (SettingKey.emails_automaticos_activos, SettingKey.ia_recomendaciones_activas):
             await db.execute(text("DELETE FROM site_settings WHERE key = :k"), {"k": key.value})
             db.add(SiteSetting(key=key.value, enabled=True))
-        ind = Industry(id=uuid.uuid4(), name=f"Logística {TAG}", slug=f"logistica-{TAG}")
-        zona = Zone(id=uuid.uuid4(), name=f"Centro {TAG}", slug=f"centro-{TAG}")
-        ct = ContractType(id=uuid.uuid4(), name=f"Efectivo {TAG}")
-        autoelevador = Skill(id=uuid.uuid4(), name=f"Autoelevador {TAG}", slug=f"autoelevador-{TAG}", category="technical")
+        ind = Industry(id=uuid.uuid4(), name=f"Logística{sufijo}", slug=f"logistica-{TAG}")
+        zona = Zone(id=uuid.uuid4(), name=f"Centro{sufijo}", slug=f"centro-{TAG}")
+        ct = ContractType(id=uuid.uuid4(), name=f"Efectivo{sufijo}")
+        autoelevador = Skill(id=uuid.uuid4(), name=f"Autoelevador{sufijo}", slug=f"autoelevador-{TAG}", category="technical")
         db.add_all([ind, zona, ct, autoelevador])
         eu = User(id=uuid.uuid4(), email=f"rrhh-{TAG}@logisticasur.example", role="company", is_active=True)
         admin = User(id=uuid.uuid4(), email=f"eugenia-{TAG}@talency.example", role="admin", is_active=True)
@@ -162,7 +178,10 @@ async def main(salida: Path) -> None:
                 db.add(Application(candidate_id=p.id, job_posting_id=job.id, created_at=lunes - timedelta(hours=5)))
             perfiles.append((p, u, cv_pdf(nombre, apellido, puesto, lineas, oculto=True)))
         await db.commit()
+    return perfiles, job.id
 
+
+async def _resto(maker, provider, perfiles, job, lunes, salida: Path) -> None:
     # 1. Ingesta de CVs
     print("\n1) Ingesta de CVs")
     async with maker() as db:
@@ -236,7 +255,6 @@ async def main(salida: Path) -> None:
         print(f"   {m.status:8} {m.category:13} {m.template_key:28} → {m.to_email.split('@')[0]:14} «{m.subject}»")
         (salida / f"{i:02d}_{m.template_key.replace(':', '_')}.html").write_text(m.html, encoding="utf-8")
     print(f"\nHTML de cada mail en: {salida}")
-    await engine.dispose()
 
 
 if __name__ == "__main__":
