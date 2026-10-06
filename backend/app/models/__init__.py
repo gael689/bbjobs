@@ -15,7 +15,7 @@ from app.models.email import (
 )
 from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notification
 from app.models.contact import ContactMessage, ContactTopic
-from app.models.history import ApplicationStatusHistory, CandidateActivityLog
+from app.models.history import ApplicationNote, ApplicationStatusHistory, CandidateActivityLog
 from app.models.landing import LandingStat
 
 __all__ = [
@@ -96,6 +96,7 @@ __all__ = [
     "Notification",
     "ContactMessage",
     "ContactTopic",
+    "ApplicationNote",
     "ApplicationStatusHistory",
     "CandidateActivityLog",
     "LandingStat",

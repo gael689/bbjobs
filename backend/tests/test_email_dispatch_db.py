@@ -134,7 +134,7 @@ async def test_digest_and_web_only_types_are_not_enqueued(maker):
     uid = await _user(maker)
     async with maker() as db:
         await create_notification(db, user_id=uid, type="application_new", title="t", body="b")
-        await create_notification(db, user_id=uid, type="application_seen", title="t", body="b")
+        await create_notification(db, user_id=uid, type="application_new_status", title="t", body="b")
         await db.commit()
         assert (await db.execute(select(EmailOutbox))).first() is None
 

@@ -7,6 +7,8 @@ import {
   BriefcaseIcon, FunnelIcon, ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import { CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import Paginacion from "@/components/ui/Paginacion";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
@@ -47,6 +49,11 @@ export default function CompanyPostulacionesPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [candidateProfile, setCandidateProfile] = useState<CandidateFullProfile | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
+  // La postulación desde la que se abrió la ficha: el backend la usa para "Vieron tu CV" y la
+  // ficha muestra sus notas.
+  const [perfilAppId, setPerfilAppId] = useState<string | null>(null);
+  // Cambio de estado esperando confirmación (con nota opcional). Sólo con los módulos nuevos.
+  const [cambioPendiente, setCambioPendiente] = useState<{ appId: string; status: string } | null>(null);
 
   const isVerified = profile?.verification_status === "verified";
   // La búsqueda elegida se deriva: si la de la lista desapareció (se cerró, se dio de baja),
@@ -109,21 +116,40 @@ export default function CompanyPostulacionesPage() {
     filters.zone_id
   );
 
-  async function handleAppStatus(appId: string, status: string) {
+  async function guardarEstado(appId: string, status: string, note?: string, noteVisible?: boolean) {
     try {
-      await api.patch(`/me/company/applications/${appId}/status`, { status });
+      await api.patch(`/me/company/applications/${appId}/status`, {
+        status,
+        ...(note ? { note, note_visible: !!noteVisible } : {}),
+      });
       postulaciones.actualizarItems(prev => prev.map(a => (a.id === appId ? { ...a, status } : a)));
+      if (note) toast(noteVisible ? "Estado y nota guardados. El postulante va a ver la nota." : "Estado y nota privada guardados.");
     } catch {
       toast("Error al actualizar estado");
     }
   }
 
-  async function openCandidateProfile(candidateId: string) {
+  function handleAppStatus(appId: string, status: string) {
+    // Con los módulos nuevos, el cambio pasa por un cuadro que deja sumar una nota en el mismo
+    // paso. Sin ellos, se guarda al momento, como siempre.
+    if (MODULOS_NUEVOS_VISIBLES) {
+      setCambioPendiente({ appId, status });
+      return;
+    }
+    guardarEstado(appId, status);
+  }
+
+  async function openCandidateProfile(candidateId: string, appId: string) {
     setLoadingCandidate(true);
     setCandidateProfile(null);
+    setPerfilAppId(appId);
     try {
-      const r = await api.get(`/me/company/candidates/${candidateId}`);
+      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: appId } });
       setCandidateProfile(r.data);
+      // Abrir la ficha la pasa sola a "Perfil revisado" la primera vez (módulos nuevos).
+      if (MODULOS_NUEVOS_VISIBLES) {
+        postulaciones.actualizarItems(prev => prev.map(a => (a.id === appId && a.status === "new" ? { ...a, status: "seen" } : a)));
+      }
     } catch {
       toast("Error al cargar el perfil del candidato");
     } finally {
@@ -365,7 +391,7 @@ export default function CompanyPostulacionesPage() {
                       )}
                       {app.candidate && (
                         <button
-                          onClick={() => openCandidateProfile(app.candidate!.id)}
+                          onClick={() => openCandidateProfile(app.candidate!.id, app.id)}
                           className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                         >
                           <UserCircleIcon className="w-3.5 h-3.5" />
@@ -404,9 +430,25 @@ export default function CompanyPostulacionesPage() {
       <CandidateProfileModal
         profile={candidateProfile}
         loading={loadingCandidate}
-        onClose={() => setCandidateProfile(null)}
-        cvLinkEndpoint={candidateProfile ? `/me/company/candidates/${candidateProfile.id}/cv/link` : undefined}
+        onClose={() => { setCandidateProfile(null); setPerfilAppId(null); }}
+        cvLinkEndpoint={candidateProfile
+          ? `/me/company/candidates/${candidateProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
+          : undefined}
+        footer={MODULOS_NUEVOS_VISIBLES && perfilAppId
+          ? <NotasPostulacion key={perfilAppId} applicationId={perfilAppId} />
+          : undefined}
       />
+
+      {cambioPendiente && (
+        <CambioEstadoConNota
+          estadoLabel={APP_STATUS_LABEL[cambioPendiente.status]?.label ?? cambioPendiente.status}
+          onCancelar={() => setCambioPendiente(null)}
+          onConfirmar={async (nota, visible) => {
+            await guardarEstado(cambioPendiente.appId, cambioPendiente.status, nota, visible);
+            setCambioPendiente(null);
+          }}
+        />
+      )}
     </div>
   );
 }

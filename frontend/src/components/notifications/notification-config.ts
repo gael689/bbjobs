@@ -8,6 +8,7 @@ import {
   BellIcon,
   UserCircleIcon,
   ClockIcon,
+  ChatBubbleLeftEllipsisIcon,
 } from "@heroicons/react/24/outline";
 import type { ComponentType, SVGProps } from "react";
 
@@ -53,6 +54,8 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   application_new: TEAL,
   application_new_status: MUTED,
   application_seen: MUTED,
+  // Mensaje de la empresa (nota visible suelta). Las privadas nunca generan notificación.
+  application_note: { ...TEAL, icon: ChatBubbleLeftEllipsisIcon },
   application_contacted: TEAL,
   application_in_process: TEAL,
   application_finalist: { ...TEAL, icon: CheckBadgeIcon },

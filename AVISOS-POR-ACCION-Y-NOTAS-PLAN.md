@@ -14,7 +14,7 @@ producción no cambia nada hasta el lanzamiento.
 |---|---|---|
 | Cambia a **Contactado / En proceso / Finalista / Seleccionado** | Al momento | Al momento (franja 8–21, tope 2/día) |
 | Cambia a **No avanza** | Al momento | **24 h después**; se cancela si la empresa lo cambia en el medio |
-| Cambia a **Perfil revisado** a mano | Al momento | No (sólo web) |
+| Cambia a **Perfil revisado** a mano | Al momento | No (sólo web) — con §2 pasa a uno por día, como "Vieron tu CV" |
 | Abre la ficha completa desde la **Base de Talento** | Al momento | Sí, uno por día como máximo |
 
 `api/v1/applications.py::update_application_status` → `create_notification(ref_id=app.id)` →
@@ -102,18 +102,24 @@ escrito expone a la empresa.) Las notas se ven en la ficha de la postulación co
 - Test de que el candidato nunca recibe una nota privada (endpoint de historial, notificación y
   mail).
 - `services/account_deletion.py`: al borrar el candidato, las notas de sus postulaciones se
-  vacían (`body = NULL`) igual que hoy se vacía `cover_letter`; al borrar la empresa, caen por
-  CASCADE.
-- ¿Los admins de Talency ven las notas privadas? **Propuesta: sí, sólo lectura** (moderación y
-  reclamos). Decisión de Eugenia.
+  vacían (`body = NULL`) igual que hoy se vacía `cover_letter`. Al borrar la empresa: una
+  empresa con postulaciones siempre queda en lápida (la fila sobrevive y el CASCADE no corre),
+  así que las **privadas se borran** y las visibles quedan en la línea de tiempo del
+  postulante, como el historial de estados.
+- ¿Los admins de Talency ven las notas privadas? **Decidido (06/10/2026): no.** Las notas
+  privadas sólo las lee la empresa que las escribió: ningún endpoint de admin las devuelve, los
+  de notas son sólo de empresa (un admin recibe 403) y hay un test que lo garantiza
+  (`tests/test_application_notes_db.py`). Junto a la casilla, el panel de la empresa lo dice:
+  "Sin tildar, la nota es privada: sólo la ve tu empresa. No la ve el postulante ni el equipo
+  de BBJobs y Talency."
 
-## 4. Lo que decide Eugenia
+## 4. Lo que decide Eugenia (decidido el 06/10/2026)
 
-1. ¿Mail de "Vieron tu CV"? Propuesta: sí, uno por día como máximo.
-2. Las notas arrancan **privadas** y hay que tildar para que las vea el postulante. ¿De acuerdo?
-3. ¿Talency puede leer las notas privadas de las empresas? Propuesta: sí, sólo lectura.
-4. ¿Hace falta un texto modelo para el motivo de "No avanza"? (Por ejemplo: "Buscamos más
-   experiencia en…").
+1. ¿Mail de "Vieron tu CV"? **Sí, uno por día como máximo** (`once_per_day`).
+2. Las notas arrancan **privadas** y hay que tildar para que las vea el postulante. **Sí.**
+3. ¿Talency puede leer las notas privadas de las empresas? **No** (era la propuesta "sí, sólo
+   lectura"; quedó descartada). Ver §3.
+4. ¿Hace falta un texto modelo para el motivo de "No avanza"? **No.**
 
 ## 5. Pasos de construcción
 

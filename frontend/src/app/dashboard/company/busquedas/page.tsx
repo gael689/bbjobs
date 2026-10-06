@@ -10,6 +10,8 @@ import {
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
+import { NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
   type Application, type JobPosting,
@@ -38,6 +40,8 @@ export default function CompanyBusquedasPage() {
 
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
+  // La postulación desde la que se abrió la ficha ("Vieron tu CV" y sus notas).
+  const [perfilAppId, setPerfilAppId] = useState<string | null>(null);
 
   const toast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
@@ -121,11 +125,12 @@ export default function CompanyBusquedasPage() {
     }
   }
 
-  async function openCandidateProfile(candidateId: string) {
+  async function openCandidateProfile(candidateId: string, appId: string) {
     setLoadingViewProfile(true);
     setViewProfile(null);
+    setPerfilAppId(appId);
     try {
-      const r = await api.get(`/me/company/candidates/${candidateId}`);
+      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: appId } });
       setViewProfile(r.data);
     } catch {
       toast("Error al cargar el perfil del candidato", "error");
@@ -478,7 +483,7 @@ export default function CompanyBusquedasPage() {
                         </div>
                         {app.candidate && (
                           <button
-                            onClick={() => openCandidateProfile(app.candidate!.id)}
+                            onClick={() => openCandidateProfile(app.candidate!.id, app.id)}
                             className="shrink-0 text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] px-2.5 py-1.5 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                           >
                             Ver perfil
@@ -497,8 +502,13 @@ export default function CompanyBusquedasPage() {
       <CandidateProfileModal
         profile={viewProfile}
         loading={loadingViewProfile}
-        onClose={() => setViewProfile(null)}
-        cvLinkEndpoint={viewProfile ? `/me/company/candidates/${viewProfile.id}/cv/link` : undefined}
+        onClose={() => { setViewProfile(null); setPerfilAppId(null); }}
+        cvLinkEndpoint={viewProfile
+          ? `/me/company/candidates/${viewProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
+          : undefined}
+        footer={MODULOS_NUEVOS_VISIBLES && perfilAppId
+          ? <NotasPostulacion key={perfilAppId} applicationId={perfilAppId} />
+          : undefined}
       />
     </div>
   );

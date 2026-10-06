@@ -103,7 +103,12 @@ _POSTULACION = Rule(C.postulaciones)
 RULES: dict[str, Rule] = {
     # ── Candidato ──
     "application_new_status": Rule(C.postulaciones, mode="none"),
-    "application_seen": Rule(C.postulaciones, mode="none"),  # poco valor: web y resumen
+    # "Vieron tu CV": la empresa abrió el perfil o el CV (o lo pasó a mano a Perfil revisado).
+    # Si tres empresas lo ven el mismo día, sale un mail y el resto queda en la web.
+    "application_seen": Rule(C.postulaciones, once_per_day=True),
+    # Nota visible suelta de la empresa. La que va junto a un cambio de estado viaja dentro de
+    # ese aviso y no genera éste. Las privadas no generan ningún aviso.
+    "application_note": Rule(C.postulaciones, once_per_day=True),
     "application_contacted": _POSTULACION,
     "application_in_process": _POSTULACION,
     "application_finalist": _POSTULACION,

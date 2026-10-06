@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import {
+  PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, ChartBarIcon, ChatBubbleLeftEllipsisIcon,
+} from "@heroicons/react/24/outline";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import { APP_STATUS, type Application, type ApplicationHistoryItem, type Job } from "../types";
 import type { ApplicantStats } from "@/app/dashboard/company/types";
@@ -111,7 +113,20 @@ export default function CandidatePostulacionesPage() {
                       ) : (
                         <div className="pt-2 space-y-2">
                           {(history[app.id] || []).map(h => {
-                            const label = APP_STATUS[h.to_status]?.label || h.to_status;
+                            if (h.kind === "note") {
+                              // Mensaje de la empresa: texto plano (React lo escapa), sin links.
+                              return (
+                                <div key={h.id} className="flex items-start gap-2 text-xs text-[#64748B]">
+                                  <ChatBubbleLeftEllipsisIcon className="w-3.5 h-3.5 text-[#1E8EA3] shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-semibold text-[#1C2230]">Mensaje de la empresa</span>
+                                    <span> · {new Date(h.created_at).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                                    <p className="mt-1 text-[#1C2230] bg-white border border-[#DDE3EC] rounded-lg px-3 py-2 whitespace-pre-line break-words">{h.note}</p>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            const label = (h.to_status && APP_STATUS[h.to_status]?.label) || h.to_status;
                             return (
                               <div key={h.id} className="flex items-center gap-2 text-xs text-[#64748B]">
                                 <ClockIcon className="w-3.5 h-3.5 text-[#9ED4DF] shrink-0" />

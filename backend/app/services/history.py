@@ -25,6 +25,7 @@ async def log_application_status_change(
     from_status: "str | enum.Enum | None",
     to_status: "str | enum.Enum",
     changed_by_user_id: Optional[uuid.UUID] = None,
+    automatico: bool = False,
 ) -> None:
     """Sólo agrega a la sesión — viaja en la misma transacción que el cambio que la origina
     (igual criterio que create_notification en services/notifications.py)."""
@@ -33,6 +34,7 @@ async def log_application_status_change(
         from_status=_status_value(from_status),
         to_status=_status_value(to_status),
         changed_by_user_id=changed_by_user_id,
+        automatico=automatico,
     ))
 
 

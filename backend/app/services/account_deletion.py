@@ -43,7 +43,7 @@ from app.models.alerts import AuditLog, JobAlert, Notification
 from app.models.candidate import CandidateProfile, CandidateSkill, Education, Experience, Language
 from app.models.company import CompanyProfile, CompanyVerificationDocument, VerificationStatus
 from app.models.core import User, UserRole
-from app.models.history import CandidateActivityLog
+from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
 from app.models.ai import CandidateAiIndex, CandidateChunk, CandidateCvText, JobRecommendation
 from app.models.email import EmailOutbox, EmailStatus
@@ -187,6 +187,12 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
             await db.execute(delete(model).where(model.candidate_id == p.id))
         await db.execute(
             Application.__table__.update().where(Application.candidate_id == p.id).values(cover_letter=None))
+        # Notas de las empresas sobre sus postulaciones: hablan de la persona. Se vacía el texto
+        # (como cover_letter) y queda la fila, para que la empresa vea que hubo una nota.
+        await db.execute(
+            ApplicationNote.__table__.update().where(
+                ApplicationNote.application_id.in_(select(Application.id).where(Application.candidate_id == p.id))
+            ).values(body=None))
         # IA: fragmentos, texto del CV, índice y recomendaciones. En la lápida la fila del
         # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
         for model in (CandidateChunk, CandidateCvText, CandidateAiIndex, JobRecommendation):
@@ -263,6 +269,13 @@ async def _tombstone_company(db: AsyncSession, user: User, now: datetime) -> Non
             pack.status = TalentPackStatus.canceled
 
         await db.execute(delete(CompanyVerificationDocument).where(CompanyVerificationDocument.company_id == c.id))
+
+        # Notas de la empresa: la fila de la empresa sobrevive (lápida), así que el CASCADE de
+        # application_notes no corre. Las privadas ya no las puede leer nadie (ni Talency): se
+        # borran. Las visibles quedan, porque son parte de la línea de tiempo del postulante,
+        # igual que el historial de estados.
+        await db.execute(delete(ApplicationNote).where(
+            ApplicationNote.company_id == c.id, ApplicationNote.visible_to_candidate.is_(False)))
     await db.execute(delete(Notification).where(Notification.user_id == user.id))
     await _tombstone_user(user, now)
 

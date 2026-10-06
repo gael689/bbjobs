@@ -15,14 +15,19 @@ from app.models.company import CompanyProfile
 from app.models.job import JobPosting, Application, ApplicationStatus, JobModerationStatus
 from app.models.catalogs import Skill
 from app.models.history import ApplicationStatusHistory
-from app.schemas.application import ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate
+from app.schemas.application import (
+    ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate,
+    ApplicationNoteCreate, ApplicationNoteResponse,
+)
 from app.schemas.common import Paginated, PageQuery, PageSizeQuery, contar, recortar
 from app.schemas.candidate import (
     CandidateFullProfile, ExperienceForCompany, EducationForCompany,
     SkillForCompany, LanguageForCompany, calculate_age,
 )
-from app.schemas.history import ApplicationStatusHistoryResponse
+from app.schemas.history import CandidateApplicationHistoryItem
 from app.schemas.documents import SignedDocumentLink
+from app.core.features import new_modules_enabled, require_new_modules
+from app.services import application_events
 from app.integrations.cloudinary_client import signed_document_url
 from app.services.notifications import create_notification
 from app.services.profile_completion import (
@@ -191,7 +196,7 @@ async def my_applications(
     return result.scalars().all()
 
 
-@router.get("/me/candidate/applications/{application_id}/history", response_model=List[ApplicationStatusHistoryResponse])
+@router.get("/me/candidate/applications/{application_id}/history", response_model=List[CandidateApplicationHistoryItem])
 async def my_application_history(
     application_id: uuid.UUID,
     current_user: User = Depends(require_role([UserRole.candidate])),
@@ -199,6 +204,8 @@ async def my_application_history(
 ):
     result_candidate = await db.execute(select(CandidateProfile).where(CandidateProfile.user_id == current_user.id))
     candidate = result_candidate.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
 
     result_app = await db.execute(
         select(Application).where(Application.id == application_id, Application.candidate_id == candidate.id)
@@ -211,7 +218,20 @@ async def my_application_history(
         .where(ApplicationStatusHistory.application_id == application_id)
         .order_by(ApplicationStatusHistory.created_at)
     )
-    return result.scalars().all()
+    items = [
+        CandidateApplicationHistoryItem(
+            id=h.id, kind="status", from_status=h.from_status, to_status=h.to_status, created_at=h.created_at,
+        )
+        for h in result.scalars().all()
+    ]
+    # Las notas de la empresa: sólo las visibles (visible_notes nunca devuelve una privada).
+    if new_modules_enabled():
+        items += [
+            CandidateApplicationHistoryItem(id=n.id, kind="note", note=n.body, created_at=n.created_at)
+            for n in await application_events.visible_notes(db, application_id)
+        ]
+        items.sort(key=lambda i: i.created_at)
+    return items
 
 
 @router.get("/me/company/jobs/{id}/applications", response_model=Paginated[ApplicationWithCandidateResponse])
@@ -537,6 +557,9 @@ async def _assert_candidate_applied_to_company(
 async def get_candidate_cv_link(
     candidate_id: uuid.UUID,
     attachment: bool = False,
+    application_id: Optional[uuid.UUID] = Query(
+        None, description="La postulación desde la que se abre (para \"Vieron tu CV\")"
+    ),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
@@ -552,12 +575,22 @@ async def get_candidate_cv_link(
     url = signed_document_url(profile.cv_file_url, attachment=attachment)
     if not url:
         raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")
+    # "Vieron tu CV": sólo la primera vez, y sólo con la compuerta abierta (no-op si no).
+    # Commit siempre: aunque no haya aviso, puede haberse completado seen_at de una postulación
+    # que ya estaba más adelante.
+    await application_events.mark_seen(
+        db, company=company, candidate_id=candidate_id, application_id=application_id,
+    )
+    await db.commit()
     return SignedDocumentLink(url=url)
 
 
 @router.get("/me/company/candidates/{candidate_id}", response_model=CandidateFullProfile)
 async def get_candidate_full_profile(
     candidate_id: uuid.UUID,
+    application_id: Optional[uuid.UUID] = Query(
+        None, description="La postulación desde la que se abre (para \"Vieron tu CV\")"
+    ),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
@@ -566,7 +599,14 @@ async def get_candidate_full_profile(
     to at least one of this company's job postings.
     """
     await _assert_candidate_applied_to_company(db, candidate_id, company)
-    return await build_candidate_full_profile(db, candidate_id)
+    profile = await build_candidate_full_profile(db, candidate_id)
+    # Commit siempre: aunque no haya aviso, puede haberse completado seen_at de una postulación
+    # que ya estaba más adelante.
+    await application_events.mark_seen(
+        db, company=company, candidate_id=candidate_id, application_id=application_id,
+    )
+    await db.commit()
+    return profile
 
 
 @router.patch("/me/company/applications/{app_id}/status", response_model=ApplicationResponse)
@@ -576,92 +616,86 @@ async def update_application_status(
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(Application)
-        .join(JobPosting, Application.job_posting_id == JobPosting.id)
-        .where(Application.id == app_id, JobPosting.company_id == company.id)
-    )
-    app = result.scalar_one_or_none()
+    app = await application_events.company_application(db, company, app_id)
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    previous_status = app.status
-    app.status = payload.status
-    app.status_updated_at = datetime.datetime.now(datetime.timezone.utc)
-
-    if payload.status != ApplicationStatus.new and not app.seen_at:
-        app.seen_at = datetime.datetime.now(datetime.timezone.utc)
-
-    await log_application_status_change(
-        db, application_id=app.id, from_status=previous_status, to_status=payload.status,
-        changed_by_user_id=company.user_id,
-    )
-
-    # Al candidato le llega notificación en **los siete** estados (decisión de Talency,
-    # agosto/2026) — antes sólo en tres de cinco, así que quedaba a ciegas justo cuando la
-    # empresa lo miraba por primera vez.
-    _CANDIDATE_NOTIF = {
-        ApplicationStatus.new: (
-            "application_new_status",
-            "Tu postulación quedó registrada",
-            "Registramos tu postulación a '{job_title}'.",
-        ),
-        ApplicationStatus.seen: (
-            "application_seen",
-            "Miraron tu perfil",
-            "La empresa revisó tu perfil para la búsqueda '{job_title}'.",
-        ),
-        ApplicationStatus.contacted: (
-            "application_contacted",
-            "¡Una empresa quiere contactarte!",
-            "Te marcaron como contactado en la búsqueda '{job_title}'. Estate atento al teléfono y al mail.",
-        ),
-        ApplicationStatus.in_process: (
-            "application_in_process",
-            "Avanzaste en una búsqueda",
-            "Entraste en proceso de selección para '{job_title}'.",
-        ),
-        ApplicationStatus.finalist: (
-            "application_finalist",
-            "¡Quedaste entre los finalistas!",
-            "Quedaste entre los finalistas de '{job_title}'.",
-        ),
-        ApplicationStatus.selected: (
-            "application_selected",
-            "¡Te seleccionaron!",
-            "¡Te seleccionaron para '{job_title}'! La empresa se va a contactar con vos.",
-        ),
-        ApplicationStatus.discarded: (
-            "application_discarded",
-            "Novedades en tu postulación",
-            "Tu postulación a '{job_title}' no avanzó en esta oportunidad. ¡Seguí participando en otras búsquedas!",
-        ),
-    }
-    notif = _CANDIDATE_NOTIF.get(payload.status)
-    if notif:
-        job_result = await db.execute(select(JobPosting).where(JobPosting.id == app.job_posting_id))
-        job = job_result.scalar_one_or_none()
-        candidate_result = await db.execute(
-            select(CandidateProfile).where(CandidateProfile.id == app.candidate_id)
+    # Estado, historial, aviso al postulante y la nota opcional: todo en el servicio. La nota
+    # se ignora con la compuerta de módulos nuevos cerrada.
+    try:
+        await application_events.change_status(
+            db, company=company, app=app, new_status=payload.status,
+            note=payload.note, note_visible=payload.note_visible,
         )
-        candidate = candidate_result.scalar_one_or_none()
-        if job and candidate:
-            notif_type, notif_title, notif_body = notif
-            await create_notification(
-                db,
-                user_id=candidate.user_id,
-                type=notif_type,
-                title=notif_title,
-                body=notif_body.format(job_title=job.title),
-                link="/dashboard/candidate/postulaciones",
-                # Para revalidar al enviar: "No avanza" sale 24 h después y se cancela si la
-                # empresa cambió el estado en el medio (auditoría R9/M18).
-                ref_id=app.id,
-            )
+    except application_events.NoteError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
     await db.commit()
     await db.refresh(app)
     return app
+
+
+# ── Notas de la empresa (módulo nuevo, detrás de la compuerta) ────────────────────────
+# Toda consulta filtra por company_id; una postulación o nota de otra empresa da 404 (no 403,
+# para no confirmar que existe). No hay endpoints de admin para leerlas.
+
+@router.get(
+    "/me/company/applications/{app_id}/notes",
+    response_model=List[ApplicationNoteResponse],
+    dependencies=[Depends(require_new_modules)],
+)
+async def list_application_notes(
+    app_id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    app = await application_events.company_application(db, company, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    return await application_events.list_notes(db, company=company, app=app)
+
+
+@router.post(
+    "/me/company/applications/{app_id}/notes",
+    response_model=ApplicationNoteResponse,
+    status_code=201,
+    dependencies=[Depends(require_new_modules)],
+)
+async def create_application_note(
+    app_id: uuid.UUID,
+    payload: ApplicationNoteCreate,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    app = await application_events.company_application(db, company, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    try:
+        nota = await application_events.add_note(
+            db, company=company, app=app, body=payload.body, visible=payload.visible_to_candidate,
+        )
+    except application_events.NoteError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    await db.commit()
+    await db.refresh(nota)
+    return nota
+
+
+@router.delete(
+    "/me/company/applications/{app_id}/notes/{note_id}",
+    status_code=204,
+    dependencies=[Depends(require_new_modules)],
+)
+async def delete_application_note(
+    app_id: uuid.UUID,
+    note_id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    app = await application_events.company_application(db, company, app_id)
+    if not app or not await application_events.delete_note(db, company=company, app=app, note_id=note_id):
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    await db.commit()
 
 
 # ── Comparativa del candidato ─────────────────────────────────────────────────
