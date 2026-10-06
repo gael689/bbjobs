@@ -23,23 +23,33 @@ interface SinMail {
   cuando: string;
   nota: string;
 }
+interface EvalRequisito {
+  requisito: string;
+  tipo: string;
+  veredicto: string;
+  evidencia: string | null;
+}
 interface Candidato {
   nombre: string;
   puntaje: number;
   cobertura: number;
+  origen: string;
+  recomendado: boolean;
   motivos: string[];
-  evidencia: Record<string, string>;
-  estado: string;
+  requisitos: EvalRequisito[];
+  alerta: string | null;
 }
 interface DatosIA {
   disponible: boolean;
   generado?: string;
   modelo?: string;
   gasto_usd?: number;
+  llamadas?: number;
   puesto?: string;
   descripcion?: string;
   requisitos?: { texto: string; tipo: string }[];
-  descartados?: { texto: string; motivo?: string }[];
+  descartados?: { texto: string; motivo?: string | null }[];
+  cv_ejemplo?: { texto: string | null; sacado: Record<string, number> };
   candidatos?: Candidato[];
 }
 
@@ -131,15 +141,25 @@ function IA({ ia }: { ia: DatosIA }) {
   if (!ia.disponible) {
     return <p className={`rounded-lg border border-[#DDE3EC] bg-white p-6 ${ink}`}>Esta sección se está preparando.</p>;
   }
+  const sacado = ia.cv_ejemplo?.sacado ?? {};
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
-        <h3 className={`text-lg font-bold ${ink}`}>La búsqueda</h3>
+        <h3 className={`text-lg font-bold ${ink}`}>Cómo funciona, en cuatro pasos</h3>
+        <ol className={`mt-2 list-decimal space-y-1 pl-5 text-sm ${ink}`}>
+          <li>Lee el aviso y arma la lista de requisitos. Lo que no se puede pedir (edad, apariencia, género…) se descarta.</li>
+          <li>Lee el CV de cada persona <strong>sin sus datos personales</strong>: nombre, DNI, teléfono, mail y fecha de nacimiento se sacan antes.</li>
+          <li>Revisa requisito por requisito y, para cada uno que da por cumplido, copia la frase del CV que lo prueba. Si no la encuentra, queda «Sin dato» (que no es lo mismo que «No cumple»).</li>
+          <li>El puntaje lo calcula el sistema con reglas fijas, no la IA. La empresa ve la lista ordenada y decide: la IA nunca descarta a nadie, no manda mails ni cambia estados.</li>
+        </ol>
+      </section>
+      <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
+        <h3 className={`text-lg font-bold ${ink}`}>El aviso de ejemplo</h3>
         <p className={`mt-1 font-semibold ${ink}`}>{ia.puesto}</p>
         <p className={`mt-1 text-sm ${ink}`}>{ia.descripcion}</p>
       </section>
       <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
-        <h3 className={`text-lg font-bold ${ink}`}>1. Qué entendió la IA que pide la búsqueda</h3>
+        <h3 className={`text-lg font-bold ${ink}`}>Paso 1. Qué entendió la IA que pide el aviso</h3>
         <ul className="mt-2 space-y-1 text-sm">
           {ia.requisitos?.map((r) => (
             <li key={r.texto} className={ink}>
@@ -149,37 +169,74 @@ function IA({ ia }: { ia: DatosIA }) {
         </ul>
         {!!ia.descartados?.length && (
           <div className="mt-3 rounded-md bg-[#F7EFE9] p-3 text-sm">
-            <p className={`font-semibold ${ink}`}>Lo que la IA no usa, a propósito (datos protegidos)</p>
-            <ul className={`mt-1 ${ink}`}>{ia.descartados.map((d) => <li key={d.texto}>· {d.texto}</li>)}</ul>
+            <p className={`font-semibold ${ink}`}>Lo que el aviso pide pero no se usa, a propósito</p>
+            <ul className={`mt-1 ${ink}`}>{ia.descartados.map((d) => <li key={d.texto}>· «{d.texto}»</li>)}</ul>
+            <p className={`mt-1 text-xs ${ink}`}>Son datos protegidos por la ley antidiscriminación (Ley 23.592): no entran en el orden.</p>
           </div>
         )}
       </section>
+      {ia.cv_ejemplo?.texto && (
+        <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
+          <h3 className={`text-lg font-bold ${ink}`}>Paso 2. Así le llega un CV a la IA</h3>
+          <pre className={`mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-3 font-sans text-sm ${ink}`}>{ia.cv_ejemplo.texto}</pre>
+          <p className={`mt-2 text-xs ${ink}`}>
+            «[DATO]» es el nombre, que se reemplaza. La línea con DNI, teléfono y fecha de nacimiento se sacó entera
+            {sacado.nombre_propio || sacado.lineas_personales
+              ? ` (en este CV: ${sacado.nombre_propio ?? 0} menciones del nombre y ${sacado.lineas_personales ?? 0} línea de datos personales)`
+              : ""}.
+          </p>
+        </section>
+      )}
       <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
-        <h3 className={`text-lg font-bold ${ink}`}>2. Candidatos recomendados</h3>
+        <h3 className={`text-lg font-bold ${ink}`}>Pasos 3 y 4. Lo que ve la empresa</h3>
+        <p className={`mt-1 text-sm ${ink}`}>
+          A partir de 70 puntos el perfil aparece como «Recomendado». Debajo, el resto sigue visible, ordenado.
+        </p>
         <div className="mt-3 space-y-3">
           {ia.candidatos?.map((c) => (
             <div key={c.nombre} className="rounded-lg border border-[#DDE3EC] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className={`font-semibold ${ink}`}>{c.nombre}</p>
-                <span className="rounded-full bg-[#187B8E] px-3 py-1 text-sm font-bold text-white">{c.puntaje}</span>
-              </div>
-              <p className={`mt-1 text-xs ${ink}`}>Cumple {Math.round(c.cobertura * 100)}% de lo pedido · {c.estado}</p>
-              <ul className={`mt-2 list-disc pl-5 text-sm ${ink}`}>{c.motivos.map((m) => <li key={m}>{m}</li>)}</ul>
-              {Object.keys(c.evidencia).length > 0 && (
-                <div className="mt-2 text-sm">
-                  <p className={`font-semibold ${ink}`}>Dónde lo vio en el CV</p>
-                  {Object.entries(c.evidencia).map(([k, v]) => (
-                    <p key={k} className={ink}>{k}: <em>«{v}»</em></p>
-                  ))}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className={`font-semibold ${ink}`}>{c.nombre}</p>
+                  <p className="text-xs text-[#475569]">{c.origen}</p>
                 </div>
+                <div className="flex items-center gap-2">
+                  {c.recomendado && <Chip tone="t">Recomendado</Chip>}
+                  <span className="rounded-full bg-[#187B8E] px-3 py-1 text-sm font-bold text-white">{c.puntaje}</span>
+                </div>
+              </div>
+              {c.alerta && (
+                <p className={`mt-2 rounded-md bg-[#F7EFE9] p-2 text-sm ${ink}`}><strong>Atención:</strong> {c.alerta}</p>
               )}
+              <ul className={`mt-2 list-disc pl-5 text-sm ${ink}`}>{c.motivos.map((m) => <li key={m}>{m}</li>)}</ul>
+              <div className="mt-3 overflow-x-auto">
+                <table className={`w-full text-left text-sm ${ink}`}>
+                  <thead>
+                    <tr className="border-b border-[#DDE3EC] text-xs text-[#475569]">
+                      <th className="py-1 pr-3 font-medium">Requisito</th>
+                      <th className="py-1 pr-3 font-medium">Resultado</th>
+                      <th className="py-1 font-medium">Dónde lo dice el CV</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.requisitos.map((r) => (
+                      <tr key={r.requisito} className="border-b border-slate-100 align-top">
+                        <td className="py-1.5 pr-3">{r.requisito}{r.tipo === "excluyente" ? " *" : ""}</td>
+                        <td className="py-1.5 pr-3 whitespace-nowrap">{r.veredicto}</td>
+                        <td className="py-1.5">{r.evidencia ? <em>«{r.evidencia}»</em> : <span className="text-[#475569]">—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ))}
         </div>
+        <p className="mt-2 text-xs text-[#475569]">* excluyente</p>
       </section>
       <p className="text-xs text-[#475569]">
-        Corrida con {ia.modelo} · costo de la búsqueda: USD {ia.gasto_usd?.toFixed(4)} · {ia.generado}. La IA sólo ordena y
-        muestra evidencia: nunca envía mails ni cambia el estado de una postulación.
+        Corrida real con {ia.modelo} el {ia.generado}: {ia.llamadas} consultas, costo total de la búsqueda USD{" "}
+        {ia.gasto_usd?.toFixed(4)}. Las personas y la empresa son inventadas.
       </p>
     </div>
   );
