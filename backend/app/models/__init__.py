@@ -17,6 +17,7 @@ from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notifica
 from app.models.contact import ContactMessage, ContactTopic
 from app.models.history import ApplicationNote, ApplicationStatusHistory, CandidateActivityLog
 from app.models.landing import LandingStat
+from app.models.legal import LegalAcceptance
 
 __all__ = [
     "EmailOutbox",
@@ -100,4 +101,5 @@ __all__ = [
     "ApplicationStatusHistory",
     "CandidateActivityLog",
     "LandingStat",
+    "LegalAcceptance",
 ]

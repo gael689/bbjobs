@@ -17,6 +17,7 @@ from app.models.company import CompanyProfile, VerificationStatus
 from app.models.payment import Plan, Subscription
 from app.schemas.onboarding import CandidateOnboarding, CompanyOnboarding, OnboardingResponse
 from app.integrations.clerk_client import get_clerk_user_email, set_public_metadata
+from app.services.legal import record_acceptance
 from app.services.notifications import notify_all_admins
 
 router = APIRouter()
@@ -85,6 +86,8 @@ async def onboarding_candidate(
         talent_pool_asked_at=now,
         talent_pool_decided_at=now,
     ))
+    if payload.acepta_terminos:
+        await record_acceptance(db, user, request)
 
     from app.services.lifecycle import on_candidate_onboarded
     await on_candidate_onboarded(db, user)   # sólo con la compuerta abierta
@@ -158,6 +161,8 @@ async def onboarding_company(
     plan = plan_result.scalar_one_or_none()
     if plan:
         db.add(Subscription(company_id=company.id, plan_id=plan.id))
+    if payload.acepta_terminos:
+        await record_acceptance(db, user, request)
 
     await notify_all_admins(
         db,

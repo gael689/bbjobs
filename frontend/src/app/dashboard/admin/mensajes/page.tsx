@@ -56,7 +56,7 @@ export default function AdminMensajesPage() {
         <h1 className="text-2xl font-display font-bold text-[#1C2230]">Mensajes de contacto</h1>
       </div>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto y /empresas.</p>
+        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto y /empresas, y pedidos del botón de arrepentimiento.</p>
         <label className="flex items-center gap-2 text-sm text-[#64748B] cursor-pointer">
           <input type="checkbox" checked={showResolved} onChange={e => setShowResolved(e.target.checked)} className="w-4 h-4 accent-[#1E8EA3]" />
           Mostrar resueltos
@@ -92,9 +92,15 @@ export default function AdminMensajesPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-bold text-[#1C2230]">{m.name}</p>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.topic === "empresa" ? "bg-[#E6F4F7] text-[#1E8EA3]" : "bg-gray-100 text-gray-600"}`}>
-                          {m.topic === "empresa" ? "Empresa" : "General"}
-                        </span>
+                        {m.topic === "arrepentimiento" ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                            Arrepentimiento · {m.tracking_code}
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.topic === "empresa" ? "bg-[#E6F4F7] text-[#1E8EA3]" : "bg-gray-100 text-gray-600"}`}>
+                            {m.topic === "empresa" ? "Empresa" : "General"}
+                          </span>
+                        )}
                         {m.resolved && (
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Resuelto</span>
                         )}
@@ -151,6 +157,12 @@ export default function AdminMensajesPage() {
                     <span>{new Date(m.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })} h</span>
                   </div>
                   <p className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line bg-[#FAFBFD] rounded-xl px-4 py-3">{m.message}</p>
+                  {m.topic === "arrepentimiento" && !m.resolved && (
+                    <p className="text-xs text-red-700 mt-2">
+                      Pedido de devolución por el botón de arrepentimiento (10 días corridos desde la compra). Buscá el pago
+                      en Pagos o en Mercado Pago, devolvelo desde Mercado Pago y avisale por mail citando el código.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

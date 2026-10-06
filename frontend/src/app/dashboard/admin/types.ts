@@ -261,8 +261,9 @@ export interface ContactMessage {
   email?: string | null;
   phone?: string;
   company_name?: string;
-  topic: "general" | "empresa";
+  topic: "general" | "empresa" | "arrepentimiento";
   message: string;
+  tracking_code?: string | null;
   resolved: boolean;
   created_at: string;
 }

@@ -61,6 +61,7 @@ export default function Footer() {
               { href: "/privacidad", label: "Política de privacidad" },
               { href: "/nosotros", label: "Quiénes somos" },
               { href: "/contacto", label: "Contacto" },
+              { href: "/arrepentimiento", label: "Botón de arrepentimiento" },
             ].map(({ href, label }) => (
               <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
@@ -70,6 +71,10 @@ export default function Footer() {
 
       <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#94A3B8]">
         <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
+        {/* La norma pide el botón de arrepentimiento visible y de acceso directo: va también acá. */}
+        <Link href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
+          Botón de arrepentimiento
+        </Link>
         <p>Hecho con ♥ para el mercado laboral local</p>
       </div>
     </footer>

@@ -1,10 +1,12 @@
 """Mails: cola de envío, plantillas, preferencias, bajas, campañas y frecuencia de alertas
 
 Revision ID: b1e4c7a2d905
-Revises: a7c3e9d2f514
+Revises: c8d4e1f7a2b3
 Create Date: 2026-10-01 00:00:00.000000
 
-Ver MODULOS-MAILS-IA-PLAN.md §4.A.
+Ver MODULOS-MAILS-IA-PLAN.md §4.A. Revisaba a7c3e9d2f514; el 06/10/2026 entró en main
+c8d4e1f7a2b3 (términos y arrepentimiento) y la cadena de esta rama pasó a colgar de ahí, para
+que el merge no deje dos heads.
 """
 from typing import Sequence, Union
 from alembic import op
@@ -13,7 +15,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 
 revision: str = 'b1e4c7a2d905'
-down_revision: Union[str, None] = 'a7c3e9d2f514'
+down_revision: Union[str, None] = 'c8d4e1f7a2b3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

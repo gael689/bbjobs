@@ -9,6 +9,8 @@ from app.models.base import Base, UUIDMixin
 class ContactTopic(str, enum.Enum):
     general = "general"
     empresa = "empresa"
+    # Llega por el botón de arrepentimiento (/arrepentimiento), no por el formulario de contacto.
+    arrepentimiento = "arrepentimiento"
 
 
 class ContactMessage(UUIDMixin, Base):
@@ -22,5 +24,7 @@ class ContactMessage(UUIDMixin, Base):
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     topic: Mapped[ContactTopic] = mapped_column(String(20), nullable=False, default=ContactTopic.general)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    # Código de trámite del botón de arrepentimiento (ARR-XXXXXX); los mensajes comunes no tienen.
+    tracking_code: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True, index=True)
     resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

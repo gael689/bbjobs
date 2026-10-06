@@ -47,6 +47,7 @@ from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
 from app.models.ai import CandidateAiIndex, CandidateChunk, CandidateCvText, JobRecommendation
 from app.models.email import EmailOutbox, EmailStatus
+from app.models.legal import LegalAcceptance
 from app.models.payment import (
     CvReviewOrder, CvReviewStatus, Payment, TalentCreditPack,
     TalentPackStatus, TalentUnlock,
@@ -340,6 +341,10 @@ async def delete_account(
         await db.execute(
             EmailOutbox.__table__.update().where(EmailOutbox.user_id == user.id).values(
                 to_email="eliminado@bbjobs.invalid", html="", text=None))
+        # Qué versión de los términos aceptó queda como prueba; la IP y el navegador, no. En el
+        # borrado completo las filas caen por CASCADE.
+        await db.execute(
+            LegalAcceptance.__table__.update().where(LegalAcceptance.user_id == user.id).values(ip=None, user_agent=None))
         if preview.mode == DeletionMode.full:
             await db.delete(user)
         elif user.role == UserRole.candidate:

@@ -2,8 +2,15 @@
 // estricta con nonce (ver src/proxy.ts, isStrictCspRoute). Las páginas públicas, en cambio, se
 // prerenderizan — el `force-dynamic` global que había en app/layout.tsx se sacó el 23/09/2026
 // porque agotaba el CPU del plan de Vercel.
+import LegalGate from "@/components/legal/LegalGate";
+
 export const dynamic = "force-dynamic";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      <LegalGate />
+    </>
+  );
 }

@@ -1,6 +1,6 @@
 import re
-from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Literal, Optional
 from datetime import datetime
 import uuid
 from app.models.contact import ContactTopic
@@ -28,6 +28,14 @@ class ContactMessageCreate(BaseModel):
             return None
         return v
 
+    @field_validator("topic")
+    @classmethod
+    def no_arrepentimiento(cls, v: ContactTopic) -> ContactTopic:
+        # Ese tema sólo entra por /contact/arrepentimiento, que es el que da el código de trámite.
+        if v == ContactTopic.arrepentimiento:
+            raise ValueError("Para arrepentirte de una compra usá el botón de arrepentimiento")
+        return v
+
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str) -> str:
@@ -37,6 +45,22 @@ class ContactMessageCreate(BaseModel):
         if len(re.sub(r"\D", "", v)) < MIN_PHONE_DIGITS:
             raise ValueError("Ingresá un teléfono válido, con característica")
         return v
+
+
+class ArrepentimientoCreate(BaseModel):
+    """Botón de arrepentimiento (Ley 24.240 art. 34, Disposición 954/2025): sin login, con lo
+    mínimo para encontrar la compra. El mail es obligatorio: es por donde se le confirma."""
+    name: str = Field(min_length=2, max_length=255)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=50)
+    compra: Literal["destacado", "pack", "otro"]
+    detalle: str = Field(min_length=3, max_length=500)
+    comentario: Optional[str] = Field(default=None, max_length=1000)
+
+
+class ArrepentimientoResponse(BaseModel):
+    codigo: str
+    recibido: datetime
 
 
 class ContactMessageResponse(BaseModel):
@@ -49,6 +73,7 @@ class ContactMessageResponse(BaseModel):
     company_name: Optional[str] = None
     topic: ContactTopic
     message: str
+    tracking_code: Optional[str] = None
     resolved: bool
     created_at: datetime
 
