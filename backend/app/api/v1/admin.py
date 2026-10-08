@@ -345,6 +345,7 @@ async def verify_company(
         title=notif_title,
         body=notif_body,
         link="/dashboard/company",
+        email_vars={"detalle": payload.notes or ""},
     )
 
     # Audit trail
@@ -484,6 +485,7 @@ async def takedown_job(
             title="Búsqueda dada de baja",
             body=f"La búsqueda '{job.title}' fue dada de baja por incumplimiento de las políticas de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title},
         )
 
     # Audit trail
@@ -908,6 +910,7 @@ async def moderate_job(
             title=notif_title,
             body=notif_body,
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title, "detalle": payload.notes or ""},
         )
 
     audit = AuditLog(
@@ -962,6 +965,7 @@ async def reopen_job(
             title="Tu búsqueda volvió a estar activa",
             body=f"'{job.title}' fue reactivada por el equipo de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title},
         )
 
     audit = AuditLog(
@@ -1059,6 +1063,7 @@ async def delete_job_admin(
             title="Tu búsqueda fue eliminada",
             body=f"'{job.title}' fue eliminada por el equipo de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title},
         )
 
     audit = AuditLog(
@@ -1181,6 +1186,7 @@ class SiteSettingsResponse(BaseModel):
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
+    busqueda_ia_activa: Optional[bool] = None
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -1189,6 +1195,7 @@ class SiteSettingsUpdate(BaseModel):
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
+    busqueda_ia_activa: Optional[bool] = None
 
 
 async def _visible_settings(db: AsyncSession) -> SiteSettingsResponse:
@@ -1298,6 +1305,7 @@ async def set_job_featured_admin(
                 else f"'{job.title}' ya no aparece destacada."
             ),
             link="/dashboard/company/busquedas",
+            email_vars={"puesto": job.title},
         )
 
     await db.commit()

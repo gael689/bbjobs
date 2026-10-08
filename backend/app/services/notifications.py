@@ -18,13 +18,17 @@ async def create_notification(
     body: str,
     link: str | None = None,
     ref_id: uuid.UUID | None = None,
+    email_vars: dict | None = None,
 ) -> Notification:
     """Adds a Notification to the session without committing — it should
     live in the same transaction as the event that triggers it.
 
     También encola el mail del aviso según `services/email/catalog.py`. `ref_id` es la entidad
     del aviso (p. ej. la postulación) y permite revalidar al enviar. El mail va dentro de un
-    SAVEPOINT: si algo del mail falla, se pierde el mail y nunca la acción que lo originó."""
+    SAVEPOINT: si algo del mail falla, se pierde el mail y nunca la acción que lo originó.
+
+    `email_vars` completa el texto del mail (`services/email/copy.py`): `puesto`, `empresa`,
+    `porcentaje`, `detalle`, `mensaje_empresa`. El nombre de quien recibe lo pone la cola."""
     notification = Notification(
         user_id=user_id,
         type=type,
@@ -45,7 +49,7 @@ async def create_notification(
             async with db.begin_nested():
                 await queue_email_for_notification(
                     db, user_id=user_id, type=type, title=title, body=body, link=link,
-                    ref_id=ref_id,
+                    ref_id=ref_id, email_vars=email_vars,
                 )
         except Exception as exc:  # el mail nunca rompe el evento
             logger.error("email_encolado_fallo", type=type, error=str(exc)[:300])

@@ -93,7 +93,7 @@ async def test_nothing_new_with_the_gate_closed(maker, monkeypatch):
     assert await _types(maker, u.id) == []
 
 
-async def test_application_confirmation_mails_once_per_day(maker):
+async def test_application_confirmation_one_mail_per_application(maker):
     u, _ = await _candidate(maker)
     async with maker() as db:
         for title in ("Cajero", "Repositor"):
@@ -101,8 +101,10 @@ async def test_application_confirmation_mails_once_per_day(maker):
         await db.commit()
         mails = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
             EmailOutbox.template_key == "application_sent"))).scalar_one()
-    assert await _types(maker, u.id) == ["application_sent", "application_sent"]   # las dos en la web
-    assert mails == 1                                                             # un solo mail
+    # Eugenia (08/10/2026): una confirmación por postulación, con el puesto en el asunto. El
+    # tope diario por persona lo aplica el dispatcher al enviar, no el encolado.
+    assert await _types(maker, u.id) == ["application_sent", "application_sent"]
+    assert mails == 2
 
 
 async def test_profile_reminder_stops_after_three_without_changes(maker):
@@ -133,12 +135,16 @@ async def test_unlock_notifies_candidate_and_pack_low_once(maker):
         await db.flush()
         comp = (await db.execute(select(CompanyProfile).where(CompanyProfile.id == company.id))).scalar_one()
         prof = (await db.execute(select(CandidateProfile).where(CandidateProfile.id == p.id))).scalar_one()
-        await lifecycle.on_talent_unlocked(db, prof)
+        await lifecycle.on_talent_unlocked(db, prof, comp)
         await lifecycle.on_pack_consumed(db, comp)
         await lifecycle.on_pack_consumed(db, comp)    # una sola vez por pack
         await db.commit()
     assert await _types(maker, u.id) == ["talent_profile_unlocked"]
     assert await _types(maker, cu.id) == ["talent_pack_low"]
+    async with maker() as db:
+        mail = (await db.execute(select(EmailOutbox).where(
+            EmailOutbox.template_key == "talent_profile_unlocked"))).scalar_one()
+    assert comp.legal_name in mail.html and mail.subject == "Una empresa vio tu perfil en BBJobs"
 
 
 async def test_company_guide_at_day_2_and_7_and_stops_after_publishing(maker):

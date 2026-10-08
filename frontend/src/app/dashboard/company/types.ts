@@ -237,8 +237,8 @@ export const MODALITIES = [
 ];
 
 // Valores reales del enum ApplicationStatus del backend (app/models/job.py).
-// El ORDEN de este objeto es el orden del desplegable que ve la empresa: es el embudo
-// tal cual lo definió Talency (primero se contacta, después la persona entra al proceso).
+// Etiquetas de todos los estados, incluidos los que ya no se eligen (postulaciones viejas). El
+// desplegable usa APP_STATUS_SELECTABLE, más abajo.
 export const APP_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   new: { label: "Nueva", cls: "bg-blue-100 text-blue-700" },
   seen: { label: "Perfil revisado", cls: "bg-amber-100 text-amber-700" },
@@ -246,5 +246,16 @@ export const APP_STATUS_LABEL: Record<string, { label: string; cls: string }> = 
   in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
   finalist: { label: "Finalista", cls: "bg-[#E6F4F7] text-[#187B8E]" },
   selected: { label: "Seleccionado", cls: "bg-[#D4B7A2]/30 text-[#8A6A54]" },
-  discarded: { label: "No avanza", cls: "bg-red-100 text-red-700" },
+  discarded: { label: "No avanza – revisión de perfil", cls: "bg-red-100 text-red-700" },
+  discarded_interview: { label: "No avanza – después de entrevistas", cls: "bg-red-100 text-red-700" },
 };
+
+// Lo que la empresa puede elegir hoy (Eugenia, 08/10/2026: sin "Contactado" ni "Finalista").
+// Una postulación vieja en uno de esos estados lo sigue mostrando como opción actual.
+export const APP_STATUS_SELECTABLE = ["new", "seen", "in_process", "selected", "discarded", "discarded_interview"];
+
+export function opcionesDeEstado(actual: string): string[] {
+  return APP_STATUS_SELECTABLE.includes(actual)
+    ? APP_STATUS_SELECTABLE
+    : [actual, ...APP_STATUS_SELECTABLE];
+}

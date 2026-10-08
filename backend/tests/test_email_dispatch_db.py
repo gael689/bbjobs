@@ -93,12 +93,14 @@ async def test_notification_enqueues_rendered_email_in_same_transaction(maker):
     async with maker() as db:
         await create_notification(db, user_id=uid, type="application_selected",
                                   title="¡Te seleccionaron!", body="Para 'Cajero'.",
-                                  link="/dashboard/candidate/postulaciones")
+                                  link="/dashboard/candidate/postulaciones", email_vars={"puesto": "Cajero"})
         await db.commit()
         row = (await db.execute(select(EmailOutbox))).scalar_one()
     assert row.to_email == "ana@mail.com"
     assert row.category == "postulaciones"
-    assert "¡Te seleccionaron!" in row.html and "/baja?t=" in row.html
+    # El mail lleva el texto de Talency (copy.py), no el de la campanita.
+    assert row.subject == "¡Fuiste seleccionado/a para Cajero!"
+    assert "¡Una nueva etapa comienza!" in row.html and "/baja?t=" in row.html
 
 
 async def test_rollback_of_the_event_drops_the_email_too(maker):

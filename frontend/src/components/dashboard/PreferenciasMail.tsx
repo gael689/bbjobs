@@ -37,6 +37,14 @@ export default function PreferenciasMail() {
       .catch(() => setPrefs(null));
   }, []);
 
+  // "Administrar notificaciones" de cada mail lleva a #mails. La sección aparece recién cuando
+  // llegan las preferencias, así que el salto del navegador no la encuentra: se hace acá.
+  useEffect(() => {
+    if (prefs && window.location.hash === "#mails") {
+      document.getElementById("mails")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [prefs]);
+
   if (!MODULOS_NUEVOS_VISIBLES || !prefs || prefs.length === 0) return null;
 
   async function cambiar(categoria: string, enabled: boolean) {
@@ -53,7 +61,7 @@ export default function PreferenciasMail() {
   }
 
   return (
-    <div className="pb-5 mb-5 border-b border-[#DDE3EC]">
+    <div id="mails" className="pb-5 mb-5 border-b border-[#DDE3EC] scroll-mt-24">
       <p className="text-sm font-bold text-[#1C2230] mb-1">Mails que recibís</p>
       <p className="text-sm text-[#1C2230] mb-3">Elegí qué avisos te llegan por mail. En la plataforma los vas a ver igual.</p>
       {error && <p className="text-sm text-red-600 mb-2">{error}</p>}

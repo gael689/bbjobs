@@ -180,9 +180,78 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
 
 /** Cuadro que se abre al cambiar el estado: confirma el cambio y deja agregar una nota
  *  opcional en el mismo paso (el caso típico: "No avanza" y el motivo). */
+interface VistaPreviaMail {
+  sends_email: boolean;
+  delay_hours: number;
+  subject: string | null;
+  html: string | null;
+}
+
+/** El mail que le llegaría al postulante (pedido de Eugenia, 08/10/2026). Lo arma el backend con
+ *  el mismo texto y el mismo diseño que la cola de mails, con el nombre y el puesto reales. Se
+ *  vuelve a pedir cuando cambia la nota (con una pausa, para no pedir en cada tecla). */
+function useVistaPreviaMail(appId: string, status: string, nota: string, visible: boolean) {
+  const [vista, setVista] = useState<VistaPreviaMail | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let vigente = true;
+    const t = setTimeout(() => {
+      api.post<VistaPreviaMail>(`/me/company/applications/${appId}/status-preview`, {
+        status,
+        ...(nota.trim() ? { note: nota.trim(), note_visible: visible } : {}),
+      })
+        .then(r => { if (vigente) { setVista(r.data); setError(false); } })
+        .catch(() => { if (vigente) setError(true); });
+    }, nota ? 500 : 0);
+    return () => { vigente = false; clearTimeout(t); };
+  }, [appId, status, nota, visible]);
+  return { vista, error };
+}
+
+function VistaPreviaDelMail({ vista, error }: { vista: VistaPreviaMail | null; error: boolean }) {
+  if (error) {
+    return (
+      <p className="mt-4 text-xs text-[#1C2230] bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-3 py-2">
+        Al guardar, el postulante recibe un aviso con el cambio de estado.
+      </p>
+    );
+  }
+  if (!vista) {
+    return <div className="mt-4 h-24 rounded-xl bg-[#FAFBFD] border border-[#DDE3EC] animate-pulse" aria-hidden />;
+  }
+  if (!vista.sends_email || !vista.html) {
+    return (
+      <p className="mt-4 text-xs text-[#1C2230] bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-3 py-2">
+        Este estado no le manda un mail al postulante: lo ve en su panel de postulaciones.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-bold text-[#1C2230] mb-1.5 uppercase tracking-wide">
+        Le va a llegar este mail al postulante
+      </p>
+      <p className="text-xs text-[#1C2230] mb-2">
+        <span className="font-semibold">Asunto:</span> {vista.subject}
+        {vista.delay_hours > 0 && (
+          <> · Sale {vista.delay_hours} h después, y sólo si no cambiás el estado antes.</>
+        )}
+      </p>
+      <iframe
+        title="Vista previa del mail al postulante"
+        sandbox=""
+        srcDoc={vista.html}
+        className="w-full h-72 rounded-xl border border-[#DDE3EC] bg-white"
+      />
+    </div>
+  );
+}
+
 export function CambioEstadoConNota({
-  estadoLabel, onCancelar, onConfirmar,
+  appId, status, estadoLabel, onCancelar, onConfirmar,
 }: {
+  appId: string;
+  status: string;
   estadoLabel: string;
   onCancelar: () => void;
   onConfirmar: (nota: string, visible: boolean) => Promise<void>;
@@ -190,6 +259,7 @@ export function CambioEstadoConNota({
   const [texto, setTexto] = useState("");
   const [visible, setVisible] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const { vista, error } = useVistaPreviaMail(appId, status, texto, visible);
 
   async function confirmar() {
     setGuardando(true);
@@ -202,7 +272,7 @@ export function CambioEstadoConNota({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onCancelar}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-display font-bold text-[#1C2230]">Cambiar estado</h2>
@@ -226,6 +296,8 @@ export function CambioEstadoConNota({
           className="w-full border border-[#DDE3EC] rounded-xl px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] resize-y"
         />
         <CasillaVisibilidad visible={visible} onChange={setVisible} />
+
+        <VistaPreviaDelMail vista={vista} error={error} />
 
         <div className="flex justify-end gap-2 mt-5">
           <button

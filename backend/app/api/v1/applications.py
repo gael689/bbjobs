@@ -170,13 +170,14 @@ async def apply_to_job(
             db,
             user_id=current_user.id,
             type="profile_incomplete",
-            title="Tu perfil está incompleto",
+            title="Tu experiencia merece un perfil completo",
             body=(
                 f"Tu perfil está {completion.percent}% completo. Las empresas ven que te falta "
                 "cargar datos — completalo para destacar frente a otros candidatos."
             ),
             link="/dashboard/candidate/perfil",
             ref_id=candidate.id,   # tope de 3 mails sin cambios en el perfil (catálogo)
+            email_vars={"porcentaje": completion.percent},
         )
         candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
 
@@ -633,6 +634,26 @@ async def update_application_status(
     await db.commit()
     await db.refresh(app)
     return app
+
+
+@router.post(
+    "/me/company/applications/{app_id}/status-preview",
+    dependencies=[Depends(require_new_modules)],
+)
+async def preview_application_status_email(
+    app_id: uuid.UUID,
+    payload: ApplicationStatusUpdate,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """El mail que le llegaría al postulante con este cambio de estado. No cambia nada."""
+    app = await application_events.company_application(db, company, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    return await application_events.status_email_preview(
+        db, company=company, app=app, new_status=payload.status,
+        note=payload.note, note_visible=payload.note_visible,
+    )
 
 
 # ── Notas de la empresa (módulo nuevo, detrás de la compuerta) ────────────────────────

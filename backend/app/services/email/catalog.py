@@ -64,17 +64,23 @@ class Rule:
 
 # ── Revalidaciones ────────────────────────────────────────────────────────────────────
 
-async def _application_still_discarded(db: AsyncSession, application_id: uuid.UUID) -> bool:
-    from sqlalchemy import select
+def _application_still(expected: str) -> Validator:
+    """"No avanza" sale 24 h después: sólo si la postulación sigue en ese mismo estado."""
+    async def check(db: AsyncSession, application_id: uuid.UUID) -> bool:
+        from sqlalchemy import select
 
-    from app.models.job import Application, ApplicationStatus
+        from app.models.job import Application
 
-    status = (await db.execute(
-        select(Application.status).where(
-            Application.id == application_id, Application.deleted_at.is_(None)
-        )
-    )).scalar_one_or_none()
-    return status == ApplicationStatus.discarded
+        status = (await db.execute(
+            select(Application.status).where(
+                Application.id == application_id, Application.deleted_at.is_(None)
+            )
+        )).scalar_one_or_none()
+        return str(getattr(status, "value", status)) == expected
+    return check
+
+
+_application_still_discarded = _application_still("discarded")
 
 
 async def _fewer_than_three_reminders(db: AsyncSession, candidate_id: uuid.UUID) -> bool:
@@ -116,10 +122,15 @@ RULES: dict[str, Rule] = {
     "application_discarded": Rule(
         C.postulaciones, delay=timedelta(hours=24), still_valid=_application_still_discarded,
     ),
+    "application_discarded_interview": Rule(
+        C.postulaciones, delay=timedelta(hours=24), still_valid=_application_still("discarded_interview"),
+    ),
     "profile_incomplete": Rule(C.recordatorios, cta_label="Completar mi perfil",
                                still_valid=_fewer_than_three_reminders),
     "welcome_candidate": Rule(C.cuenta, cta_label="Completar mi perfil"),
-    "application_sent": Rule(C.postulaciones, once_per_day=True),
+    # Una confirmación por postulación (cada una nombra un puesto distinto; Eugenia 08/10). El
+    # tope de 2 por día por persona sigue valiendo: lo que sobra sale a la mañana siguiente.
+    "application_sent": Rule(C.postulaciones, cta_label="Ver mis postulaciones"),
     "talent_profile_unlocked": Rule(C.postulaciones, once_per_day=True),
     "candidate_reactivation": Rule(C.recordatorios, cta_label="Ver búsquedas"),
 

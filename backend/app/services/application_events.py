@@ -29,7 +29,7 @@ from app.core.features import new_modules_enabled
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile
 from app.models.history import ApplicationNote
-from app.models.job import Application, ApplicationStatus, JobPosting
+from app.models.job import SELECTABLE_STATUSES, Application, ApplicationStatus, JobPosting
 from app.services.history import log_application_status_change
 from app.services.notifications import create_notification
 
@@ -97,6 +97,10 @@ async def change_status(
     La nota sólo se guarda con la compuerta de módulos nuevos abierta: con la compuerta
     cerrada el `PATCH` se comporta exactamente como antes. Devuelve la nota creada, si hubo."""
     texto = _clean(note) if new_modules_enabled() else ""
+    # "Contactado" y "Finalista" ya no se eligen (Eugenia, 08/10/2026). Una postulación vieja en
+    # uno de ellos puede quedarse ahí o pasar a otro, pero nadie la puede volver a poner.
+    if ApplicationStatus(new_status) not in SELECTABLE_STATUSES and app.status != ApplicationStatus(new_status).value:
+        raise NoteError("Ese estado ya no se puede elegir.")
     if len(texto) > NOTE_MAX_LENGTH:
         raise NoteError(f"La nota puede tener hasta {NOTE_MAX_LENGTH} caracteres.")
     now = _now()
@@ -133,8 +137,8 @@ async def change_status(
         ),
         ApplicationStatus.seen: (
             "application_seen",
-            "Miraron tu perfil",
-            "La empresa revisó tu perfil para la búsqueda '{job_title}'.",
+            "Tu perfil fue revisado",
+            "El equipo responsable de la búsqueda '{job_title}' revisó tu perfil.",
         ),
         ApplicationStatus.contacted: (
             "application_contacted",
@@ -143,8 +147,8 @@ async def change_status(
         ),
         ApplicationStatus.in_process: (
             "application_in_process",
-            "Avanzaste en una búsqueda",
-            "Entraste en proceso de selección para '{job_title}'.",
+            "¡Tu postulación avanzó!",
+            "Tu postulación a '{job_title}' está en proceso. Prestá atención a tu correo y teléfono.",
         ),
         ApplicationStatus.finalist: (
             "application_finalist",
@@ -153,13 +157,18 @@ async def change_status(
         ),
         ApplicationStatus.selected: (
             "application_selected",
-            "¡Te seleccionaron!",
-            "¡Te seleccionaron para '{job_title}'! La empresa se va a contactar con vos.",
+            "¡Fuiste seleccionado/a!",
+            "Confirmaron tu selección para '{job_title}'. Los detalles de tu incorporación los coordinás con la empresa.",
         ),
         ApplicationStatus.discarded: (
             "application_discarded",
-            "Novedades en tu postulación",
-            "Tu postulación a '{job_title}' no avanzó en esta oportunidad. ¡Seguí participando en otras búsquedas!",
+            "Novedades sobre tu postulación",
+            "Tu postulación a '{job_title}' no continúa en esta oportunidad. ¡Seguí postulándote a otras búsquedas!",
+        ),
+        ApplicationStatus.discarded_interview: (
+            "application_discarded_interview",
+            "Novedades sobre tu postulación",
+            "Gracias por participar del proceso de '{job_title}'. En esta oportunidad, tu candidatura no continúa.",
         ),
     }
     notif = candidate_notif.get(ApplicationStatus(new_status))
@@ -168,10 +177,12 @@ async def change_status(
         if job and candidate:
             notif_type, notif_title, notif_body = notif
             body = notif_body.format(job_title=job.title)
+            email_vars = {"puesto": job.title}
             # Sólo la nota **visible** entra al aviso. La privada no toca la notificación ni el
             # mail: es la garantía que prueba tests/test_application_notes_db.py.
             if nota is not None and nota.visible_to_candidate:
                 body = f"{body}\n\n{COMPANY_MESSAGE_PREFIX}{nota.body}"
+                email_vars["mensaje_empresa"] = nota.body
                 nota.notified_at = now
             await create_notification(
                 db,
@@ -180,6 +191,7 @@ async def change_status(
                 title=notif_title,
                 body=body,
                 link=CANDIDATE_LINK,
+                email_vars=email_vars,
                 # Para revalidar al enviar: "No avanza" sale 24 h después y se cancela si la
                 # empresa cambió el estado en el medio (auditoría R9/M18). La nota visible viaja
                 # en ese mismo mail, así que se cancela con él.
@@ -267,6 +279,7 @@ async def mark_seen(
                 title=SEEN_AUTO_TITLE,
                 body=SEEN_AUTO_BODY.format(company=company.legal_name, job_title=titulos.get(job_id, "")),
                 link=CANDIDATE_LINK,
+                email_vars={"puesto": titulos.get(job_id, "")},
                 ref_id=app_id,
             )
     return [app_id for app_id, _ in avisadas]
@@ -326,6 +339,7 @@ async def add_note(
             title=NOTE_TITLE,
             body=NOTE_BODY.format(company=company.legal_name, job_title=job.title, note=texto),
             link=CANDIDATE_LINK,
+            email_vars={"puesto": job.title, "mensaje_empresa": texto},
             ref_id=app.id,
         )
         nota.notified_at = now
@@ -377,3 +391,60 @@ async def visible_notes(db: AsyncSession, application_id: uuid.UUID) -> list[App
         )
         .order_by(ApplicationNote.created_at, ApplicationNote.id)
     )).scalars().all())
+
+
+# ── Vista previa del aviso al postulante ──────────────────────────────────────────────
+
+# Qué aviso dispara cada estado (el mismo `type` que usa change_status).
+STATUS_EMAIL_TYPE: dict[ApplicationStatus, str] = {
+    ApplicationStatus.new: "application_new_status",
+    ApplicationStatus.seen: "application_seen",
+    ApplicationStatus.contacted: "application_contacted",
+    ApplicationStatus.in_process: "application_in_process",
+    ApplicationStatus.finalist: "application_finalist",
+    ApplicationStatus.selected: "application_selected",
+    ApplicationStatus.discarded: "application_discarded",
+    ApplicationStatus.discarded_interview: "application_discarded_interview",
+}
+
+
+async def status_email_preview(
+    db: AsyncSession,
+    *,
+    company: CompanyProfile,
+    app: Application,
+    new_status: ApplicationStatus,
+    note: str | None = None,
+    note_visible: bool = False,
+) -> dict:
+    """El mail que le llegaría al postulante si la empresa confirma el cambio (pedido de Eugenia:
+    "que le muestre el mensaje que le va a llegar al candidato"). Mismo texto y mismo renderer
+    que la cola (`copy.py` + `build_content`), con el nombre y el puesto reales. No guarda nada.
+
+    La nota sólo aparece si es visible: una privada nunca entra al mail, tampoco a la vista
+    previa."""
+    from app.services.email.catalog import rule_for
+    from app.services.email.copy import first_name
+    from app.services.email.outbox import build_content, template_override
+
+    notif_type = STATUS_EMAIL_TYPE[ApplicationStatus(new_status)]
+    rule = rule_for(notif_type)
+    job, candidate = await _job_and_candidate(db, app)
+    override = await template_override(db, notif_type)
+    if rule.mode != "instant" or job is None or candidate is None or (override is not None and not override.enabled):
+        return {"sends_email": False, "type": notif_type, "delay_hours": 0,
+                "subject": None, "html": None, "text": None}
+    texto = _clean(note)[:NOTE_MAX_LENGTH]
+    variables = {"puesto": job.title, "nombre": first_name(candidate.first_name)}
+    if texto and note_visible:
+        variables["mensaje_empresa"] = texto
+    subject, rendered = build_content(
+        user_id=candidate.user_id, category=rule.category, title="", body="", link=CANDIDATE_LINK,
+        cta_label=rule.cta_label, unsubscribable=rule.unsubscribable, override=override,
+        type=notif_type, variables=variables, role="candidate",
+    )
+    return {
+        "sends_email": True, "type": notif_type,
+        "delay_hours": int(rule.delay.total_seconds() // 3600),
+        "subject": subject, "html": rendered.html, "text": rendered.text,
+    }

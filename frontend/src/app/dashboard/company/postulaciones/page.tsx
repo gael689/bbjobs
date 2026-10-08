@@ -14,7 +14,7 @@ import Paginacion from "@/components/ui/Paginacion";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
-  APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
+  APP_STATUS_LABEL, opcionesDeEstado, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   EMPTY_APPLICANT_FILTERS,
   type Application, type ApplicantFilters, type ApplicantStats, type CandidateFullProfile,
   type CompanyProfile, type JobPosting,
@@ -403,8 +403,8 @@ export default function CompanyPostulacionesPage() {
                         onChange={e => handleAppStatus(app.id, e.target.value)}
                         className="text-xs border border-[#DDE3EC] rounded-lg px-2 py-1 bg-white text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
                       >
-                        {Object.entries(APP_STATUS_LABEL).map(([value, { label }]) => (
-                          <option key={value} value={value}>{label}</option>
+                        {opcionesDeEstado(app.status).map(value => (
+                          <option key={value} value={value}>{APP_STATUS_LABEL[value]?.label ?? value}</option>
                         ))}
                       </select>
                     </div>
@@ -441,6 +441,8 @@ export default function CompanyPostulacionesPage() {
 
       {cambioPendiente && (
         <CambioEstadoConNota
+          appId={cambioPendiente.appId}
+          status={cambioPendiente.status}
           estadoLabel={APP_STATUS_LABEL[cambioPendiente.status]?.label ?? cambioPendiente.status}
           onCancelar={() => setCambioPendiente(null)}
           onConfirmar={async (nota, visible) => {

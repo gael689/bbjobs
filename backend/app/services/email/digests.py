@@ -33,7 +33,8 @@ from app.models.core import User, UserRole
 from app.models.email import EmailDigestState, EmailOutbox, EmailStatus
 from app.models.job import Application, JobModerationStatus, JobPosting, JobPostingSkill, JobPostingStatus
 from app.services.email.catalog import rule_for
-from app.services.email.outbox import emails_enabled
+from app.services.email.copy import DIGESTS, greeting
+from app.services.email.outbox import emails_enabled, manage_url_for, recipient_variables
 from app.services.email.policy import AR_TZ
 from app.services.email.render import EmailItem, render_email
 from app.services.email.tokens import unsubscribe_page_url
@@ -74,8 +75,18 @@ async def enqueue_digest(
     if not items:
         return False   # R7
     rule = rule_for(key)
+    # El texto de los resúmenes de cara a la gente vive en copy.py (el semanal es de Eugenia).
+    copy = DIGESTS.get(key)
+    item_cta = None
+    hello = None
+    if copy is not None:
+        subject, heading, intro, cta_label, item_cta = (
+            copy.subject, copy.heading, copy.intro, copy.cta_label, copy.item_cta)
+        hello = greeting((await recipient_variables(db, user)).get("nombre"))
     rendered = render_email(
         heading=heading, body=intro, items=items[:MAX_ITEMS], cta_label=cta_label, cta_url=cta_url,
+        greeting=hello, item_cta=item_cta,
+        manage_url=manage_url_for(user.role) if rule.unsubscribable else None,
         unsubscribe_url=unsubscribe_page_url(user.id, rule.category) if rule.unsubscribable else None,
     )
     db.add(EmailOutbox(
@@ -238,7 +249,11 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
              for j, z in jobs if j.id not in applied),
             key=lambda x: -x[0],
         )
+        # Primero lo que encaja con su perfil; si no alcanza, el resto de lo publicado en la
+        # semana (el texto de Eugenia es "las búsquedas publicadas esta semana").
         good = [(j, z) for s, j, z in ranked if s >= 3][:PARA_VOS_ITEMS]
+        if len(good) < PARA_VOS_ITEMS:
+            good += [(j, z) for s, j, z in ranked if s < 3][:PARA_VOS_ITEMS - len(good)]
         if await enqueue_digest(
             db, user=user, key="digest_para_vos", subject="Búsquedas de esta semana que te pueden interesar",
             heading="Búsquedas para vos",

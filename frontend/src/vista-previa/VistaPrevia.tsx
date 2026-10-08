@@ -16,6 +16,7 @@ interface Aviso {
   uno_por_dia: boolean;
   con_baja: boolean;
   resumen?: boolean;
+  fuente?: string;   // "eugenia" | "propuesto" | "sistema"
 }
 interface SinMail {
   tipo: string;
@@ -59,6 +60,17 @@ const CATEGORIA: Record<string, string> = {
   alertas: "Alertas", recordatorios: "Recordatorios", novedades: "Novedades",
 };
 const ink = "text-[#1C2230]";
+const FUENTE: Record<string, string> = {
+  eugenia: "Texto de Talency",
+  propuesto: "Propuesto: falta tu visto bueno",
+};
+// Los estados que ya no se eligen van al final de la lista.
+const esViejo = (a: Aviso) => a.cuando.startsWith("Ya no se elige");
+
+function srcDocDe(html: string) {
+  // El logo apunta al dominio del sitio; acá se sirve desde el mismo origen que esta página.
+  return html.replace(/https?:\/\/[^"']+\/logo\.png/g, "/logo.png");
+}
 
 function Chip({ children, tone = "n" }: { children: React.ReactNode; tone?: "n" | "t" | "o" }) {
   const c = tone === "t" ? "bg-[#E6F4F7] text-[#187B8E]" : tone === "o" ? "bg-[#F7EFE9] text-[#1C2230]" : "bg-slate-100 text-[#1C2230]";
@@ -67,12 +79,14 @@ function Chip({ children, tone = "n" }: { children: React.ReactNode; tone?: "n" 
 
 function Mails({ avisos, sinMail }: { avisos: Aviso[]; sinMail: SinMail[] }) {
   const [dest, setDest] = useState("candidato");
-  const lista = useMemo(() => avisos.filter((a) => a.destinatario === dest), [avisos, dest]);
+  const lista = useMemo(
+    () => avisos.filter((a) => a.destinatario === dest).sort((a, b) => Number(esViejo(a)) - Number(esViejo(b))),
+    [avisos, dest],
+  );
   const [tipo, setTipo] = useState<string>(() => avisos.find((a) => a.destinatario === "candidato")!.tipo);
   const actual = avisos.find((a) => a.tipo === tipo && a.destinatario === dest) ?? lista[0];
   const aparte = sinMail.filter((s) => s.destinatario === dest);
-  // El logo apunta al dominio del sitio; acá se sirve desde el mismo origen que esta página.
-  const srcDoc = actual.html.replace(/https?:\/\/[^"']+\/logo\.png/g, "/logo.png");
+  const srcDoc = srcDocDe(actual.html);
 
   return (
     <div>
@@ -97,6 +111,11 @@ function Mails({ avisos, sinMail }: { avisos: Aviso[]; sinMail: SinMail[] }) {
             >
               <span className="font-semibold">{a.resumen ? "Resumen · " : ""}{a.asunto}</span>
               <span className="mt-0.5 block text-xs text-[#475569]">{a.cuando}</span>
+              {a.fuente && FUENTE[a.fuente] && (
+                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${a.fuente === "eugenia" ? "bg-[#E6F4F7] text-[#187B8E]" : "bg-[#F7EFE9] text-[#1C2230]"}`}>
+                  {FUENTE[a.fuente]}
+                </span>
+              )}
             </button>
           ))}
           {aparte.length > 0 && (
@@ -115,6 +134,7 @@ function Mails({ avisos, sinMail }: { avisos: Aviso[]; sinMail: SinMail[] }) {
             <p className={`text-sm ${ink}`}><strong>Asunto:</strong> {actual.asunto}</p>
             <p className={`mt-1 text-sm ${ink}`}><strong>Cuándo sale:</strong> {actual.cuando}</p>
             <div className="mt-3 flex flex-wrap gap-2">
+              {actual.fuente && FUENTE[actual.fuente] && <Chip tone={actual.fuente === "eugenia" ? "t" : "o"}>{FUENTE[actual.fuente]}</Chip>}
               <Chip tone="t">{CATEGORIA[actual.categoria] ?? actual.categoria}</Chip>
               {actual.critico && <Chip tone="o">Crítico: sale a cualquier hora</Chip>}
               {actual.demora_horas > 0 && <Chip>Espera {actual.demora_horas} h y se revalida</Chip>}
@@ -242,12 +262,82 @@ function IA({ ia }: { ia: DatosIA }) {
   );
 }
 
+// El desplegable que ve la empresa (Eugenia, 08/10/2026: sin «Contactado» ni «Finalista») y el
+// aviso que dispara cada opción. Es el mismo que le muestra el cuadro «Cambiar estado».
+const ESTADOS: [string, string, string | null][] = [
+  ["new", "Nueva", null],
+  ["seen", "Perfil revisado", "application_seen"],
+  ["in_process", "En proceso", "application_in_process"],
+  ["selected", "Seleccionado", "application_selected"],
+  ["discarded", "No avanza – revisión de perfil", "application_discarded"],
+  ["discarded_interview", "No avanza – después de entrevistas", "application_discarded_interview"],
+];
+
+function Estados({ avisos }: { avisos: Aviso[] }) {
+  const [estado, setEstado] = useState("in_process");
+  const [, , tipo] = ESTADOS.find(([k]) => k === estado)!;
+  const aviso = tipo ? avisos.find((a) => a.tipo === tipo) : undefined;
+  return (
+    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+      <div className="space-y-3">
+        <div className="rounded-lg border border-[#DDE3EC] bg-white p-4">
+          <label htmlFor="estado-demo" className={`text-sm font-semibold ${ink}`}>Estado de la postulación</label>
+          <select
+            id="estado-demo"
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            className={`mt-2 w-full rounded-lg border border-[#DDE3EC] bg-white px-3 py-2 text-sm ${ink}`}
+          >
+            {ESTADOS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        </div>
+        <div className={`rounded-lg border border-[#DDE3EC] bg-white p-4 text-sm ${ink}`}>
+          <p>
+            Cuando la empresa elige un estado, antes de guardar ve exactamente el mail que le va a llegar al postulante,
+            con su nombre y el puesto. Si escribe un mensaje y lo marca como visible, el mensaje va adentro del mail.
+          </p>
+          <p className="mt-2">
+            «Contactado» y «Finalista» ya no aparecen. Las postulaciones que ya estaban en esos estados los conservan.
+          </p>
+        </div>
+      </div>
+      <div>
+        <div className="mb-3 rounded-lg border border-[#DDE3EC] bg-white p-4">
+          {aviso ? (
+            <>
+              <p className={`text-xs font-bold uppercase tracking-wide ${ink}`}>Le va a llegar este mail al postulante</p>
+              <p className={`mt-1 text-sm ${ink}`}><strong>Asunto:</strong> {aviso.asunto}</p>
+              {aviso.demora_horas > 0 && (
+                <p className={`mt-1 text-sm ${ink}`}>
+                  Sale {aviso.demora_horas} h después, y sólo si la empresa no cambia el estado antes.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className={`text-sm ${ink}`}>Este estado no manda mail: el postulante lo ve en su panel de postulaciones.</p>
+          )}
+        </div>
+        {aviso && (
+          <iframe
+            title={aviso.asunto}
+            sandbox=""
+            srcDoc={srcDocDe(aviso.html)}
+            className="h-[640px] w-full rounded-lg border border-[#DDE3EC] bg-white"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Reglas() {
   const filas: [string, string][] = [
     ["Horario", "Los avisos comunes salen de 8 a 21 h. Fuera de ese horario esperan a la mañana."],
     ["Tope", "Como mucho 2 mails por día por persona. Los resúmenes ya agrupan varios avisos y no cuentan."],
     ["Críticos", "Pagos y estado de la cuenta salen a cualquier hora y no cuentan para el tope."],
-    ["«No avanzó»", "Se demora 24 h y se vuelve a chequear: si la empresa cambió de idea, no sale."],
+    ["«No avanza»", "Los dos (revisión de perfil y después de entrevistas) se demoran 24 h y se vuelven a chequear: si la empresa cambió de idea, no salen."],
+    ["Confirmación", "Cada postulación tiene su mail de confirmación, con el puesto en el asunto."],
+    ["Una semana sin entrar", "«¿Seguís buscando trabajo?» sale como mucho una vez cada 30 días. Si no vuelve después de 3, no se le escribe más."],
     ["Baja", "Todos los mails opcionales traen un link para dejar de recibirlos, por categoría. Los de cuenta y pagos no."],
     ["Resúmenes", "Si no hay nada que contar, no se manda nada."],
     ["La IA", "Nunca manda mails ni cambia el estado de una postulación. La decisión es siempre de una persona."],
@@ -265,8 +355,10 @@ function Reglas() {
 }
 
 export default function VistaPrevia({ avisos, sinMail, ia }: { avisos: Aviso[]; sinMail: SinMail[]; ia: DatosIA }) {
-  const [tab, setTab] = useState<"mails" | "ia" | "reglas">("mails");
-  const tabs = [["mails", "Los mails"], ["ia", "Cómo trabaja la IA"], ["reglas", "Reglas de envío"]] as const;
+  const [tab, setTab] = useState<"mails" | "estados" | "ia" | "reglas">("mails");
+  const tabs = [
+    ["mails", "Los mails"], ["estados", "Estados de la postulación"], ["ia", "Cómo trabaja la IA"], ["reglas", "Reglas de envío"],
+  ] as const;
   return (
     <main className="min-h-screen bg-[#FAFBFD] px-4 pb-12 pt-32">
       <div className="mx-auto max-w-6xl">
@@ -276,7 +368,7 @@ export default function VistaPrevia({ avisos, sinMail, ia }: { avisos: Aviso[]; 
           Esto todavía no está activo en el sitio. Acá ves los mails tal como los recibiría cada persona y cómo trabaja la
           IA con una búsqueda de ejemplo. Los nombres y los datos son inventados.
         </p>
-        <div className="mt-6 flex gap-2 border-b border-[#DDE3EC]" role="tablist">
+        <div className="mt-6 flex gap-2 overflow-x-auto border-b border-[#DDE3EC]" role="tablist">
           {tabs.map(([k, v]) => (
             <button
               key={k}
@@ -291,6 +383,7 @@ export default function VistaPrevia({ avisos, sinMail, ia }: { avisos: Aviso[]; 
         </div>
         <div className="mt-6">
           {tab === "mails" && <Mails avisos={avisos} sinMail={sinMail} />}
+          {tab === "estados" && <Estados avisos={avisos} />}
           {tab === "ia" && <IA ia={ia} />}
           {tab === "reglas" && <Reglas />}
         </div>

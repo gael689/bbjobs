@@ -54,6 +54,7 @@ async def expire_jobs():
                         title="Tu búsqueda venció",
                         body=f"La búsqueda '{job.title}' llegó a su plazo máximo de {job.duration_days} días y dejó de estar visible en el portal.",
                         link="/dashboard/company/estadisticas",
+                        email_vars={"puesto": job.title},
                     )
 
         if expired_jobs:
@@ -94,6 +95,7 @@ async def notify_expiring_soon():
                         title="Tu búsqueda está por vencer",
                         body=f"'{job.title}' se va a dar de baja en {days_left} día{'s' if days_left != 1 else ''} por llegar a su plazo máximo. Revisá el estado de tus búsquedas desde tu panel.",
                         link="/dashboard/company/estadisticas",
+                        email_vars={"puesto": job.title},
                     )
 
         if jobs_expiring_soon:
@@ -126,13 +128,14 @@ async def send_profile_reminders():
                     db,
                     user_id=candidate.user_id,
                     type="profile_incomplete",
-                    title="Tu perfil está incompleto",
+                    title="Tu experiencia merece un perfil completo",
                     body=(
                         f"Tu perfil está {completion.percent}% completo. Las empresas ven que te falta "
                         "cargar datos — completalo para destacar frente a otros candidatos."
                     ),
                     link="/dashboard/candidate/perfil",
                     ref_id=candidate.id,   # tope de 3 mails sin cambios en el perfil (catálogo)
+                    email_vars={"porcentaje": completion.percent},
                 )
                 candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
                 sent += 1

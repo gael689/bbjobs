@@ -635,7 +635,7 @@ async def unlock_talent_profile(
     # perfil; a la empresa, si le quedan pocos contactos.
     from app.services.lifecycle import on_pack_consumed, on_talent_unlocked
     await db.flush()
-    await on_talent_unlocked(db, profile)
+    await on_talent_unlocked(db, profile, company)
     await on_pack_consumed(db, company)
 
     await db.commit()

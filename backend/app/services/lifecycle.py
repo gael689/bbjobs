@@ -30,8 +30,12 @@ logger = structlog.get_logger("app.services.lifecycle")
 
 GUIDE_DAYS = (2, 7)
 NO_APPLICATIONS_AFTER = timedelta(days=7)
-REACTIVATION_INACTIVE = timedelta(days=60)
-REACTIVATION_EVERY = timedelta(days=90)
+# "¿Seguís buscando trabajo?" (Eugenia, 08/10/2026): a la semana sin entrar. Como mucho uno cada
+# 30 días y nunca más de 3 seguidos sin que vuelva a entrar: a quien no vuelve, se lo deja de
+# molestar (R8).
+REACTIVATION_INACTIVE = timedelta(days=7)
+REACTIVATION_EVERY = timedelta(days=30)
+REACTIVATION_MAX_UNANSWERED = 3
 PACK_LOW_AT = 2
 
 
@@ -58,27 +62,28 @@ async def on_company_onboarded(db: AsyncSession, user: User) -> None:
 
 
 async def on_application_sent(db: AsyncSession, user_id, job: JobPosting) -> None:
-    """Confirmación al postulante. El mail sale sólo para la primera postulación del día
-    (regla `once_per_day` del catálogo); las demás quedan en la web."""
+    """Confirmación al postulante: un mail por postulación, con el puesto en el asunto."""
     if not new_modules_enabled():
         return
     await create_notification(
-        db, user_id=user_id, type="application_sent", title="Te postulaste",
-        body=f"Tu postulación a '{job.title}' llegó a la empresa.",
+        db, user_id=user_id, type="application_sent", title="Postulación confirmada",
+        body=f"Tu postulación a '{job.title}' quedó registrada.",
         link="/dashboard/candidate/postulaciones",
+        email_vars={"puesto": job.title},
     )
 
 
-async def on_talent_unlocked(db: AsyncSession, profile: CandidateProfile) -> None:
-    """Transparencia de la Base de Talento: el postulante se entera de que una empresa vio sus
-    datos. Sin decir cuál (la empresa no lo autorizó)."""
+async def on_talent_unlocked(db: AsyncSession, profile: CandidateProfile, company: CompanyProfile) -> None:
+    """Transparencia de la Base de Talento: el postulante se entera de qué empresa vio sus
+    datos (pedido de Talency, 08/10/2026: el mail nombra a la empresa)."""
     if not new_modules_enabled():
         return
     await create_notification(
         db, user_id=profile.user_id, type="talent_profile_unlocked",
-        title="Una empresa vio tu perfil completo",
-        body="Una empresa de la Base de Talento desbloqueó tu perfil. Puede que te contacte.",
+        title="Una empresa vio tu perfil",
+        body=f"{company.legal_name} consultó tu perfil en la base de candidatos de BBJobs.",
         link="/dashboard/candidate/perfil",
+        email_vars={"empresa": company.legal_name},
     )
 
 
@@ -174,28 +179,40 @@ async def jobs_without_applications(db: AsyncSession, now: datetime) -> int:
             body=(f"'{job.title}' lleva una semana publicada sin postulaciones. Revisá que el título sea "
                   "claro y que los requisitos excluyentes sean los indispensables."),
             link=link,
+            email_vars={"puesto": job.title},
         )
         sent += 1
     return sent
 
 
 async def reactivations(db: AsyncSession, now: datetime) -> int:
-    """Postulantes con CV y sin actividad hace 60 días: un "¿seguís buscando?" cada 90 días."""
+    """Postulantes que hace una semana no entran: "¿Seguís buscando trabajo?".
+
+    "Entrar" = la última vez que usó su cuenta (`users.last_seen_at`); para las cuentas de antes
+    de esa columna, la fecha de alta. Sin postulaciones en esa semana. Como mucho uno cada 30
+    días, y se corta después de 3 sin que vuelva a entrar."""
+    last_seen = func.coalesce(User.last_seen_at, User.created_at)
     recent_app = exists().where(Application.candidate_id == CandidateProfile.id,
                                 Application.created_at >= now - REACTIVATION_INACTIVE)
     rows = (await db.execute(select(CandidateProfile, User).join(User, User.id == CandidateProfile.user_id).where(
         CandidateProfile.deleted_at.is_(None), User.deleted_at.is_(None), User.is_active.is_(True),
-        CandidateProfile.cv_file_url.is_not(None), CandidateProfile.updated_at < now - REACTIVATION_INACTIVE,
-        ~recent_app,
+        last_seen < now - REACTIVATION_INACTIVE, ~recent_app,
     ).limit(500))).all()
     sent = 0
     for profile, user in rows:
         last = await _state(db, user.id, "reactivacion")
         if last and last >= now - REACTIVATION_EVERY:
             continue
+        seen = user.last_seen_at or user.created_at
+        unanswered = (await db.execute(select(func.count()).select_from(Notification).where(
+            Notification.user_id == user.id, Notification.type == "candidate_reactivation",
+            Notification.created_at > seen,
+        ))).scalar_one()
+        if unanswered >= REACTIVATION_MAX_UNANSWERED:
+            continue
         await create_notification(
             db, user_id=user.id, type="candidate_reactivation", title="¿Seguís buscando trabajo?",
-            body="Hay búsquedas nuevas en BBJobs. Si tu CV cambió, actualizalo para que las empresas vean lo último.",
+            body="Hay búsquedas nuevas en Bahía Blanca y la zona. Revisá las disponibles y postulate a las que te interesen.",
             link="/empleos",
         )
         await _mark(db, user.id, "reactivacion", now)

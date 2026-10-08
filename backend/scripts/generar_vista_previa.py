@@ -22,7 +22,8 @@ from app.core.config import settings  # noqa: E402
 settings.FRONTEND_URL = "https://www.bbjobs.com.ar"
 
 from app.services.email.catalog import RULES  # noqa: E402
-from app.services.email.outbox import build_content  # noqa: E402
+from app.services.email.copy import COPY, DIGESTS, greeting  # noqa: E402
+from app.services.email.outbox import build_content, manage_url_for  # noqa: E402
 from app.services.email.render import EmailItem, render_email  # noqa: E402
 from app.services.email.tokens import unsubscribe_page_url  # noqa: E402
 
@@ -36,22 +37,24 @@ INSTANT: dict[str, tuple[str, str, str, str, str | None]] = {
     "welcome_candidate": ("candidato", "Apenas se registra", "Bienvenido/a a BBJobs",
         "Completá tu perfil y cargá tu CV: es lo primero que miran las empresas. Después podés postularte con un clic y armar alertas para enterarte de las búsquedas nuevas.",
         "/dashboard/candidate/perfil"),
-    "application_sent": ("candidato", "Cuando se postula", "Te postulaste",
+    "application_sent": ("candidato", "Cada vez que se postula", "Te postulaste",
         f"Tu postulación a '{JOB}' llegó a la empresa.", "/dashboard/candidate/postulaciones"),
-    "application_contacted": ("candidato", "La empresa lo marca como contactado", "Una empresa te contactó",
+    "application_contacted": ("candidato", "Ya no se elige: sólo postulaciones viejas en «Contactado»", "Una empresa te contactó",
         f"La empresa de '{JOB}' se va a comunicar con vos.", "/dashboard/candidate/postulaciones"),
-    "application_in_process": ("candidato", "La empresa lo pasa a entrevistas", "Tu postulación avanzó",
+    "application_in_process": ("candidato", "La empresa lo pasa a «En proceso»", "Tu postulación avanzó",
         f"Sobre '{JOB}': estás en proceso de selección.", "/dashboard/candidate/postulaciones"),
-    "application_finalist": ("candidato", "La empresa lo marca finalista", "¡Llegaste a la final!",
+    "application_finalist": ("candidato", "Ya no se elige: sólo postulaciones viejas en «Finalista»", "¡Llegaste a la final!",
         f"Sobre '{JOB}': sos uno de los finalistas.", "/dashboard/candidate/postulaciones"),
-    "application_selected": ("candidato", "La empresa lo selecciona", "¡Te seleccionaron!",
+    "application_selected": ("candidato", "La empresa lo pasa a «Seleccionado»", "¡Te seleccionaron!",
         f"Sobre '{JOB}'.", "/dashboard/candidate/postulaciones"),
-    "application_discarded": ("candidato", "La empresa descarta la postulación (sale 24 h después, si sigue descartada). Si la empresa dejó una nota visible, va adentro",
+    "application_discarded_interview": ("candidato", "La empresa elige «No avanza – después de entrevistas» (sale 24 h después, si sigue en ese estado)",
+        "Novedades sobre tu postulación", "", "/empleos"),
+    "application_discarded": ("candidato", "La empresa elige «No avanza – revisión de perfil» (sale 24 h después, si sigue en ese estado). Si la empresa dejó un mensaje visible, va adentro (en este ejemplo, sí)",
         "Novedades en tu postulación",
         f"Tu postulación a '{JOB}' no avanzó en esta oportunidad. ¡Seguí participando en otras búsquedas!\n\n"
         "Mensaje de la empresa: buscamos a alguien con carnet de autoelevador vigente. ¡Gracias por postularte!",
         "/dashboard/candidate/postulaciones"),
-    "application_seen": ("candidato", "La empresa abre por primera vez su perfil o su CV desde la postulación (uno por día como máximo)",
+    "application_seen": ("candidato", "La empresa lo pasa a «Perfil revisado», o abre por primera vez su perfil o su CV desde la postulación (uno por día como máximo)",
         "Una empresa vio tu CV", f"Logística Sur revisó tu perfil para la búsqueda '{JOB}'.",
         "/dashboard/candidate/postulaciones"),
     "application_note": ("candidato", "La empresa le deja un mensaje visible sin cambiar el estado (las notas privadas no avisan nada; uno por día como máximo)",
@@ -59,12 +62,12 @@ INSTANT: dict[str, tuple[str, str, str, str, str | None]] = {
         f"Logística Sur te dejó un mensaje sobre tu postulación a '{JOB}':\n\n"
         "Gracias por postularte. La semana que viene llamamos a entrevistas.",
         "/dashboard/candidate/postulaciones"),
-    "profile_incomplete": ("candidato", "Perfil incompleto (se corta tras 3 mails sin cambios)", "Tu perfil está incompleto",
+    "profile_incomplete": ("candidato", "Perfil incompleto: como mucho uno por semana, y se corta tras 3 mails sin cambios", "Tu perfil está incompleto",
         "Tu perfil está 60% completo. Las empresas ven que te falta cargar datos — completalo para destacar frente a otros candidatos.",
         "/dashboard/candidate/perfil"),
-    "talent_profile_unlocked": ("candidato", "Una empresa abre su perfil en la Base de Talento", "Una empresa vio tu perfil completo",
+    "talent_profile_unlocked": ("candidato", "Una empresa abre su perfil en la Base de Talento (el mail nombra a la empresa)", "Una empresa vio tu perfil completo",
         "Una empresa de la Base de Talento desbloqueó tu perfil. Puede que te contacte.", "/dashboard/candidate/perfil"),
-    "candidate_reactivation": ("candidato", "Hace semanas que no entra", "¿Seguís buscando trabajo?",
+    "candidate_reactivation": ("candidato", "Hace una semana que no entra (como mucho uno cada 30 días; después de 3 sin respuesta, no se le escribe más)", "¿Seguís buscando trabajo?",
         "Hay búsquedas nuevas en BBJobs. Si tu CV cambió, actualizalo para que las empresas vean lo último.", "/empleos"),
     "cv_review_paid": ("candidato", "Paga la Revisión de CV", "Recibimos tu pago de la revisión de CV",
         "Talency te va a contactar en las próximas 48 horas hábiles para revisar tu CV. La devolución es por WhatsApp o mail, fuera de la plataforma.",
@@ -161,7 +164,7 @@ RESUMENES = [
       EmailItem("Repositor/a turno mañana", "Norte · presencial · Supermercado Del Puerto", "/empleos/x"),
       EmailItem("Auxiliar administrativo/a", "Centro · híbrido · Estudio Contable Paz", "/empleos/x")],
      "Ver todas las búsquedas", "/empleos"),
-    ("digest_para_vos", "candidato", "Lunes por la mañana: búsquedas de la semana que encajan con su perfil",
+    ("digest_para_vos", "candidato", "Lunes por la mañana: las búsquedas de la semana, primero las que encajan con su perfil",
      "Búsquedas de esta semana que te pueden interesar", "Búsquedas para vos",
      "Se publicaron esta semana y encajan con tu perfil. Postularte lleva un clic.",
      [EmailItem("Chofer de reparto", "Bahía Blanca · presencial · Distribuidora Sur", "/empleos/x"),
@@ -181,6 +184,31 @@ RESUMENES = [
 ]
 
 
+# Datos inventados para las variables de cada mail.
+VARS: dict[str, dict] = {
+    "application_discarded": {"mensaje_empresa": "Buscamos a alguien con carnet de autoelevador vigente. ¡Gracias por postularte!"},
+    "application_note": {"mensaje_empresa": "Gracias por postularte. La semana que viene llamamos a entrevistas."},
+    "profile_incomplete": {"porcentaje": 60},
+    "company_rejected": {"detalle": "No pudimos validar el CUIT con el nombre de la empresa."},
+    "job_rejected": {"detalle": "El aviso pide una edad determinada: no se puede publicar así."},
+}
+NOMBRE = {"candidato": "Lucía", "empresa": "Rocío", "admin": "Eugenia"}
+ROL = {"candidato": "candidate", "empresa": "company", "admin": "admin"}
+
+
+def variables_para(tipo: str, dest: str) -> dict:
+    return {"puesto": JOB, "empresa": "Logística Sur", "nombre": NOMBRE[dest]} | VARS.get(tipo, {})
+
+
+def fuente(tipo: str) -> str:
+    """Quién escribió el texto: Talency (PDF de Eugenia), propuesto, o el texto del sistema."""
+    if tipo in COPY:
+        return COPY[tipo].source
+    if tipo in DIGESTS:
+        return DIGESTS[tipo].source
+    return "sistema"
+
+
 def regla(rule) -> dict:
     return {
         "categoria": rule.category.value, "modo": rule.mode, "demora_horas": int(rule.delay.total_seconds() // 3600),
@@ -193,15 +221,23 @@ def main() -> None:
     for tipo, (dest, cuando, titulo, cuerpo, link) in INSTANT.items():
         rule = RULES[tipo]
         asunto, r = build_content(user_id=UID, category=rule.category, title=titulo, body=cuerpo, link=link,
-                                  cta_label=rule.cta_label, unsubscribable=rule.unsubscribable, override=None)
+                                  cta_label=rule.cta_label, unsubscribable=rule.unsubscribable, override=None,
+                                  type=tipo, variables=variables_para(tipo, dest), role=ROL[dest])
         avisos.append({"tipo": tipo, "destinatario": dest, "cuando": cuando, "asunto": asunto,
-                       "html": r.html, "texto": r.text, **regla(rule)})
+                       "html": r.html, "texto": r.text, "fuente": fuente(tipo), **regla(rule)})
     for clave, dest, cuando, asunto, titulo, intro, items, cta, url in RESUMENES:
         rule = RULES[clave]
+        copia = DIGESTS.get(clave)
+        item_cta = hola = None
+        if copia is not None:
+            asunto, titulo, intro, cta, item_cta = copia.subject, copia.heading, copia.intro, copia.cta_label, copia.item_cta
+            hola = greeting(NOMBRE[dest])
         r = render_email(heading=titulo, body=intro, items=items, cta_label=cta, cta_url=url,
+                         greeting=hola, item_cta=item_cta,
+                         manage_url=manage_url_for(ROL[dest]) if rule.unsubscribable else None,
                          unsubscribe_url=unsubscribe_page_url(UID, rule.category) if rule.unsubscribable else None)
         avisos.append({"tipo": clave, "destinatario": dest, "cuando": cuando, "asunto": asunto,
-                       "html": r.html, "texto": r.text, "resumen": True, **regla(rule)})
+                       "html": r.html, "texto": r.text, "resumen": True, "fuente": fuente(clave), **regla(rule)})
     sin_mail = [{"tipo": t, "destinatario": d, "cuando": c, "nota": n, **regla(RULES[t])}
                 for t, (d, c, n) in {**EN_RESUMEN, **SOLO_WEB}.items()]
 

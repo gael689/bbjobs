@@ -131,6 +131,7 @@ async def process_mp_payment(event_id: str):
                                     db, user_id=company.user_id, type="job_feature_active",
                                     title="Destacado activado", body=body,
                                     link="/dashboard/company/pagos",
+                                    email_vars={"puesto": res_job.title},
                                 )
 
                             await notify_all_admins(
@@ -153,6 +154,7 @@ async def process_mp_payment(event_id: str):
                                     title="El pago no se acreditó",
                                     body=f"Tu pago para destacar '{res_job.title}' fue rechazado o cancelado. Podés volver a intentarlo desde tu panel.",
                                     link="/dashboard/company/estadisticas",
+                                    email_vars={"puesto": res_job.title},
                                 )
                     # pending/in_process: sólo se guardó mp_status más arriba, sin notificar — MP
                     # suele reintentar la notificación varias veces mientras procesa.

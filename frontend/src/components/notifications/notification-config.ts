@@ -61,6 +61,7 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   application_finalist: { ...TEAL, icon: CheckBadgeIcon },
   application_selected: { ...SECONDARY, icon: CheckBadgeIcon },
   application_discarded: MUTED,
+  application_discarded_interview: MUTED,
   job_closed_applied: MUTED,
   // Verificación (positivo)
   company_verified: { ...TEAL, icon: CheckBadgeIcon },

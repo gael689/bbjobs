@@ -31,6 +31,9 @@ SECONDARY_LIGHT = "#F7EFE9"
 LOGO_PATH = "/logo.png"
 
 _VAR_RE = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+TAGLINE = "BBJobs. El talento de Bahía, más cerca."
+INITIATIVE = "Una iniciativa de Talency."
 _FONT = "'DM Sans', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 
@@ -68,6 +71,18 @@ def absolute_url(link: str | None) -> str | None:
     return None
 
 
+def _inline(text: str) -> str:
+    """Escapa y después convierte `**texto**` en negrita. El orden importa: primero se escapa,
+    así el marcado nunca puede abrir una etiqueta propia. Las variables de usuario llegan sin
+    asteriscos (`copy.clean_value`), así que la negrita sólo sale del texto fijo."""
+    escaped = html.escape(text).replace(chr(10), "<br>")
+    return _BOLD_RE.sub(r"<strong>\1</strong>", escaped)
+
+
+def strip_bold(text: str) -> str:
+    return _BOLD_RE.sub(r"\1", text)
+
+
 def _paragraphs(body: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", body.strip()) if p.strip()]
 
@@ -83,16 +98,23 @@ def render_email(
     unsubscribe_url: str | None = None,
     footer_note: str | None = None,
     items: list[EmailItem] | None = None,
+    greeting: str | None = None,
+    manage_url: str | None = None,
+    item_cta: str | None = None,
 ) -> RenderedEmail:
     """`body` es texto plano: párrafos separados por línea en blanco, saltos simples = <br>."""
     cta_url = absolute_url(cta_url)
     image_url = absolute_url(image_url)
+    manage_url = absolute_url(manage_url)
     e = html.escape
 
     paragraphs_html = "".join(
-        f'<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{TEXT};">'
-        f'{e(p).replace(chr(10), "<br>")}</p>'
+        f'<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{TEXT};">{_inline(p)}</p>'
         for p in _paragraphs(body)
+    )
+    greeting_html = (
+        f'<p style="margin:0 0 8px;font-size:16px;line-height:1.5;color:{TEXT};">{e(greeting)}</p>'
+        if greeting else ""
     )
     image_html = (
         f'<img src="{e(image_url, quote=True)}" alt="" width="520" '
@@ -116,6 +138,9 @@ def render_email(
                      f'{e(it.title)}</a>') if link else f'<strong style="color:{TEXT};">{e(it.title)}</strong>'
             detail = (f'<div style="font-size:14px;color:{MUTED};margin-top:2px;">{e(it.detail)}</div>'
                       if it.detail else "")
+            if link and item_cta:
+                detail += (f'<div style="margin-top:4px;"><a href="{e(link, quote=True)}" '
+                           f'style="font-size:14px;color:{BUTTON};text-decoration:underline;">{e(item_cta)}</a></div>')
             rows.append(f'<tr><td style="padding:10px 0;border-top:1px solid {BORDER};font-size:15px;'
                         f'line-height:1.4;">{title}{detail}</td></tr>')
         items_html = ('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
@@ -124,15 +149,18 @@ def render_email(
         f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{e(preheader)}</div>'
         if preheader else ""
     )
-    footer_lines = []
+    # Firma de Talency (PDF de Eugenia, 08/10/2026) y, abajo, los links de preferencias.
+    footer_lines = [f'<strong style="font-size:14px;">{e(TAGLINE)}</strong>', e(INITIATIVE)]
     if footer_note:
         footer_lines.append(e(footer_note))
+    links = []
+    if manage_url:
+        links.append(f'<a href="{e(manage_url, quote=True)}" style="color:{TEXT};">Administrar notificaciones</a>')
     if unsubscribe_url:
-        footer_lines.append(
-            f'<a href="{e(unsubscribe_url, quote=True)}" style="color:{TEXT};">'
-            f'Dejar de recibir estos mails</a>'
-        )
-    footer_lines.append("BBJobs · Bahía Blanca · una iniciativa de Talency")
+        links.append(f'<a href="{e(unsubscribe_url, quote=True)}" style="color:{TEXT};">'
+                     f'Dejar de recibir estos mails</a>')
+    if links:
+        footer_lines.append(" · ".join(links))
     footer_html = "<br>".join(footer_lines)
     logo_url = absolute_url(LOGO_PATH)
     logo_html = (
@@ -160,6 +188,7 @@ def render_email(
         f'<td style="font-size:24px;font-weight:800;font-style:italic;letter-spacing:-0.5px;color:{TEXT};">'
         f'<span style="color:{TEAL};">BB</span>JOBS</td></tr></table></td></tr>'
         f'<tr><td style="padding:24px 32px 8px;">'
+        f'{greeting_html}'
         f'<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{TEXT};">{e(heading)}</h1>'
         f'{image_html}{paragraphs_html}{items_html}{cta_html}</td></tr>'
         f'<tr><td style="padding:16px 32px 24px;background:{SECONDARY_LIGHT};'
@@ -167,19 +196,20 @@ def render_email(
         f'</table></td></tr></table></body></html>'
     )
 
-    text_parts = [heading, "", body.strip()]
+    text_parts = ([greeting, ""] if greeting else []) + [heading, "", strip_bold(body.strip())]
     for it in items or []:
         link = absolute_url(it.url)
         text_parts.append("")
         text_parts.append(f"- {it.title}" + (f" ({it.detail})" if it.detail else ""))
         if link:
-            text_parts.append(f"  {link}")
+            text_parts.append(f"  {(item_cta + ': ') if item_cta else ''}{link}")
     if cta_url:
         text_parts += ["", f"{cta_label or 'Ver más'}: {cta_url}"]
-    text_parts += [""]
+    text_parts += ["", TAGLINE, INITIATIVE]
     if footer_note:
         text_parts.append(footer_note)
+    if manage_url:
+        text_parts.append(f"Administrar notificaciones: {manage_url}")
     if unsubscribe_url:
         text_parts.append(f"Dejar de recibir estos mails: {unsubscribe_url}")
-    text_parts.append("BBJobs · Bahía Blanca · una iniciativa de Talency")
     return RenderedEmail(html=document, text="\n".join(text_parts))
