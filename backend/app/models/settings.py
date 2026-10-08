@@ -26,6 +26,9 @@ class SettingKey(str, enum.Enum):
     # Venta de la Revisión de CV (v4 §6, riesgo "cobrar sin poder atender"): se apaga si
     # Talency no da abasto.
     revision_cv_activa = "revision_cv_activa"
+    # Buscador inteligente de /empleos (Frente 5.2): Gemini traduce la frase a filtros del
+    # catálogo. Apagado, el buscador sigue funcionando sin IA.
+    busqueda_ia_activa = "busqueda_ia_activa"
 
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
@@ -35,6 +38,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.emails_automaticos_activos: False,
     SettingKey.ia_recomendaciones_activas: False,
     SettingKey.revision_cv_activa: False,
+    SettingKey.busqueda_ia_activa: False,
 }
 
 # Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no
@@ -43,6 +47,7 @@ NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
     SettingKey.emails_automaticos_activos,
     SettingKey.ia_recomendaciones_activas,
     SettingKey.revision_cv_activa,
+    SettingKey.busqueda_ia_activa,
 })
 
 

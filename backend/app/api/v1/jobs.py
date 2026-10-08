@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, func
@@ -18,6 +18,11 @@ from app.schemas.job import (
 from app.services.notifications import notify_all_admins
 from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
+from app.services import job_search
+from app.services.ai import search_interpret
+from app.services.ai.search_interpret import InterpretResponse
+from app.core.features import require_new_modules
+from app.core.limiter import limiter
 
 router = APIRouter()
 
@@ -192,7 +197,7 @@ async def list_public_jobs(
     min_education_level: Optional[EducationLevel] = Query(None),
     salary_min: Optional[float] = Query(None),
     salary_max: Optional[float] = Query(None),
-    q: Optional[str] = Query(None, description="Buscar en título y descripción"),
+    q: Optional[str] = Query(None, description="Palabras a buscar: puesto, empresa, sector, zona, habilidades (ver services/job_search.py)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
@@ -213,14 +218,9 @@ async def list_public_jobs(
         query = query.where(JobPosting.contract_type_id == contract_type_id)
     if company_id:
         query = query.where(JobPosting.company_id == company_id)
-    if q:
-        search_term = f"%{q}%"
-        query = query.where(
-            or_(
-                JobPosting.title.ilike(search_term),
-                JobPosting.description.ilike(search_term)
-            )
-        )
+    search = await job_search.apply_search(db, query, q) if q else None
+    if search is not None:
+        query, search_order = search
     # Solapamiento de rango: el job matchea si su rango de salario cruza el pedido.
     # Se filtra sobre el valor real aunque salary_visible sea False — buscar por rango
     # no es lo mismo que mostrar el número (ver JobPostingPublicResponse).
@@ -245,7 +245,10 @@ async def list_public_jobs(
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
 
-    query = query.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.desc())
+    if search is not None:
+        query = query.order_by(*search_order)
+    else:
+        query = query.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(query)
@@ -267,37 +270,26 @@ async def list_public_jobs(
 @router.get("/jobs/suggest", response_model=List[JobSuggestion])
 async def suggest_jobs(
     q: str = Query(..., min_length=1),
-    limit: int = Query(8, le=20),
+    limit: int = Query(8, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
 ):
-    search_term = f"%{q}%"
+    # Sin tildes y por palabras (job_search.suggest): "tecnico" sugiere "Técnico electricista".
+    return [JobSuggestion(label=label, type=kind) for label, kind in await job_search.suggest(db, q, limit)]
 
-    title_result = await db.execute(
-        select(JobPosting.title)
-        .where(
-            JobPosting.status == JobPostingStatus.active,
-            JobPosting.moderation_status == JobModerationStatus.approved,
-            JobPosting.deleted_at.is_(None),
-            JobPosting.title.ilike(search_term),
-        )
-        .distinct()
-        .limit(limit)
-    )
-    company_result = await db.execute(
-        select(JobPosting.company_legal_name_snapshot)
-        .where(
-            JobPosting.status == JobPostingStatus.active,
-            JobPosting.moderation_status == JobModerationStatus.approved,
-            JobPosting.deleted_at.is_(None),
-            JobPosting.company_legal_name_snapshot.ilike(search_term),
-        )
-        .distinct()
-        .limit(limit)
-    )
 
-    suggestions = [JobSuggestion(label=t, type="title") for t in title_result.scalars().all()]
-    suggestions += [JobSuggestion(label=c, type="company") for c in company_result.scalars().all()]
-    return suggestions[:limit]
+@router.get("/jobs/interpret", response_model=InterpretResponse, response_model_exclude_none=True,
+            dependencies=[Depends(require_new_modules)])
+@limiter.limit("20/minute")
+async def interpret_job_search(
+    request: Request,
+    q: str = Query(..., min_length=1),
+    db: AsyncSession = Depends(get_db),
+):
+    """Búsqueda inteligente (Frente 5.2): traduce una frase en lenguaje natural a filtros del
+    catálogo con Gemini. Detrás de la compuerta (404 cerrada) y del interruptor
+    `busqueda_ia_activa`. Si no hay IA, se pasó el tope de gasto o la frase es corta, responde
+    `{available: false}` y el frontend sigue con la búsqueda normal. Nunca genera SQL."""
+    return await search_interpret.interpret(db, q)
 
 
 @router.get("/jobs/{id}", response_model=JobPostingPublicResponse)

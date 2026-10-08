@@ -29,6 +29,8 @@ const INTERRUPTORES: { clave: string; titulo: string; ayuda: string }[] = [
     ayuda: "Ordena postulantes y sugiere perfiles de la Base de Talento. Apagado, las empresas no lo ven." },
   { clave: "revision_cv_activa", titulo: "Venta de revisión de CV",
     ayuda: "Los postulantes pueden pagar la revisión. Apagalo si no das abasto." },
+  { clave: "busqueda_ia_activa", titulo: "Buscador inteligente de empleos",
+    ayuda: "Entiende frases como \"algo de administración part time en Punta Alta\" y propone los filtros. Apagado, el buscador funciona igual sin IA." },
 ];
 
 const FUNCIONES: Record<string, string> = {
@@ -37,6 +39,7 @@ const FUNCIONES: Record<string, string> = {
   rerank: "Evaluar candidatos",
   campana_borrador: "Redactar campañas",
   campana_audiencia: "Interpretar audiencias",
+  busqueda: "Buscador inteligente",
 };
 
 // Una búsqueda cuesta medio centavo: con 2 decimales todo el gasto real se leía "USD 0.00".
