@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import {
   CheckCircleIcon, BoltIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon,
 } from "@heroicons/react/24/outline";
@@ -110,6 +111,7 @@ export default function PublicarBusquedaPage() {
         skills: selectedSkills.map(s => ({ skill_id: s.skill_id, is_required: s.is_required })),
       };
       const created = await api.post("/me/company/jobs", payload);
+      track("publish_job", { job_id: created.data.id, destacar });
 
       if (destacar) {
         try {

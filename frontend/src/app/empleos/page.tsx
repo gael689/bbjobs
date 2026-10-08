@@ -3,18 +3,45 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import {
   BriefcaseIcon, MagnifyingGlassIcon, MapPinIcon,
   BuildingOffice2Icon, FunnelIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
 import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
+import { jobUrl } from "@/lib/seo/urls";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 interface Job extends PreviewJob {
   zone_id?: string;
 }
 
 interface Catalog { id: string; name: string; }
+
+// Buscador inteligente (módulo nuevo): lo que Gemini entendió de la frase, ya validado contra
+// el catálogo por el backend (GET /jobs/interpret).
+interface Interpretacion {
+  q: string;
+  understood?: string;
+  zone?: Catalog;
+  industry?: Catalog;
+  contract_type?: Catalog;
+  modality?: string;
+  keywords?: string;
+}
+
+// Misma regla que `looks_natural` en backend/app/services/ai/search_interpret.py: 4+ palabras,
+// o 2+ con una marca de lenguaje natural. Evita pedirle a la IA "vendedor".
+const MARCAS_NATURALES = new Set([
+  "algo", "cerca", "busco", "quiero", "necesito", "part", "full", "medio", "media", "jornada",
+  "remoto", "hibrido", "presencial", "home", "zona",
+]);
+function pareceNatural(frase: string) {
+  const palabras = frase.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .match(/[a-z0-9+#]+/g) ?? [];
+  return palabras.length >= 4 || (palabras.length >= 2 && palabras.some(p => MARCAS_NATURALES.has(p)));
+}
 
 const MODALITY_LABEL: Record<string, string> = {
   presencial: "Presencial",
@@ -80,6 +107,30 @@ export default function EmpleosPage() {
   const [contractTypeId, setContractTypeId] = useState("");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
+  const [interpretacion, setInterpretacion] = useState<Interpretacion | null>(null);
+
+  // En paralelo con la búsqueda normal: si la frase parece lenguaje natural, se le pregunta al
+  // backend qué filtros entendió. Si no hay IA ({available:false}) no se muestra nada.
+  useEffect(() => {
+    const frase = q.trim();
+    if (!MODULOS_NUEVOS_VISIBLES || !pareceNatural(frase)) return;
+    let ignore = false;
+    const timeout = setTimeout(() => {
+      api.get("/jobs/interpret", { params: { q: frase } })
+        .then(r => { if (!ignore && r.data?.available) setInterpretacion({ ...r.data, q: frase }); })
+        .catch(() => {});
+    }, 400);
+    return () => { ignore = true; clearTimeout(timeout); };
+  }, [q]);
+
+  function aplicarInterpretacion(i: Interpretacion) {
+    if (i.industry) setIndustryId(i.industry.id);
+    if (i.zone) setZoneId(i.zone.id);
+    if (i.modality) setModality(i.modality);
+    if (i.contract_type) setContractTypeId(i.contract_type.id);
+    setQ(i.keywords ?? "");
+    setInterpretacion(null);
+  }
 
   useEffect(() => {
     api.get("/catalogs/industries").then(r => setIndustries(r.data)).catch(() => {});
@@ -115,6 +166,7 @@ export default function EmpleosPage() {
           setJobs(r.data.items);
           setTotal(r.data.total);
           setPage(1);
+          if (q.trim()) track("search", { search_term: q.trim(), results: r.data.total });
         })
         .catch(() => { if (!ignore) { setJobs([]); setTotal(0); } })
         .finally(() => { if (!ignore) setResolvedFiltersKey(filtersKey); });
@@ -168,10 +220,40 @@ export default function EmpleosPage() {
               type="text"
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="Buscar por puesto, empresa o descripción..."
+              placeholder="Buscar por puesto, empresa, sector o zona..."
               className="w-full pl-12 pr-4 py-4 border border-[#DDE3EC] rounded-2xl bg-white text-[#1C2230] text-sm focus:outline-none focus:border-[#1E8EA3] shadow-sm"
             />
           </div>
+          {interpretacion && interpretacion.q === q.trim() && (() => {
+            const i = interpretacion;
+            const partes = [
+              i.industry?.name, i.zone?.name, i.modality && (MODALITY_LABEL[i.modality] || i.modality),
+              i.contract_type?.name, i.keywords && `“${i.keywords}”`,
+            ].filter(Boolean);
+            return (
+              <div
+                className="max-w-xl mx-auto mt-3 flex items-center gap-3 bg-white border border-[#9ED4DF] rounded-xl px-4 py-2.5 text-left"
+                title={i.understood}
+              >
+                <p className="flex-1 min-w-0 text-sm text-[#1C2230]">
+                  <span className="font-bold">Entendimos:</span> {partes.join(" · ")}
+                </p>
+                <button
+                  onClick={() => aplicarInterpretacion(i)}
+                  className="shrink-0 text-xs font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] rounded-full px-3 py-1.5 transition-colors"
+                >
+                  Aplicar
+                </button>
+                <button
+                  onClick={() => setInterpretacion(null)}
+                  aria-label="Descartar sugerencia"
+                  className="shrink-0 text-[#64748B] hover:text-[#1C2230]"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -303,7 +385,7 @@ export default function EmpleosPage() {
                 {jobs.map(job => (
                   <a
                     key={job.id}
-                    href={`/empleos/${job.id}`}
+                    href={jobUrl(job)}
                     onClick={e => { e.preventDefault(); openPreview(job); }}
                     className={`relative overflow-hidden block rounded-2xl p-6 transition-all group ${
                       job.is_featured

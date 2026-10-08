@@ -573,6 +573,7 @@ comparar" antes de cambiar; hay que confiar en lo que se cargó.
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/register` (sin cambios) | Production, Preview |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/post-login` (sin cambios) | Production, Preview |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/onboarding` (sin cambios) | Production, Preview |
+| `NEXT_PUBLIC_GA_ID` | ⏳ **pendiente** — ID de medición de la propiedad GA4 de BBJobs (formato `G-XXXXXXXXXX`), cuando Talency cree la propiedad. Sin la variable no se carga Google Analytics ni se mandan eventos; el banner de cookies se muestra igual. Ver Frente 3 de `MAILS-SEO-IA-OCTUBRE-PLAN.md` | Production únicamente (en Preview dejarla vacía para no ensuciar las métricas) |
 
 Se disparó un redeploy de producción (`vercel redeploy <deployment> --target production`) después
 de cargar estos valores — imprescindible, porque `NEXT_PUBLIC_*` se hornea en build time y el
