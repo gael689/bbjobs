@@ -133,7 +133,8 @@ export default function PrivacidadPage() {
               <li><strong>Clerk</strong> (EE.UU.): registro, inicio de sesión y verificación del mail. Recibe tu mail, tu nombre, tu contraseña cifrada, datos de sesión, IP y navegador.</li>
               <li><strong>Cloudinary</strong> (EE.UU.): guarda los CVs, las fotos y los logos que subís.</li>
               <li><strong>Railway</strong>: servidores y base de datos donde vive la plataforma.</li>
-              <li><strong>Vercel</strong> (EE.UU. y red global): publica el sitio web; recibe datos técnicos de navegación.</li>
+              <li><strong>Vercel</strong> (EE.UU. y red global): publica el sitio web; recibe datos técnicos de navegación y cuenta las visitas por página sin usar cookies.</li>
+              <li><strong>Google Analytics</strong> (EE.UU.): mide el uso del sitio <strong>sólo si aceptás las cookies de medición</strong>. No recibe tu nombre, tu mail ni datos de tu cuenta (punto 11).</li>
               <li><strong>Mercado Pago</strong> (Argentina): cobra los destacados y los packs. Tus datos de pago los cargás directamente en Mercado Pago; nosotros sólo recibimos el estado del pago.</li>
             </ul>
           </Section>
@@ -184,8 +185,25 @@ export default function PrivacidadPage() {
 
           <Section title="11. Cookies">
             <p>
-              Usamos sólo las cookies necesarias para que puedas iniciar sesión y mantenerla abierta (son de Clerk). No usamos
-              cookies de publicidad ni de seguimiento de terceros.
+              <strong>Necesarias (siempre activas):</strong> las de Clerk, para que puedas iniciar sesión y mantenerla
+              abierta, y <code>bbjobs_consent</code>, nuestra, que recuerda qué elegiste en el aviso de cookies durante 180
+              días.
+            </p>
+            <p>
+              <strong>Medición (sólo con tu consentimiento):</strong> si las aceptás en el aviso, usamos Google Analytics
+              para saber cuántas personas visitan el sitio y qué secciones usan, y así mejorarlo. Sus cookies (
+              <code>_ga</code> y <code>_ga_&lt;código&gt;</code>) duran hasta 2 años. Antes de que elijas no se carga nada;
+              no le mandamos tu nombre, tu mail ni datos de tu cuenta, y tenemos apagadas las funciones de publicidad.
+            </p>
+            <p>
+              <strong>Sin cookies:</strong> Vercel, que publica el sitio, cuenta las visitas por página sin cookies y sin
+              poder identificarte.
+            </p>
+            <p>
+              Podés <strong>retirar o cambiar tu consentimiento</strong> cuando quieras desde &quot;Configurar cookies&quot;, en
+              el pie de página: dejamos de medir en ese momento y borramos las cookies de Google Analytics. No usamos
+              cookies de publicidad. El detalle de cada cookie está en la{" "}
+              <Link href="/cookies" className={linkClass}>política de cookies</Link>.
             </p>
           </Section>
 
