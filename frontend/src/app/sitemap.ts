@@ -26,6 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: urlAbs("/planes"), changeFrequency: "monthly", priority: 0.3 },
     { url: urlAbs("/privacidad"), changeFrequency: "yearly", priority: 0.1 },
     { url: urlAbs("/terminos"), changeFrequency: "yearly", priority: 0.1 },
+    { url: urlAbs("/cookies"), changeFrequency: "yearly", priority: 0.1 },
   ];
 
   const jobRoutes: MetadataRoute.Sitemap = jobs.map((job) => ({
