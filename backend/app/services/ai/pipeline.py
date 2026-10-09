@@ -73,11 +73,14 @@ async def log_usage(db: AsyncSession, feature: str, usage: AIUsage | None, *, co
                     flex: bool = False) -> None:
     if usage is None:
         return
+    cost = cost_usd(usage, flex=flex)
     db.add(AiUsageLog(
         id=uuid.uuid4(), feature=feature, company_id=company_id, job_id=job_id, model=usage.model,
         input_tokens=usage.input_tokens, output_tokens=usage.output_tokens, thought_tokens=usage.thought_tokens,
-        cost_usd=cost_usd(usage, flex=flex),
+        cost_usd=cost,
     ))
+    # Para el registro de actividad: cuánto gastó esta sesión (ver activity.cost_mark).
+    db.info["ai_cost_usd"] = db.info.get("ai_cost_usd", Decimal(0)) + cost
 
 
 async def spent_today(db: AsyncSession, now: datetime | None = None) -> float:
@@ -292,14 +295,35 @@ def _semantic(ctx: JobContext, chunks: list[tuple[str, str, np.ndarray]]) -> tup
 
 async def compute_recommendations(
     db: AsyncSession, provider: AIProvider | None, job: JobPosting, *, rerank_enabled: bool,
-    service_tier: str = "standard", max_reranks: int | None = None,
+    service_tier: str = "standard", max_reranks: int | None = None, reason: str | None = None,
 ) -> dict[str, int]:
     """Recalcula los recomendados de una búsqueda. No commitea.
 
     `max_reranks`: tope de llamadas de rerank de esta corrida (por defecto
-    `AI_MAX_RERANKS_PER_RUN`). Lo que no entra queda `skipped_limit` y `stats["tope"] = 1`."""
+    `AI_MAX_RERANKS_PER_RUN`). Lo que no entra queda `skipped_limit` y `stats["tope"] = 1`.
+    `reason`: para el registro de actividad (noche, aprobada, postulacion, manual, empresa). Sin
+    motivo, la corrida sin rerank se anota como "noche"."""
+    from app.services.ai import activity
+
     if max_reranks is None:
         max_reranks = settings.AI_MAX_RERANKS_PER_RUN
+    mark = activity.cost_mark(db)
+    stats = await _compute_recommendations(db, provider, job, rerank_enabled=rerank_enabled,
+                                           service_tier=service_tier, max_reranks=max_reranks)
+    await activity.log_activity(
+        db, activity.KIND_RECOMPUTE, job_id=job.id, company_id=job.company_id,
+        detail={"motivo": reason or ("noche" if not rerank_enabled else "otro"), "candidatos": stats["universo"],
+                "guardados": stats["guardados"], "reranks": stats["rerank"], "reutilizados": stats["reutilizados"],
+                "fallidos": stats["fallidos"], "tope": stats["tope"]},
+        cost_usd=activity.cost_since(db, mark), alert=bool(stats["fallidos"]),
+    )
+    return stats
+
+
+async def _compute_recommendations(
+    db: AsyncSession, provider: AIProvider | None, job: JobPosting, *, rerank_enabled: bool,
+    service_tier: str, max_reranks: int,
+) -> dict[str, int]:
     ctx = await job_context(db, provider, job)
     applicants, talent = await _universe(db, job)
     universe = applicants + talent
@@ -439,8 +463,9 @@ EXTRACT_TIMEOUT_SECONDS = 10
 async def refresh_cv_text(db: AsyncSession, candidate: CandidateProfile, email: str | None, fetch) -> str:
     """Extrae y redacta el CV si cambió la URL. `fetch(url) -> bytes` lo inyecta el que llama
     (Cloudinary firmado en producción, un doble en los tests). No commitea. Devuelve el estado."""
+    from app.services.ai import activity
     from app.services.ai.ingest import extract_cv_text
-    from app.services.ai.redact import redact
+    from app.services.ai.redact import leaks, redact
 
     if not candidate.cv_file_url:
         await db.execute(delete(CandidateCvText).where(CandidateCvText.candidate_id == candidate.id))
@@ -459,9 +484,10 @@ async def refresh_cv_text(db: AsyncSession, candidate: CandidateProfile, email: 
     else:
         status, notes = extraction.status, extraction.notes
         if status == "ok":
-            r = redact(extraction.text, known_names=[candidate.first_name, candidate.last_name,
-                                                     f"{candidate.first_name} {candidate.last_name}"],
-                       known_phones=[candidate.phone or ""], known_emails=[email or ""])
+            known = dict(known_names=[candidate.first_name, candidate.last_name,
+                                      f"{candidate.first_name} {candidate.last_name}"],
+                         known_phones=[candidate.phone or ""], known_emails=[email or ""])
+            r = redact(extraction.text, **known)
             text, stats = r.text, r.stats
         else:
             text, stats = None, {}
@@ -469,6 +495,15 @@ async def refresh_cv_text(db: AsyncSession, candidate: CandidateProfile, email: 
                   extracted_at=datetime.now(timezone.utc))
     await db.execute(pg_insert(CandidateCvText).values(candidate_id=candidate.id, **values)
                      .on_conflict_do_update(index_elements=["candidate_id"], set_=values))
+    # Registro para Talency: sólo el estado y conteos. Si después de anonimizar sigue apareciendo
+    # un dato de la persona, es una alerta (se guarda cuántos, nunca cuáles).
+    leaked = len(leaks(text, **known)) if text else 0
+    await activity.log_activity(
+        db, activity.KIND_CV_READ, candidate_id=candidate.id,
+        detail={"estado": status, "datos_tapados": sum(v for v in (stats or {}).values() if isinstance(v, int)),
+                "fugas": leaked},
+        alert=leaked > 0 or status == "failed",
+    )
     return status
 
 

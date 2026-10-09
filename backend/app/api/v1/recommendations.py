@@ -57,14 +57,15 @@ def provider_or_none():
         return None
 
 
-async def recompute_job(job_id: uuid.UUID, *, rerank_enabled: bool) -> None:
+async def recompute_job(job_id: uuid.UUID, *, rerank_enabled: bool, reason: str = "empresa") -> None:
     """Corre en segundo plano con sesión propia (no la del pedido, que ya se cerró)."""
     async with async_session_maker() as db:
         job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one_or_none()
         if job is None:
             return
         try:
-            stats = await pipeline.compute_recommendations(db, provider_or_none(), job, rerank_enabled=rerank_enabled)
+            stats = await pipeline.compute_recommendations(db, provider_or_none(), job, rerank_enabled=rerank_enabled,
+                                                           reason=reason)
             await db.commit()
             logger.info("recs_recalculados", job_id=str(job_id), **stats)
         except Exception as exc:
@@ -435,5 +436,5 @@ async def admin_job_ai_checks(job_id: uuid.UUID, _: User = Depends(require_role(
 @router.post("/admin/ai/jobs/{job_id}/recompute")
 async def admin_recompute(job_id: uuid.UUID, background: BackgroundTasks,
                           _: User = Depends(require_role([UserRole.admin]))):
-    background.add_task(recompute_job, job_id, rerank_enabled=True)
+    background.add_task(recompute_job, job_id, rerank_enabled=True, reason="manual")
     return {"queued": True}

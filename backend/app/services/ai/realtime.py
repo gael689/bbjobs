@@ -71,13 +71,13 @@ async def process_queue(db: AsyncSession, provider: AIProvider | None, now: date
     now = now or datetime.now(timezone.utc)
     stats = {"busquedas": 0, "rerank": 0, "pendientes": 0}
     rows = (await db.execute(
-        select(AiRecomputeQueue.job_id, AiRecomputeQueue.last_requested_at)
+        select(AiRecomputeQueue.job_id, AiRecomputeQueue.last_requested_at, AiRecomputeQueue.reason)
         .where(AiRecomputeQueue.requested_at <= now - DEBOUNCE)
         .order_by(AiRecomputeQueue.requested_at)
         .limit(MAX_JOBS_PER_RUN)
     )).all()
     reranks_left = settings.AI_MAX_RERANKS_PER_RUN
-    for job_id, seen_at in rows:
+    for job_id, seen_at, reason in rows:
         if reranks_left <= 0:
             stats["pendientes"] += 1
             continue
@@ -87,7 +87,7 @@ async def process_queue(db: AsyncSession, provider: AIProvider | None, now: date
         try:
             if live:
                 result = await pipeline.compute_recommendations(
-                    db, provider, job, rerank_enabled=True, max_reranks=reranks_left,
+                    db, provider, job, rerank_enabled=True, max_reranks=reranks_left, reason=reason,
                 )
                 reranks_left -= result["rerank"] + result["fallidos"]
                 stats["rerank"] += result["rerank"]

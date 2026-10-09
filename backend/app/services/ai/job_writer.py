@@ -418,10 +418,14 @@ async def draft(
     except AIError as exc:
         logger.warning("redaccion_ia_fallo", error=str(exc)[:200], transient=exc.transient)
         return UNAVAILABLE
+    response = validate(result.data, source=text, industries=industries, skills=skills)
+    from app.services.ai import activity
+    mark = activity.cost_mark(db)
     await log_usage(db, FEATURE, result.usage, company_id=company_id)
+    await activity.log_activity(db, activity.KIND_JOB_DRAFT, company_id=company_id,
+                                detail={"ok": bool(response.available)}, cost_usd=activity.cost_since(db, mark))
     await db.commit()
 
-    response = validate(result.data, source=text, industries=industries, skills=skills)
     if response.available:
         cache.put(key, response)
     return response

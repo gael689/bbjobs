@@ -45,7 +45,9 @@ from app.models.company import CompanyProfile, CompanyVerificationDocument, Veri
 from app.models.core import User, UserRole
 from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
-from app.models.ai import CandidateAiIndex, CandidateChunk, CandidateCvText, CandidateSummary, JobRecommendation
+from app.models.ai import (
+    AiActivityLog, CandidateAiIndex, CandidateChunk, CandidateCvText, CandidateSummary, JobRecommendation,
+)
 from app.models.email import EmailOutbox, EmailStatus
 from app.models.legal import LegalAcceptance
 from app.models.payment import (
@@ -198,6 +200,10 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
         # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
         for model in (CandidateChunk, CandidateCvText, CandidateAiIndex, JobRecommendation, CandidateSummary):
             await db.execute(delete(model).where(model.candidate_id == p.id))
+        # Registro de actividad de la IA (Centro de IA): sólo conteos, pero apuntaba a la persona.
+        # Queda como estadística sin dueño (en el borrado total lo hace la FK con SET NULL).
+        await db.execute(
+            AiActivityLog.__table__.update().where(AiActivityLog.candidate_id == p.id).values(candidate_id=None))
         # Revisión de CV: queda el registro contable, se va todo dato de contacto. Una orden
         # sin pagar se cancela; una pagada queda como está para que Talency decida la devolución.
         await db.execute(

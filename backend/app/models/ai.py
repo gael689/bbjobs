@@ -179,3 +179,24 @@ class JobPostingVector(Base):
     embedding = mapped_column(Vector(DIM), nullable=False)
     model: Mapped[str] = mapped_column(String(80), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class AiActivityLog(UUIDMixin, Base):
+    """Registro de "qué hizo la IA" para el Centro de IA de Talency (migración b4c6d8e0f2a1).
+
+    **Sólo ids, conteos y montos**: nunca texto del CV, frases de búsqueda, nombres ni contactos
+    (`detail` lo sanea `services/ai/activity.py`). `candidate_id` se pone en NULL en la lápida de
+    `account_deletion.py` (y por FK SET NULL en el borrado total): el registro queda como
+    estadística sin apuntar a nadie."""
+    __tablename__ = "ai_activity_log"
+
+    kind: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job_postings.id", ondelete="SET NULL"), nullable=True, index=True)
+    candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_profiles.id", ondelete="SET NULL"), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    alert: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

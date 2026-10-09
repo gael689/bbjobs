@@ -25,7 +25,7 @@ from app.services.applicant_stats import (
 from app.services.job_features import end_active_feature_for_job
 from app.services import indexing
 from app.services.job_status import can_admin_reopen
-from app.services.settings import get_all_settings, set_setting
+from app.services.settings import get_all_settings, get_setting, set_setting
 from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
 from app.core.features import new_modules_enabled
 from app.integrations.clerk_client import create_clerk_user
@@ -132,9 +132,26 @@ class JobAdminResponse(BaseModel):
     salary_currency: Optional[str] = None
     salary_visible: bool = False
     benefits: Optional[str] = None
+    # Señales de la IA para la lista de pendientes (sólo con la IA activa y el vector ya
+    # calculado al publicar). Orientativas: la IA no aprueba ni rechaza nada.
+    ai_flags: Optional["JobAiFlags"] = None
 
     class Config:
         from_attributes = True
+
+
+class JobAiFlags(BaseModel):
+    possible_duplicate: bool = False
+    duplicate_count: int = 0
+    duplicate_of: Optional[str] = None          # título de la más parecida
+    duplicate_company: Optional[str] = None
+    duplicate_same_company: bool = False
+    duplicate_similarity: Optional[float] = None
+    sector_current: Optional[str] = None
+    sector_suggested: Optional[str] = None
+
+
+JobAdminResponse.model_rebuild()
 
 
 class ModerateJobPayload(BaseModel):
@@ -645,6 +662,7 @@ async def list_jobs(
     q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc(), JobPosting.id.asc())
     total = await contar(db, q)
     result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    rows = result.all()
     items = [
         JobAdminResponse.model_validate(job, from_attributes=True).model_copy(
             # La columna es String: llega "verified", no el enum. model_copy(update=) no valida,
@@ -652,9 +670,39 @@ async def list_jobs(
             # (500 líneas/seg), tapando los errores de verdad.
             update={"company_verification_status": VerificationStatus(verification_status) if verification_status else None}
         )
-        for job, verification_status in result.all()
+        for job, verification_status in rows
     ]
+    flags = await _pending_ai_flags(db, [job for job, _ in rows])
+    if flags:
+        items = [i.model_copy(update={"ai_flags": flags[i.id]}) if i.id in flags else i for i in items]
     return Paginated(items=items, total=total, page=page, page_size=page_size)
+
+
+async def _pending_ai_flags(db: AsyncSession, jobs: list[JobPosting]) -> dict[uuid.UUID, JobAiFlags]:
+    """Chip de la IA en la lista de pendientes: posible duplicado y sector dudoso, leídos de lo
+    que ya calculó la moderación al publicar. **Nunca llama a Gemini** (sólo vectores guardados).
+    Con la compuerta o el interruptor apagados, no devuelve nada."""
+    pending = [j for j in jobs if j.moderation_status == JobModerationStatus.pending_review]
+    if not pending or not new_modules_enabled() or not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return {}
+    from app.services.ai import moderation
+
+    try:
+        checks = await moderation.cached_checks(db, pending)
+    except Exception:  # una señal orientativa nunca tumba la lista de moderación
+        return {}
+    out: dict[uuid.UUID, JobAiFlags] = {}
+    for job_id, c in checks.items():
+        top = c.duplicates[0] if c.duplicates else None
+        out[job_id] = JobAiFlags(
+            possible_duplicate=top is not None, duplicate_count=len(c.duplicates),
+            duplicate_of=top.title if top else None, duplicate_company=top.company if top else None,
+            duplicate_same_company=top.same_company if top else False,
+            duplicate_similarity=top.similarity if top else None,
+            sector_current=c.sector.current_industry if c.sector else None,
+            sector_suggested=c.sector.suggested_industry if c.sector else None,
+        )
+    return out
 
 
 # ── Drill-down: empresa → búsquedas → postulaciones, y candidato → perfil completo ────────────

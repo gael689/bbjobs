@@ -405,8 +405,17 @@ async def team_items(db: AsyncSession, now: datetime) -> list[EmailItem]:
             f"{health['sent']} enviados · rebotes {health['bounce_pct']:.1f} % · quejas {health['complaint_pct']:.2f} %",
             None,
         ))
+    # Lo que la IA encontró y espera una acción (sólo si hay algo: R7). No llama a Gemini.
+    from app.services.ai.automations import team_ai_items, weekly_draft_pending
+    from app.services.email.monthly import WEEKLY_PREFIX
+
+    ai_items = await team_ai_items(db, now)
+    items.extend(EmailItem(title, detail, link) for title, detail, link in ai_items)
+    if await weekly_draft_pending(db, WEEKLY_PREFIX):
+        items.append(EmailItem("Borrador de \"Búsquedas de la semana\" para revisar",
+                               "No sale sin tu aprobación.", "/dashboard/admin/campanas"))
     spent = await spent_today(db, now)
-    if spent:
+    if spent and not any(title.startswith("Gasto de IA") for title, _, _ in ai_items):
         items.append(EmailItem("Gasto de IA de hoy", f"USD {spent:.2f}", None))
     return items
 

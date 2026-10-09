@@ -237,10 +237,14 @@ async def suggest(
     except AIError as exc:
         logger.warning("habilidades_ia_fallo", error=str(exc)[:200], transient=exc.transient)
         return UNAVAILABLE
+    raw = validate(result.data, cv_text=cv_text, catalog=catalog)
+    from app.services.ai import activity
+    mark = activity.cost_mark(db)
     await log_usage(db, FEATURE, result.usage)
+    await activity.log_activity(db, activity.KIND_SKILLS, candidate_id=profile.id,
+                                detail={"sugeridas": len(raw)}, cost_usd=activity.cost_since(db, mark))
     await db.commit()
 
-    raw = validate(result.data, cv_text=cv_text, catalog=catalog)
     cache.put(key, raw)
     return finish(raw)
 

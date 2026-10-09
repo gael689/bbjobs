@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, func
@@ -22,7 +22,7 @@ from app.services import job_search
 from app.services import indexing
 from app.services.ai import search_interpret
 from app.services.ai.search_interpret import InterpretResponse
-from app.core.features import require_new_modules
+from app.core.features import new_modules_enabled, require_new_modules
 from app.core.limiter import limiter
 
 router = APIRouter()
@@ -70,6 +70,7 @@ _EDUCATION_RANK = {
 @router.post("/me/company/jobs", response_model=JobPostingCompanyResponse)
 async def create_job_posting(
     payload: JobPostingCreate,
+    background: BackgroundTasks,
     company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -126,7 +127,18 @@ async def create_job_posting(
 
     await db.commit()
     await db.refresh(job)
+    _precompute_moderation(background, job)
     return job
+
+
+def _precompute_moderation(background: BackgroundTasks, job: JobPosting) -> None:
+    """Moderación al publicar (IA): vector del aviso y chequeos de duplicado/sector, en segundo
+    plano y después del commit — nunca frena ni rompe el pedido de la empresa. Ver
+    `services/ai/moderation.precompute_after_publish`."""
+    if new_modules_enabled() and job.moderation_status == JobModerationStatus.pending_review:
+        from app.services.ai.moderation import precompute_after_publish
+
+        background.add_task(precompute_after_publish, job.id)
 
 @router.get("/me/company/jobs", response_model=List[JobPostingCompanyResponse])
 async def list_my_job_postings(
@@ -142,6 +154,7 @@ async def list_my_job_postings(
 async def update_job_posting(
     id: uuid.UUID,
     payload: JobPostingUpdate,
+    background: BackgroundTasks,
     company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -190,6 +203,7 @@ async def update_job_posting(
     await db.commit()
     await db.refresh(job)
     indexing.notify(cambio)
+    _precompute_moderation(background, job)
     return job
 
 @router.get("/jobs", response_model=PaginatedJobsResponse)

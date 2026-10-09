@@ -90,6 +90,10 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   job_pending_review: { ...TEAL, icon: BellAlertIcon },
   // Perfil del candidato
   profile_incomplete: { ...TEAL, icon: UserCircleIcon },
+  // Habilidades que muestra su CV (IA, sólo en la web)
+  skill_suggestions_ready: { ...TEAL, icon: UserCircleIcon },
+  // Borrador semanal de campaña (sólo en la web; nunca sale sin aprobación)
+  admin_campaign_weekly_ready: { ...TEAL, icon: BellAlertIcon },
 };
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationTypeConfig = {

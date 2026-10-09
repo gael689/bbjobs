@@ -17,7 +17,7 @@ from app.api.v1 import (
     health, companies, candidates, skills, catalogs,
     jobs, applications, tests, plans, subscriptions, payments, talent, webhooks,
     admin, notifications, account, me, onboarding, contact, landing, emails, cv_review, prospects, recommendations, job_alerts, campaigns,
-    ai_assist, metrics,
+    ai_assist, metrics, admin_ai,
 )
 
 setup_logging()
@@ -102,5 +102,6 @@ app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendati
 app.include_router(job_alerts.router, prefix="/api/v1", tags=["job_alerts"])
 app.include_router(campaigns.router, prefix="/api/v1", tags=["campaigns"])
 app.include_router(ai_assist.router, prefix="/api/v1", tags=["ai_assist"])
+app.include_router(admin_ai.router, prefix="/api/v1", tags=["admin_ai"])
 
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])

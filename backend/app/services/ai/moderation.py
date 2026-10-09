@@ -34,7 +34,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.integrations.gemini_client import AIError, AIProvider, AIUsage
+from app.integrations.gemini_client import AIError, AIProvider, AIUsage, get_provider
 from app.models.ai import JobPostingVector
 from app.models.catalogs import Industry
 from app.models.job import JobModerationStatus, JobPosting, JobPostingStatus
@@ -151,20 +151,20 @@ def _unit(v: np.ndarray) -> np.ndarray:
     return v / n if n else v
 
 
-async def checks_for(db: AsyncSession, provider: AIProvider | None, job: JobPosting) -> Checks:
-    """Señales para la ficha de moderación. Puede calcular el vector del aviso (no commitea)."""
-    vec = await ensure_vector(db, provider, job)
-    if vec is None:
-        return Checks(available=False, note="Todavía no hay vector de este aviso.")
+async def _vector_rows(db: AsyncSession) -> list:
+    """Todos los vectores vigentes del modelo actual, con lo que hace falta de cada aviso."""
     model = settings.GEMINI_EMBEDDING_MODEL
-    rows = (await db.execute(
+    return list((await db.execute(
         select(JobPostingVector.embedding, JobPosting.id, JobPosting.title, JobPosting.company_id,
                JobPosting.company_legal_name_snapshot, JobPosting.industry_id, JobPosting.status,
-               JobPosting.moderation_status)
+               JobPosting.moderation_status, JobPostingVector.text_hash)
         .join(JobPosting, JobPosting.id == JobPostingVector.job_id)
-        .where(JobPostingVector.model == model, JobPosting.deleted_at.is_(None), JobPosting.id != job.id)
-    )).all()
+        .where(JobPostingVector.model == model, JobPosting.deleted_at.is_(None))
+    )).all())
 
+
+async def _checks_with(db: AsyncSession, job: JobPosting, vec: np.ndarray, all_rows: list) -> Checks:
+    rows = [r for r in all_rows if r[1] != job.id]
     out = Checks(available=True)
     if not rows:
         return out
@@ -173,7 +173,7 @@ async def checks_for(db: AsyncSession, provider: AIProvider | None, job: JobPost
 
     dups = []
     for r, s in zip(rows, sims):
-        _, jid, title, company_id, company_name, _, status, moderation = r
+        jid, title, company_id, company_name, status, moderation = r[1], r[2], r[3], r[4], r[6], r[7]
         open_ = moderation == JobModerationStatus.pending_review or (
             status == JobPostingStatus.active and moderation == JobModerationStatus.approved)
         if open_ and s >= DUP_THRESHOLD:
@@ -202,3 +202,83 @@ async def checks_for(db: AsyncSession, provider: AIProvider | None, job: JobPost
     elif job.industry_id not in centroids:
         out.note = "Pocos avisos aprobados en este sector para opinar sobre el sector."
     return out
+
+
+async def checks_for(db: AsyncSession, provider: AIProvider | None, job: JobPosting) -> Checks:
+    """Señales para la ficha de moderación. Puede calcular el vector del aviso (no commitea)."""
+    vec = await ensure_vector(db, provider, job)
+    if vec is None:
+        return Checks(available=False, note="Todavía no hay vector de este aviso.")
+    return await _checks_with(db, job, vec, await _vector_rows(db))
+
+
+async def cached_checks(db: AsyncSession, jobs: list[JobPosting]) -> dict[uuid.UUID, Checks]:
+    """Las mismas señales para varios avisos **sin llamar a Gemini**: sólo con los vectores ya
+    guardados y vigentes (el hash del texto coincide). Un aviso sin vector vigente no aparece en
+    el resultado. Lo usan la lista de pendientes del admin y el resumen diario del equipo."""
+    if not jobs:
+        return {}
+    rows = await _vector_rows(db)
+    own = {r[1]: (r[8], np.asarray(r[0], dtype=np.float32)) for r in rows}
+    out: dict[uuid.UUID, Checks] = {}
+    for job in jobs:
+        hit = own.get(job.id)
+        if hit is None or hit[0] != text_hash(job_text(job.title, job.description)):
+            continue
+        out[job.id] = await _checks_with(db, job, hit[1], rows)
+    return out
+
+
+async def precompute_after_publish(job_id: uuid.UUID) -> None:
+    """Moderación al publicar: cuando una empresa crea o edita una búsqueda que queda pendiente
+    de revisión, se calcula el vector del aviso (cacheado por hash: si el texto no cambió, no se
+    paga de nuevo) y con él los chequeos de duplicado y sector. Así la lista de pendientes del
+    admin los muestra sin abrir cada aviso (`cached_checks`).
+
+    La llaman los endpoints como tarea en segundo plano, DESPUÉS de su commit. Sesión propia y
+    **nunca levanta**: si Gemini falla o no hay presupuesto, la búsqueda ya quedó guardada y la
+    tarea de 10 minutos (`embed_missing`) lo vuelve a intentar. Nunca aprueba, rechaza ni cambia
+    nada del aviso."""
+    from app.core.features import new_modules_enabled
+    from app.db import session as db_session
+    from app.integrations.gemini_client import AIUnavailable
+    from app.models.settings import SettingKey
+    from app.services.settings import get_setting
+
+    if not new_modules_enabled():
+        return
+    try:
+        async with db_session.async_session_maker() as db:
+            if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+                return
+            try:
+                provider = get_provider()
+            except AIUnavailable:
+                return
+            job = (await db.execute(select(JobPosting).where(
+                JobPosting.id == job_id, JobPosting.deleted_at.is_(None),
+                JobPosting.moderation_status == JobModerationStatus.pending_review,
+            ))).scalar_one_or_none()
+            if job is None:
+                return
+            from app.services.ai.activity import KIND_MODERATION, cost_mark, cost_since, log_activity
+
+            mark = cost_mark(db)
+            # Antes, los vectores que falten de los avisos con los que se compara (y el de éste):
+            # sin ellos un duplicado recién publicado no se detecta hasta la tarea de 10 minutos.
+            try:
+                await embed_missing(db, provider)
+                await db.flush()
+            except AIError as exc:
+                logger.warning("ai_moderacion_vectores_fallo", error=str(exc)[:200])
+            checks = await checks_for(db, provider, job)
+            await log_activity(db, KIND_MODERATION, job_id=job.id, company_id=job.company_id, detail={
+                "motivo": "al_publicar", "disponible": checks.available, "duplicados": len(checks.duplicates),
+                "sector_dudoso": checks.sector is not None,
+            }, cost_usd=cost_since(db, mark))
+            await db.commit()
+            if checks.duplicates or checks.sector:
+                logger.info("ai_moderacion_al_publicar", job_id=str(job_id), duplicados=len(checks.duplicates),
+                            sector=bool(checks.sector))
+    except Exception as exc:  # un extra: la búsqueda de la empresa ya se guardó
+        logger.warning("ai_moderacion_al_publicar_fallo", job_id=str(job_id), error=str(exc)[:200])

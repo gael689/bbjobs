@@ -183,8 +183,14 @@ def fallback(rec: JobRecommendation) -> SummaryResult:
 
 
 async def summarize(db: AsyncSession, provider: AIProvider | None, rec: JobRecommendation, *,
-                    requirements: list[dict], ref: str, company_id: uuid.UUID) -> SummaryResult:
-    """Devuelve el resumen (de la caché si la entrada no cambió). No commitea."""
+                    requirements: list[dict], ref: str, company_id: uuid.UUID,
+                    origin: str = "empresa") -> SummaryResult:
+    """Devuelve el resumen (de la caché si la entrada no cambió). No commitea.
+
+    Cada llamada a la IA queda en el registro de actividad (`activity.KIND_SUMMARY`) con
+    `origin` (empresa, talency, noche…), cuántas líneas pasaron y cuántas se tiraron."""
+    from app.services.ai import activity
+
     fragments = await _fragments(db, rec.candidate_id, rec.evidence or {})
     h = input_hash(rec, fragments, requirements)
     cached = (await db.execute(select(CandidateSummary).where(
@@ -209,13 +215,20 @@ async def summarize(db: AsyncSession, provider: AIProvider | None, rec: JobRecom
                                            company_id=str(company_id), max_output_tokens=700)
     except AIError:
         return fallback(rec)
+    mark = activity.cost_mark(db)
     await log_usage(db, "resumen", res.usage, company_id=company_id, job_id=rec.job_id)
     try:
         result = validate(res.data, ref=ref, fragments=fragments,
                           forbidden_names=await forbidden_names(db, rec.candidate_id))
     except ValueError:
-        return fallback(rec)
-    if not result.lines:
+        result = None
+    await activity.log_activity(
+        db, activity.KIND_SUMMARY, job_id=rec.job_id, candidate_id=rec.candidate_id, company_id=company_id,
+        detail={"origen": origin, "lineas": len(result.lines) if result else 0,
+                "descartadas": result.dropped if result else 0},
+        cost_usd=activity.cost_since(db, mark),
+    )
+    if result is None or not result.lines:
         return fallback(rec)
 
     values = dict(input_hash=h, lines=[{"text": l.text, "evidence": l.evidence} for l in result.lines],

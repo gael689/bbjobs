@@ -133,6 +133,9 @@ RULES: dict[str, Rule] = {
     "application_sent": Rule(C.postulaciones, cta_label="Ver mis postulaciones"),
     "talent_profile_unlocked": Rule(C.postulaciones, once_per_day=True),
     "candidate_reactivation": Rule(C.recordatorios, cta_label="Ver búsquedas"),
+    # Habilidades del catálogo que muestra su CV (IA, al leer un CV nuevo). Lo que la IA genera
+    # para un candidato va en la web, nunca en un mail automático.
+    "skill_suggestions_ready": Rule(C.recordatorios, mode="none"),
 
     # ── Empresa ──
     "welcome_company": Rule(C.cuenta),
@@ -178,6 +181,9 @@ RULES: dict[str, Rule] = {
     "contact_message_received": Rule(C.admin, mode="digest"),
     "admin_email_health": Rule(C.admin, critical=True),
     "admin_campaign_draft_ready": Rule(C.admin),
+    # Borrador semanal "Búsquedas de la semana": sólo en la web (y se recuerda en el resumen
+    # diario del equipo mientras siga en borrador). Un mail por semana sería ruido.
+    "admin_campaign_weekly_ready": Rule(C.admin, mode="none"),
 
     # ── Resúmenes (T3): los arma services/email/digests.py y van directo a la cola ──
     "digest_alertas": Rule(C.alertas, mode="digest", exempt_daily_cap=True),

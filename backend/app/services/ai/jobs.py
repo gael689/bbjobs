@@ -2,16 +2,19 @@
 
 - **Cada 10 minutos:** extrae y redacta los CV nuevos o cambiados y reindexa las fichas que
   cambiaron (auditoría R19: alguien que se registra y se postula el mismo día no espera a la
-  noche).
+  noche). Si un CV recién leído muestra habilidades del catálogo, aviso sólo en la web al
+  candidato (`automations.notify_skill_suggestions`, interruptor `asistente_ia_activo`).
 - **De noche (03:00 de Argentina):** recalcula los recomendados de las búsquedas activas **sólo
-  con el puntaje híbrido** (decisión P2: así el costo queda en lo prometido a Eugenia) y avisa a
-  cada empresa de los candidatos nuevos que encajan (v4 §4.4).
+  con el puntaje híbrido** (decisión P2: así el costo queda en lo prometido a Eugenia), avisa a
+  cada empresa de los candidatos nuevos que encajan (v4 §4.4) y deja listos los resúmenes de 3
+  líneas de los mejores recomendados (`automations.nightly_summaries`).
 
 Las dos se apagan solas si el interruptor `ia_recomendaciones_activas` está apagado o no hay
 cuenta de Gemini.
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -21,7 +24,7 @@ from sqlalchemy import func, select
 from app.db.session import async_session_maker
 from app.integrations import cloudinary_client
 from app.integrations.gemini_client import AIError, AIUnavailable, get_provider
-from app.models.ai import JobRecommendation
+from app.models.ai import CandidateCvText, JobRecommendation
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile
 from app.models.core import User
@@ -94,8 +97,15 @@ async def _index_changed(db, provider) -> dict:
         select(CandidateProfile, User.email).join(User, User.id == CandidateProfile.user_id)
         .where(CandidateProfile.id.in_(ids))
     )).all()
+    prev_cv = dict((await db.execute(
+        select(CandidateCvText.candidate_id, CandidateCvText.source_hash).where(CandidateCvText.candidate_id.in_(ids))
+    )).all())
+    fresh_cvs = []   # CV leídos recién en esta vuelta (para las habilidades sugeridas)
     for profile, email in rows:
-        await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+        status = await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+        if status == "ok" and profile.cv_file_url and \
+                prev_cv.get(profile.id) != hashlib.sha256(profile.cv_file_url.encode()).hexdigest():
+            fresh_cvs.append(profile.id)
     await db.flush()
     try:
         stats = await pipeline.index_candidates(db, provider, ids)
@@ -106,6 +116,11 @@ async def _index_changed(db, provider) -> dict:
     await db.commit()
     if stats.get("reindexados"):
         logger.info("ai_index_tick", **stats)
+    if fresh_cvs:
+        # Habilidades del catálogo que muestra el CV: aviso sólo en la web (automations.py).
+        from app.services.ai.automations import notify_skill_suggestions
+
+        stats["avisos_habilidades"] = await notify_skill_suggestions(db, provider, fresh_cvs)
     return stats
 
 
@@ -115,23 +130,37 @@ async def nightly(now: datetime | None = None) -> dict:
         provider = await _ready(db)
         if provider is None:
             return {}
-        jobs = (await db.execute(
-            select(JobPosting).where(
+        # Se recorren ids y cada búsqueda se vuelve a leer: después de un rollback (una búsqueda
+        # que falló) los objetos cargados quedan vencidos y leerlos en async rompe la vuelta.
+        job_ids = (await db.execute(
+            select(JobPosting.id).where(
                 JobPosting.status == JobPostingStatus.active, JobPosting.deleted_at.is_(None),
                 JobPosting.moderation_status == JobModerationStatus.approved,
             )
         )).scalars().all()
         total = {"busquedas": 0, "avisos": 0}
-        for job in jobs:
+        for job_id in job_ids:
             try:
-                await pipeline.compute_recommendations(db, provider, job, rerank_enabled=False)
+                job = await db.get(JobPosting, job_id)
+                if job is None:
+                    continue
+                await pipeline.compute_recommendations(db, provider, job, rerank_enabled=False, reason="noche")
                 await db.commit()
                 total["busquedas"] += 1
             except Exception as exc:
                 await db.rollback()
-                logger.error("ai_nightly_job_error", job_id=str(job.id), error=str(exc)[:200])
+                logger.error("ai_nightly_job_error", job_id=str(job_id), error=str(exc)[:200])
         total["avisos"] = await notify_new_fits(db, now)
         await db.commit()
+        # Resúmenes de 3 líneas de los mejores recomendados, listos para la mañana (con caché y
+        # dentro del tope de llamadas y del tope diario en USD).
+        from app.services.ai.automations import nightly_summaries
+
+        try:
+            total["resumenes"] = (await nightly_summaries(db, provider, now))["generados"]
+        except Exception as exc:
+            await db.rollback()
+            logger.error("ai_nightly_summaries_error", error=str(exc)[:200])
         logger.info("ai_nightly", **total)
         return total
 

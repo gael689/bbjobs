@@ -167,6 +167,20 @@ export interface Job {
   salary_currency?: string;
   salary_visible?: boolean;
   benefits?: string;
+  // Señales de la IA en la lista de pendientes (calculadas al publicar). Orientativas: la IA no
+  // aprueba ni rechaza nada. Ausente con la IA apagada o sin vector todavía.
+  ai_flags?: JobAiFlags | null;
+}
+
+export interface JobAiFlags {
+  possible_duplicate: boolean;
+  duplicate_count: number;
+  duplicate_of?: string | null;
+  duplicate_company?: string | null;
+  duplicate_same_company: boolean;
+  duplicate_similarity?: number | null;
+  sector_current?: string | null;
+  sector_suggested?: string | null;
 }
 
 export const MODALITY_LABEL: Record<string, string> = {

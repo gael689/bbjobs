@@ -378,6 +378,26 @@ export default function AdminBusquedasPage() {
                         <BoltIcon className="w-3 h-3" />Destacada
                       </span>
                     )}
+                    {job.ai_flags?.possible_duplicate && (
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E6F4F7] text-[#187B8E] border border-[#9ED4DF]"
+                        title={`Señal de la IA: se parece a "${job.ai_flags.duplicate_of ?? ""}"${
+                          job.ai_flags.duplicate_same_company ? " (de la misma empresa)" : ""
+                        }. Revisalo: la IA no aprueba ni rechaza.`}
+                      >
+                        IA: posible duplicado
+                      </span>
+                    )}
+                    {job.ai_flags?.sector_suggested && (
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E6F4F7] text-[#187B8E] border border-[#9ED4DF]"
+                        title={`Señal de la IA: el texto se parece más a "${job.ai_flags.sector_suggested}" que a "${
+                          job.ai_flags.sector_current ?? "su sector"
+                        }".`}
+                      >
+                        IA: ¿sector?
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}

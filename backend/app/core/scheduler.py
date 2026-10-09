@@ -195,14 +195,15 @@ async def email_digests():
 
 
 async def campaigns_tick():
-    """Campañas aprobadas a la cola, despacho de prospección, borrador mensual."""
+    """Campañas aprobadas a la cola, despacho de prospección, borradores mensual y semanal."""
     from app.services.email.campaigns import materialize_due
-    from app.services.email.monthly import prepare_monthly_draft
+    from app.services.email.monthly import prepare_monthly_draft, prepare_weekly_draft
     from app.services.email.prospect_dispatch import dispatch_prospects
     try:
         async with async_session_maker() as db:
             await materialize_due(db)
             await prepare_monthly_draft(db)
+            await prepare_weekly_draft(db)   # lunes 09:00: siempre en borrador
             await db.commit()
         await dispatch_prospects()
     except Exception as exc:
@@ -258,6 +259,19 @@ async def purge_site_events():
             logger.info("site_events_purged", count=res.rowcount)
 
 
+async def purge_ai_activity():
+    """Retención del registro de actividad de la IA (Centro de IA): 13 meses, como la medición."""
+    from app.models.ai import AiActivityLog
+    try:
+        async with async_session_maker() as db:
+            res = await db.execute(delete(AiActivityLog).where(AiActivityLog.created_at < retention_cutoff()))
+            await db.commit()
+            if res.rowcount:
+                logger.info("ai_activity_purged", count=res.rowcount)
+    except Exception as exc:
+        logger.error("ai_activity_purge_error", error=str(exc)[:300])
+
+
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
     scheduler.add_job(notify_expiring_soon, "interval", hours=1)
@@ -276,6 +290,7 @@ def start_scheduler():
         # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
         scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)
         scheduler.add_job(ai_nightly, "cron", hour=6, minute=0, timezone="UTC", max_instances=1, coalesce=True)
+        scheduler.add_job(purge_ai_activity, "interval", hours=24, max_instances=1, coalesce=True)
 
     scheduler.add_job(purge_site_events, "interval", hours=24)
     scheduler.start()
