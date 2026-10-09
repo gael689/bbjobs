@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { urlAbs } from "@/lib/seo/sitio";
 import { jobUrl, companyUrl } from "@/lib/seo/urls";
 import { getActiveJobs, getCatalogos, getVerifiedCompanies, idsPorSlug } from "@/lib/seo/datos";
-import { RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
+import { RUBROS_INDICE, SELECCION_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 
 // Se regenera cada hora. A la escala de F1 (decenas de búsquedas) un solo archivo alcanza, sin
 // generateSitemaps. Todo con el dominio canónico www y la URL con slug de cada búsqueda.
@@ -24,6 +24,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: urlAbs("/nosotros"), changeFrequency: "monthly", priority: 0.3 },
     { url: urlAbs("/contacto"), changeFrequency: "monthly", priority: 0.3 },
     { url: urlAbs("/planes"), changeFrequency: "monthly", priority: 0.3 },
+    // Para empresas (SEO-EMPRESAS-TALENCY-PLAN.md): siempre indexables, no dependen de búsquedas activas.
+    { url: urlAbs("/seleccion-de-personal"), changeFrequency: "monthly", priority: 0.7 },
+    ...SELECCION_INDICE.map((slug) => ({
+      url: urlAbs(`/seleccion-de-personal/${slug}`),
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    })),
+    { url: urlAbs("/publicar-empleo"), changeFrequency: "monthly", priority: 0.6 },
     { url: urlAbs("/privacidad"), changeFrequency: "yearly", priority: 0.1 },
     { url: urlAbs("/terminos"), changeFrequency: "yearly", priority: 0.1 },
     { url: urlAbs("/cookies"), changeFrequency: "yearly", priority: 0.1 },

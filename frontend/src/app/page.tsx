@@ -589,9 +589,14 @@ export default function Home() {
           <p className="text-[#94A3B8] mb-8 max-w-xl mx-auto">
             El equipo de Talency puede acompañarte durante todo el proceso: relevamiento del perfil, publicación de la búsqueda, revisión de postulaciones, entrevistas, evaluaciones psicométricas y presentación de candidatos.
           </p>
-          <a href="https://talency.com.ar" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-3.5 hover:bg-[#187B8E] transition-colors">
-            Consultar por el servicio de selección <ArrowRightIcon className="w-4 h-4" />
-          </a>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/seleccion-de-personal" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-3.5 hover:bg-[#187B8E] transition-colors">
+              Consultar por el servicio de selección <ArrowRightIcon className="w-4 h-4" />
+            </Link>
+            <a href="https://talency.com.ar" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-[#9ED4DF] hover:text-white underline underline-offset-4 transition-colors">
+              Conocer Talency
+            </a>
+          </div>
         </div>
       </section>
 

@@ -34,6 +34,18 @@ export const RUBROS_INDICE: readonly EntradaIndice[] = [
   { slug: "tecnologia", nombre: "Tecnología", catalogo: ["tecnologia"] },
 ];
 
+// Sectores con página propia de selección de personal (/seleccion-de-personal/<slug>), con texto
+// escrito para cada uno en lib/seo/seleccion.ts. Los demás sectores no tienen página: enlazan al
+// hub /seleccion-de-personal. Ver SEO-EMPRESAS-TALENCY-PLAN.md.
+export const SELECCION_INDICE: readonly string[] = [
+  "industria", "logistica", "comercio", "gastronomia", "construccion", "administracion",
+];
+
+/** Link de selección de personal para un sector: su página si la tiene, si no el hub. */
+export function seleccionHref(rubroSlug?: string): string {
+  return rubroSlug && SELECCION_INDICE.includes(rubroSlug) ? `/seleccion-de-personal/${rubroSlug}` : "/seleccion-de-personal";
+}
+
 /** Localidad real de una zona del catálogo (para el JobPosting): los barrios → Bahía Blanca. */
 export function localidadDeZona(catalogSlug: string | undefined, nombre: string | undefined): string {
   if (catalogSlug === "zona-norte" || catalogSlug === "zona-sur") return "Bahía Blanca";
