@@ -17,10 +17,9 @@ Reglas (las mismas que el resto de la IA del portal):
 - Si algo falta (compuerta abierta pero interruptor apagado, sin `GEMINI_API_KEY`, tope, error de
   Gemini) responde `{available: false}` y el frontend sigue con la búsqueda normal.
 
-Rate limit: `20/minute` por IP con slowapi (mismo patrón que /contact). Ojo: detrás del proxy de
-Railway `get_remote_address` ve la IP del proxy, no la del usuario, así que en la práctica el
-límite es global — alcanza como freno de abuso porque el tope diario de gasto es el que protege
-la plata.
+Rate limit: `20/minute` por IP con slowapi (mismo patrón que /contact), con la IP real del
+usuario detrás del proxy de Railway (`core/limiter.py: client_ip`). Lo que protege la plata
+sigue siendo el tope diario de gasto.
 """
 from __future__ import annotations
 

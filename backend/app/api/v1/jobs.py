@@ -19,6 +19,7 @@ from app.services.notifications import notify_all_admins
 from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
 from app.services import job_search
+from app.services import indexing
 from app.services.ai import search_interpret
 from app.services.ai.search_interpret import InterpretResponse
 from app.core.features import require_new_modules
@@ -150,6 +151,7 @@ async def update_job_posting(
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job posting not found or not owned by company")
+    antes = indexing.snapshot(job)
 
     # Handle status transitions
     if payload.status is not None:
@@ -183,8 +185,11 @@ async def update_job_posting(
     if "duration_days" in update_data and job.published_at:
         job.expires_at = job.published_at + datetime.timedelta(days=job.duration_days)
 
+    # Pausar/cerrar/reactivar o cambiar el título de una búsqueda publicada → aviso a buscadores.
+    cambio = indexing.change_for(antes, job)
     await db.commit()
     await db.refresh(job)
+    indexing.notify(cambio)
     return job
 
 @router.get("/jobs", response_model=PaginatedJobsResponse)

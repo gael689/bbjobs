@@ -552,10 +552,37 @@ nuevas, no que se copien. Aplica en particular a `SECRET_KEY` y a la contraseña
 | `SENTRY_DSN` | DSN del proyecto de Sentry | ver bloque L |
 | `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | credenciales definitivas | confirmar que no son de una cuenta de prueba |
 | `MP_ACCESS_TOKEN` / `MP_PUBLIC_KEY` / `MP_WEBHOOK_SECRET` | producción (tras validar en sandbox) | ver bloque H |
+| `INDEXNOW_KEY` | ⏳ opcional — clave inventada de 8 a 128 caracteres `[a-zA-Z0-9-]` (p. ej. un uuid). **La misma** tiene que estar en Vercel (el frontend la sirve en `https://www.bbjobs.com.ar/indexnow-key.txt`) | Avisa a Bing/Yandex (y lo que lee de Bing: Copilot, ChatGPT search) cada vez que una búsqueda aparece, cambia de título o deja de estar visible — `backend/app/services/indexing.py`. Sin la variable no se avisa nada. No va detrás de `MODULOS_NUEVOS_ACTIVOS` |
+| `GOOGLE_INDEXING_CREDENTIALS` | ⏳ opcional — el **JSON entero** de la clave de la cuenta de servicio (pegarlo tal cual en Railway; puede ir en una sola línea) | Google Indexing API: `URL_UPDATED` al publicar/aprobar/reactivar/cambiar el título, `URL_DELETED` al cerrar/vencer/dar de baja/eliminar/suspender la empresa. Sin la variable no se avisa nada. Pasos abajo, en "Aviso a buscadores" |
 
 *(Se eliminan del `.env` real, aunque sigan en `.env.example` hasta la limpieza C5:
 `JWT_ALGORITHM`, `ACCESS_TOKEN_TTL_MINUTES`, `REFRESH_TOKEN_TTL_DAYS`, `RESEND_API_KEY`,
 `EMAIL_FROM`, `R2_*` — ningún código los lee.)*
+
+#### Aviso a buscadores (`INDEXNOW_KEY`, `GOOGLE_INDEXING_CREDENTIALS`)
+
+**IndexNow** (sin cuentas): generar una clave (p. ej. `python -c "import uuid; print(uuid.uuid4())"`),
+cargarla como `INDEXNOW_KEY` en Railway **y** en Vercel (Production), redeployar el frontend y
+verificar que `curl https://www.bbjobs.com.ar/indexnow-key.txt` devuelva exactamente la clave.
+
+**Google Indexing API** (la única vía que Google permite para páginas con `JobPosting`):
+1. En https://console.cloud.google.com crear (o elegir) un proyecto y habilitar
+   **Web Search Indexing API** (`indexing.googleapis.com`).
+2. *IAM y administración → Cuentas de servicio → Crear cuenta de servicio* (sin roles de
+   proyecto). En la cuenta: *Claves → Agregar clave → JSON*. Se descarga un `.json`: es el valor
+   de `GOOGLE_INDEXING_CREDENTIALS`. No commitearlo ni mandarlo por mail.
+3. En https://search.google.com/search-console, propiedad de `www.bbjobs.com.ar` (o la de
+   dominio `bbjobs.com.ar`): *Configuración → Usuarios y permisos → Agregar usuario* con el mail
+   de la cuenta de servicio (`...@...iam.gserviceaccount.com`) y permiso **Propietario**. Con
+   "Completo" la API responde 403. Si la UI nueva no deja elegir Propietario, usar
+   *Configuración → Propietarios verificados* desde la consola antigua (Webmaster Central).
+4. Pegar el JSON entero en Railway como `GOOGLE_INDEXING_CREDENTIALS` y redeployar.
+5. Verificar: publicar/aprobar una búsqueda y buscar `indexing_google_sent` en los logs de
+   Railway (`indexing_google_rejected` con 403 = falta el paso 3; con 429 = cuota, 200/día por
+   defecto). En Cloud Console → *APIs y servicios → Indexing API → Métricas* se ven las llamadas.
+
+Ambos avisos corren en segundo plano después del commit: si fallan, sólo queda el warning en el
+log; nunca frenan ni rompen la acción de la empresa o del admin.
 
 ### Frontend (Vercel)
 Nota importante encontrada 2026-07-20: estas variables están marcadas **"Sensitive"** en Vercel —

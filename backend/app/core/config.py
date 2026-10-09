@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     MP_NOTIFICATION_URL: str | None = None
     RAILWAY_PUBLIC_DOMAIN: str | None = None
 
+    # Aviso a buscadores al publicar/cerrar una búsqueda (services/indexing.py). Sin variable, no
+    # se avisa nada. INDEXNOW_KEY: 8–128 caracteres [a-zA-Z0-9-], la MISMA que en Vercel (el
+    # frontend la sirve en /indexnow-key.txt). GOOGLE_INDEXING_CREDENTIALS: el JSON entero de la
+    # clave de una cuenta de servicio sumada como propietaria en Search Console.
+    INDEXNOW_KEY: str | None = None
+    GOOGLE_INDEXING_CREDENTIALS: str | None = None
+
     MP_ACCESS_TOKEN: str | None = None
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None
