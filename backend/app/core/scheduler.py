@@ -7,6 +7,7 @@ from app.models.candidate import CandidateProfile
 from app.models.job import JobPosting, JobPostingStatus
 from app.services.notifications import create_notification
 from app.services.job_features import end_active_feature_for_job
+from app.services import indexing
 from app.services.profile_completion import (
     compute_profile_completion_bulk, should_send_completion_reminder,
 )
@@ -35,6 +36,7 @@ async def expire_jobs():
             )
         )
         expired_jobs = res_jobs.scalars().all()
+        antes = [indexing.snapshot(job) for job in expired_jobs]
 
         for job in expired_jobs:
             job.status = JobPostingStatus.expired
@@ -58,7 +60,10 @@ async def expire_jobs():
 
         if expired_jobs:
             logger.info("jobs_expired_processed", count=len(expired_jobs))
+            cambios = [indexing.change_for(a, j) for a, j in zip(antes, expired_jobs)]
             await db.commit()
+            # Las vencidas dan 404: aviso a los buscadores, en segundo plano (services/indexing.py).
+            indexing.notify(cambios)
 
 
 async def notify_expiring_soon():

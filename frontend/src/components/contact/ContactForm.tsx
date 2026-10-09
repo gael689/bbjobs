@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { PaperAirplaneIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 const inputCls =
@@ -32,6 +33,7 @@ export default function ContactForm({ topic = "general" }: { topic?: "general" |
         message,
       });
       setSent(true);
+      track("generate_lead", { topic });
     } catch (err: unknown) {
       // El 422 del backend casi siempre es el teléfono (muy corto) o un mail mal escrito.
       const status = (err as { response?: { status?: number } })?.response?.status;
