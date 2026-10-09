@@ -213,25 +213,28 @@ datos sensibles. Lo que la IA genera para un candidato va en pantalla, no en mai
 
 ---
 
-## Estado (08/10/2026)
+## Estado (08/10/2026, cierre)
 
-Commits en `feat/mails-ia`: `404c1a8` buscador · `8acedbd` mails · `5ca0dd7` SEO y cookies.
-Suite backend 421 OK contra Postgres local; `next build` OK.
+Commits en `feat/mails-ia` (pusheados): `404c1a8` buscador · `8acedbd` mails · `5ca0dd7` SEO y
+cookies · `0e86dfb` /cookies en el sitemap · `ac3f123` aviso a buscadores + rate limit con IP real ·
+`21b3852` IA (asistente de redacción, habilidades desde el CV, recomendados al instante, resumen del
+candidato, duplicados/sector, "para vos" por afinidad).
+Suite backend **481 OK** en base limpia, migraciones `c7d1e5f9a2b4` → `d8e2f6a0b3c5` → `f2b3c4d5e6a7`
+ida y vuelta; `next build` OK. Las migraciones corren solas en el deploy (Dockerfile).
 
-**Hecho:** Frente 1 completo (backend, estados, vista previa del mail en "Cambiar estado", vista
-previa para Eugenia con pestaña de estados), Frente 2 (salvo el aviso a buscadores desde el backend),
-Frente 3, Frente 4 (zonas y sectores; sin combinaciones ni guías), Frente 5 completo, Frente 6.1.
-Documento para Eugenia: `NOVEDADES-MAILS-SEO-EUGENIA.pdf`.
+**Hecho:** Frentes 1–6 completos en código. Documento para Eugenia: `NOVEDADES-MAILS-SEO-EUGENIA.pdf`.
 
-**Falta:**
-1. Lo que decida Eugenia sobre los mails propuestos y los tres detalles (semana sin entrar,
-   resumen semanal, nombre de la empresa en la Base de Talento → línea en los términos).
-2. IndexNow / Google Indexing API desde el backend al publicar y cerrar (necesita `INDEXNOW_KEY`
-   y, para Google, una cuenta de servicio sumada en Search Console).
-3. Links de los mails a la ficha con slug (hoy `/empleos/<uuid>`, funciona por la redirección 308).
-4. Frente 6, puntos 2–7 (el orden semanal por embeddings y el asistente de redacción primero).
-5. Afuera: propiedad GA4 + `NEXT_PUBLIC_GA_ID` en Vercel, activar Web Analytics en Vercel,
-   Search Console con el sitemap de www, Google Business Profile; validar el texto legal de cookies.
-6. Rate limit de `/jobs/interpret`: detrás del proxy de Railway, slowapi ve una sola IP (hoy el
-   límite es global; lo que protege el gasto es el tope diario).
-7. Las migraciones `c7d1e5f9a2b4` y `d8e2f6a0b3c5` corren solas en el deploy (Dockerfile).
+**Falta (no es código):**
+1. Lo que decida Eugenia sobre los mails propuestos y los tres detalles (semana sin entrar, resumen
+   semanal, nombre de la empresa en la Base de Talento → línea en los términos para empresas).
+2. Afuera: propiedad GA4 + `NEXT_PUBLIC_GA_ID` en Vercel; activar Web Analytics en Vercel; Search
+   Console (dominio) con el sitemap de www; `INDEXNOW_KEY` en Railway **y** Vercel; cuenta de servicio
+   de Google como Propietario en Search Console → `GOOGLE_INDEXING_CREDENTIALS` en Railway; Google
+   Business Profile; abogado: sección de cookies.
+3. Calibrar con Gemini real y datos de producción los umbrales de moderación (duplicado 0,92; margen
+   de sector 0,04 — constantes en `services/ai/moderation.py`).
+4. Contenido: guías editoriales y combinaciones sector × zona cuando haya ≥3 búsquedas activas por
+   combinación; a los 60 días, páginas nuevas según Search Console.
+5. La baja de cuenta de una empresa no avisa a los buscadores (las fichas dan 404 y salen solas).
+6. Lanzamiento: merge a `main` y prender la compuerta y los interruptores
+   (`busqueda_ia_activa`, `asistente_ia_activo`, `ia_recomendaciones_activas`).
