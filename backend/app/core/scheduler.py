@@ -2,6 +2,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import structlog
 from app.db.session import async_session_maker
 from sqlalchemy.future import select
+from sqlalchemy import delete
+from app.models.metrics import SiteEvent
+from app.services.site_metrics import retention_cutoff
 from app.models.company import CompanyProfile
 from app.models.candidate import CandidateProfile
 from app.models.job import JobPosting, JobPostingStatus
@@ -146,9 +149,19 @@ async def send_profile_reminders():
             await db.commit()
 
 
+async def purge_site_events():
+    """Retención de la medición propia: se borran los eventos de más de 13 meses."""
+    async with async_session_maker() as db:
+        res = await db.execute(delete(SiteEvent).where(SiteEvent.created_at < retention_cutoff()))
+        await db.commit()
+        if res.rowcount:
+            logger.info("site_events_purged", count=res.rowcount)
+
+
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
     scheduler.add_job(notify_expiring_soon, "interval", hours=1)
     scheduler.add_job(send_profile_reminders, "interval", hours=24)
+    scheduler.add_job(purge_site_events, "interval", hours=24)
     scheduler.start()
     logger.info("scheduler_started")

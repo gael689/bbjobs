@@ -12,6 +12,7 @@ from app.models.contact import ContactMessage, ContactTopic
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.landing import LandingStat
 from app.models.legal import LegalAcceptance
+from app.models.metrics import SiteEvent
 
 __all__ = [
     "Base",
@@ -71,4 +72,5 @@ __all__ = [
     "CandidateActivityLog",
     "LandingStat",
     "LegalAcceptance",
+    "SiteEvent",
 ]
