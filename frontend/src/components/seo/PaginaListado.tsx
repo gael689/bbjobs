@@ -10,7 +10,6 @@ import type { Catalogos, PublicJob } from "@/lib/seo/datos";
 import { etiquetasJob } from "@/lib/seo/datos";
 import { localidadDeZona } from "@/lib/seo/indice";
 import { jobUrl } from "@/lib/seo/urls";
-import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 const MODALITY_LABEL: Record<string, string> = {
   presencial: "Presencial",
@@ -37,11 +36,8 @@ export default function PaginaListado({
   /** Link a /empleos con el filtro ya aplicado. */
   filtroEmpleos: string;
 }) {
-  // La alerta de empleos es un módulo nuevo (compuerta MODULOS_NUEVOS_ACTIVOS): mientras no se
-  // lance, el CTA lleva a crear la cuenta de candidato.
-  const cta = MODULOS_NUEVOS_VISIBLES
-    ? { href: "/dashboard/candidate/alertas", texto: "Crear una alerta de empleo", nota: "Te avisamos por mail cuando aparezca una búsqueda que te sirva." }
-    : { href: "/register?type=candidate", texto: "Cargar mi CV gratis", nota: "Con tu perfil listo, te postulás con un click apenas aparece una búsqueda." };
+  // Las alertas de empleo todavía no están lanzadas: el CTA lleva a crear la cuenta de candidato.
+  const cta = { href: "/register?type=candidate", texto: "Cargar mi CV gratis", nota: "Con tu perfil listo, te postulás con un click apenas aparece una búsqueda." };
 
   return (
     <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20">

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, func
@@ -20,9 +20,6 @@ from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
 from app.services import job_search
 from app.services import indexing
-from app.services.ai import search_interpret
-from app.services.ai.search_interpret import InterpretResponse
-from app.core.features import require_new_modules
 from app.core.limiter import limiter
 
 router = APIRouter()
@@ -280,21 +277,6 @@ async def suggest_jobs(
 ):
     # Sin tildes y por palabras (job_search.suggest): "tecnico" sugiere "Técnico electricista".
     return [JobSuggestion(label=label, type=kind) for label, kind in await job_search.suggest(db, q, limit)]
-
-
-@router.get("/jobs/interpret", response_model=InterpretResponse, response_model_exclude_none=True,
-            dependencies=[Depends(require_new_modules)])
-@limiter.limit("20/minute")
-async def interpret_job_search(
-    request: Request,
-    q: str = Query(..., min_length=1),
-    db: AsyncSession = Depends(get_db),
-):
-    """Búsqueda inteligente (Frente 5.2): traduce una frase en lenguaje natural a filtros del
-    catálogo con Gemini. Detrás de la compuerta (404 cerrada) y del interruptor
-    `busqueda_ia_activa`. Si no hay IA, se pasó el tope de gasto o la frase es corta, responde
-    `{available: false}` y el frontend sigue con la búsqueda normal. Nunca genera SQL."""
-    return await search_interpret.interpret(db, q)
 
 
 @router.get("/jobs/{id}", response_model=JobPostingPublicResponse)

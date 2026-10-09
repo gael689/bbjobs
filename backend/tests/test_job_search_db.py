@@ -22,16 +22,10 @@ if TEST_DB:
 
     from app.api.deps import get_db
     from app.core.config import settings
-    from app.integrations import gemini_client
-    from app.integrations.gemini_client import AIError, AIResult, AIUsage
-    from app.models.ai import AiUsageLog
     from app.models.catalogs import ContractType, Industry, Skill, Zone
     from app.models.company import CompanyProfile
     from app.models.core import User
     from app.models.job import JobPosting, JobPostingSkill
-    from app.models.settings import SettingKey
-    from app.services.ai import search_interpret
-    from app.services.settings import set_setting
 
 
 @pytest.fixture
@@ -196,104 +190,3 @@ async def test_suggest_without_accents(maker, client):
     assert not any("pausado" in label or "pendiente" in label for label, _ in labels)
     r = await client.get("/api/v1/jobs/suggest", params={"q": f"nandu {tag}"})
     assert [s["type"] for s in r.json()] == ["company"]
-
-
-# ── /jobs/interpret (Gemini simulado) ───────────────────────────────────────────────────
-
-class FakeProvider:
-    def __init__(self, data):
-        self.data = data
-        self.calls = 0
-        self.prompts = []
-
-    async def generate_json(self, *, system, prompt, model, feature, **kw):
-        self.calls += 1
-        self.prompts.append(prompt)
-        assert feature == "busqueda"
-        return AIResult(data=model.model_validate(self.data),
-                        usage=AIUsage(model="gemini-3.5-flash-lite", input_tokens=800, output_tokens=60))
-
-
-class FailingProvider:
-    async def generate_json(self, **kw):
-        raise AIError("caído", transient=True)
-
-
-@pytest.fixture
-async def ai_on(maker, monkeypatch):
-    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
-    monkeypatch.setattr(settings, "AI_DAILY_BUDGET_USD", 1000.0)
-    search_interpret.cache.clear()
-    async with maker() as db:
-        await set_setting(db, SettingKey.busqueda_ia_activa, True)
-        await db.commit()
-    yield
-    search_interpret.cache.clear()
-
-
-async def _usage_rows(maker):
-    async with maker() as db:
-        return (await db.execute(select(func.count()).select_from(AiUsageLog)
-                                 .where(AiUsageLog.feature == "busqueda"))).scalar_one()
-
-
-async def test_interpret_404_with_gate_closed(client, monkeypatch):
-    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
-    r = await client.get("/api/v1/jobs/interpret", params={"q": "algo de administración cerca de punta alta"})
-    assert r.status_code == 404
-
-
-async def test_interpret_validates_against_catalog(maker, client, ai_on, monkeypatch):
-    ids, tag, world = await _world(maker)
-    fake = FakeProvider({
-        "zone_slug": f"punta-alta-{tag}", "industry_slug": "industria-inventada", "modality": "full time",
-        "contract_type": f"Relación de dependencia {tag}", "keywords": ["vendedor", "mujer", "joven", "30"],
-        "entendimos": "Ventas en Punta Alta",
-    })
-    monkeypatch.setattr(search_interpret, "get_provider", lambda: fake)
-    before = await _usage_rows(maker)
-    q = f"busco algo de ventas en punta alta {tag}"
-    r = await client.get("/api/v1/jobs/interpret", params={"q": q})
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["available"] is True
-    assert body["zone"]["id"] == str(world["punta"].id)
-    assert body["contract_type"]["id"] == str(world["ct"].id)
-    assert "industry" not in body and "modality" not in body       # inventados: descartados
-    assert body["keywords"] == "vendedor"                          # sin género, edad ni números
-    assert body["understood"] == "Ventas en Punta Alta"
-    assert "<FRASE>" in fake.prompts[0] and f"punta-alta-{tag}" in fake.prompts[0]
-    assert await _usage_rows(maker) == before + 1
-
-    # misma frase (con otras tildes/mayúsculas): sale de la caché, no se paga de nuevo
-    r = await client.get("/api/v1/jobs/interpret", params={"q": q.upper().replace("A", "Á", 1)})
-    assert r.json()["zone"]["id"] == str(world["punta"].id)
-    assert fake.calls == 1
-
-
-async def test_interpret_unavailable_cases(maker, client, ai_on, monkeypatch):
-    fake = FakeProvider({"keywords": ["administrativo"]})
-    monkeypatch.setattr(search_interpret, "get_provider", lambda: fake)
-    url = "/api/v1/jobs/interpret"
-
-    # frase corta: ni se consulta
-    assert (await client.get(url, params={"q": "vendedor"})).json() == {"available": False}
-    # Gemini caído
-    monkeypatch.setattr(search_interpret, "get_provider", lambda: FailingProvider())
-    assert (await client.get(url, params={"q": "algo de administración part time"})).json() == {"available": False}
-    # tope de gasto agotado
-    monkeypatch.setattr(search_interpret, "get_provider", lambda: fake)
-    monkeypatch.setattr(settings, "AI_DAILY_BUDGET_USD", 0.0)
-    assert (await client.get(url, params={"q": "algo de administración part time"})).json() == {"available": False}
-    # sin API key
-    monkeypatch.setattr(settings, "AI_DAILY_BUDGET_USD", 1000.0)
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
-    monkeypatch.setattr(search_interpret, "get_provider", gemini_client.get_provider)   # el real: levanta AIUnavailable
-    assert (await client.get(url, params={"q": "algo de administración part time"})).json() == {"available": False}
-    # interruptor apagado
-    monkeypatch.setattr(search_interpret, "get_provider", lambda: fake)
-    async with maker() as db:
-        await set_setting(db, SettingKey.busqueda_ia_activa, False)
-        await db.commit()
-    assert (await client.get(url, params={"q": "algo de administración part time"})).json() == {"available": False}
-    assert fake.calls == 0
