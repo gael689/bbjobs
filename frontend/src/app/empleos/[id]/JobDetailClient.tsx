@@ -9,46 +9,25 @@ import {
   BriefcaseIcon, BuildingOffice2Icon,
   CalendarIcon, CurrencyDollarIcon, ArrowLeftIcon,
   CheckCircleIcon, XMarkIcon, PaperAirplaneIcon, BoltIcon,
-  MapPinIcon, DocumentTextIcon, TagIcon,
 } from "@heroicons/react/24/outline";
 import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobApply";
-import { track } from "@/lib/analytics";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
-import { jobUrl, parseJobParam } from "@/lib/seo/urls";
 
 interface Job {
   id: string;
   title: string;
   description: string;
-  company_id?: string | null;
+  company_id?: string;
   company_legal_name_snapshot: string;
   modality: string;
-  zone_id?: string | null;
-  published_at?: string | null;
-  salary_min?: number | null;
-  salary_max?: number | null;
+  zone_id?: string;
+  published_at?: string;
+  salary_min?: number;
+  salary_max?: number;
   salary_visible?: boolean;
-  salary_currency?: string | null;
-  benefits?: string | null;
+  salary_currency?: string;
+  benefits?: string;
   is_featured?: boolean;
-}
-
-/** Nombres ya resueltos en el servidor (zona, sector, contrato) y links a sus páginas. */
-export interface JobEtiquetas {
-  zona?: string;
-  rubro?: string;
-  contrato?: string;
-  paginaZona?: string;
-  paginaRubro?: string;
-}
-
-interface Props {
-  /** El aviso ya traído en el servidor: con esto el HTML inicial trae el contenido completo
-   *  y no se vuelve a pedir desde el navegador. */
-  initialJob?: Job | null;
-  canonicalPath?: string;
-  etiquetas?: JobEtiquetas;
-  migas?: React.ReactNode;
 }
 
 const MODALITY_LABEL: Record<string, string> = {
@@ -57,15 +36,13 @@ const MODALITY_LABEL: Record<string, string> = {
   "híbrido": "Híbrido",
 };
 
-export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, migas }: Props) {
-  const params = useParams<{ id: string }>();
-  // El parámetro de la ruta es "<slug>-<uuid>": la API sólo entiende el uuid.
-  const id = initialJob?.id ?? parseJobParam(params?.id ?? "") ?? "";
+export default function JobDetailClient() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user, isSignedIn } = useUser();
 
-  const [job, setJob] = useState<Job | null>(initialJob ?? null);
-  const [loading, setLoading] = useState(!initialJob);
+  const [job, setJob] = useState<Job | null>(null);
+  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [coverLetter, setCoverLetter] = useState("");
@@ -74,17 +51,12 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialJob || !id) return;
+    if (!id) return;
     api.get(`/jobs/${id}`)
       .then(r => setJob(r.data))
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [id, initialJob]);
-
-  const jobId = job?.id;
-  useEffect(() => { if (jobId) track("view_item", { job_id: jobId }); }, [jobId]);
-
-  const publicPath = canonicalPath ?? (job ? jobUrl(job) : `/empleos/${id}`);
+  }, [id]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -92,7 +64,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
   }
 
   function goToLogin() {
-    router.push(loginUrlWithReturn(publicPath));
+    router.push(loginUrlWithReturn(`/empleos/${id}`));
   }
 
   async function handleApply() {
@@ -194,14 +166,12 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
         </div>
       )}
 
-      {/* Migas (server-rendered) o, si no vinieron, el link de vuelta */}
+      {/* Back */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
-        {migas ?? (
-          <Link href="/empleos" className="inline-flex items-center gap-1.5 text-sm text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">
-            <ArrowLeftIcon className="w-4 h-4" />
-            Volver a empleos
-          </Link>
-        )}
+        <Link href="/empleos" className="inline-flex items-center gap-1.5 text-sm text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">
+          <ArrowLeftIcon className="w-4 h-4" />
+          Volver a empleos
+        </Link>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
@@ -226,8 +196,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                   {job.published_at && (
                     <span className="text-xs text-[#64748B] flex items-center gap-1">
                       <CalendarIcon className="w-3.5 h-3.5" />
-                      {/* Zona horaria fija: el HTML sale del servidor (UTC) y tiene que coincidir con el navegador. */}
-                      {new Date(job.published_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
+                      {new Date(job.published_at).toLocaleDateString("es-AR")}
                     </span>
                   )}
                 </div>
@@ -245,32 +214,6 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                   </span>
                   <VerifiedBadge />
                 </div>
-                {(etiquetas?.zona || etiquetas?.contrato || etiquetas?.rubro) && (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-sm text-[#64748B]">
-                    {etiquetas.zona && (
-                      <span className="flex items-center gap-1.5">
-                        <MapPinIcon className="w-4 h-4 text-[#1E8EA3]" />
-                        {etiquetas.paginaZona ? (
-                          <Link href={etiquetas.paginaZona} className="hover:text-[#1E8EA3] hover:underline">{etiquetas.zona}</Link>
-                        ) : etiquetas.zona}
-                      </span>
-                    )}
-                    {etiquetas.contrato && (
-                      <span className="flex items-center gap-1.5">
-                        <DocumentTextIcon className="w-4 h-4 text-[#1E8EA3]" />
-                        {etiquetas.contrato}
-                      </span>
-                    )}
-                    {etiquetas.rubro && (
-                      <span className="flex items-center gap-1.5">
-                        <TagIcon className="w-4 h-4 text-[#1E8EA3]" />
-                        {etiquetas.paginaRubro ? (
-                          <Link href={etiquetas.paginaRubro} className="hover:text-[#1E8EA3] hover:underline">{etiquetas.rubro}</Link>
-                        ) : etiquetas.rubro}
-                      </span>
-                    )}
-                  </div>
-                )}
                 {job.salary_visible && (job.salary_min || job.salary_max) && (
                   <div className="flex items-center gap-1.5 mt-3 text-[#1E8EA3] font-bold">
                     <CurrencyDollarIcon className="w-5 h-5" />
@@ -290,7 +233,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                   <button
                     onClick={() => {
                       if (!isSignedIn) {
-                        router.push(loginUrlWithReturn(publicPath));
+                        router.push(`/login?redirect=/empleos/${id}`);
                         return;
                       }
                       setShowApplyModal(true);

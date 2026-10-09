@@ -10,7 +10,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobApply";
 import VerifiedBadge from "./VerifiedBadge";
-import { jobUrl } from "@/lib/seo/urls";
 
 export interface PreviewJob {
   id: string;
@@ -161,7 +160,7 @@ export default function JobPreviewPanel({
           </div>
 
           <Link
-            href={jobUrl(job)}
+            href={`/empleos/${job.id}`}
             className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1E8EA3] hover:underline"
           >
             Ver aviso completo <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />

@@ -18,9 +18,6 @@ from app.schemas.job import (
 from app.services.notifications import notify_all_admins
 from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
-from app.services import job_search
-from app.services import indexing
-from app.core.limiter import limiter
 
 router = APIRouter()
 
@@ -148,7 +145,6 @@ async def update_job_posting(
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job posting not found or not owned by company")
-    antes = indexing.snapshot(job)
 
     # Handle status transitions
     if payload.status is not None:
@@ -182,11 +178,8 @@ async def update_job_posting(
     if "duration_days" in update_data and job.published_at:
         job.expires_at = job.published_at + datetime.timedelta(days=job.duration_days)
 
-    # Pausar/cerrar/reactivar o cambiar el título de una búsqueda publicada → aviso a buscadores.
-    cambio = indexing.change_for(antes, job)
     await db.commit()
     await db.refresh(job)
-    indexing.notify(cambio)
     return job
 
 @router.get("/jobs", response_model=PaginatedJobsResponse)
@@ -199,7 +192,7 @@ async def list_public_jobs(
     min_education_level: Optional[EducationLevel] = Query(None),
     salary_min: Optional[float] = Query(None),
     salary_max: Optional[float] = Query(None),
-    q: Optional[str] = Query(None, description="Palabras a buscar: puesto, empresa, sector, zona, habilidades (ver services/job_search.py)"),
+    q: Optional[str] = Query(None, description="Buscar en título y descripción"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
@@ -220,9 +213,14 @@ async def list_public_jobs(
         query = query.where(JobPosting.contract_type_id == contract_type_id)
     if company_id:
         query = query.where(JobPosting.company_id == company_id)
-    search = await job_search.apply_search(db, query, q) if q else None
-    if search is not None:
-        query, search_order = search
+    if q:
+        search_term = f"%{q}%"
+        query = query.where(
+            or_(
+                JobPosting.title.ilike(search_term),
+                JobPosting.description.ilike(search_term)
+            )
+        )
     # Solapamiento de rango: el job matchea si su rango de salario cruza el pedido.
     # Se filtra sobre el valor real aunque salary_visible sea False — buscar por rango
     # no es lo mismo que mostrar el número (ver JobPostingPublicResponse).
@@ -247,10 +245,7 @@ async def list_public_jobs(
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
 
-    if search is not None:
-        query = query.order_by(*search_order)
-    else:
-        query = query.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.desc())
+    query = query.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(query)
@@ -272,11 +267,37 @@ async def list_public_jobs(
 @router.get("/jobs/suggest", response_model=List[JobSuggestion])
 async def suggest_jobs(
     q: str = Query(..., min_length=1),
-    limit: int = Query(8, ge=1, le=20),
+    limit: int = Query(8, le=20),
     db: AsyncSession = Depends(get_db),
 ):
-    # Sin tildes y por palabras (job_search.suggest): "tecnico" sugiere "Técnico electricista".
-    return [JobSuggestion(label=label, type=kind) for label, kind in await job_search.suggest(db, q, limit)]
+    search_term = f"%{q}%"
+
+    title_result = await db.execute(
+        select(JobPosting.title)
+        .where(
+            JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
+            JobPosting.title.ilike(search_term),
+        )
+        .distinct()
+        .limit(limit)
+    )
+    company_result = await db.execute(
+        select(JobPosting.company_legal_name_snapshot)
+        .where(
+            JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
+            JobPosting.company_legal_name_snapshot.ilike(search_term),
+        )
+        .distinct()
+        .limit(limit)
+    )
+
+    suggestions = [JobSuggestion(label=t, type="title") for t in title_result.scalars().all()]
+    suggestions += [JobSuggestion(label=c, type="company") for c in company_result.scalars().all()]
+    return suggestions[:limit]
 
 
 @router.get("/jobs/{id}", response_model=JobPostingPublicResponse)

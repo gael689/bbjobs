@@ -68,29 +68,13 @@ export default clerkMiddleware(async (auth, request) => {
   // /empleos/[id]) ya escapa "<". Ver SEGURIDAD-PLAN.md, bloque C (actualización).
   const scriptSrc = nonce ? `'nonce-${nonce}'` : "'unsafe-inline'";
 
-  // Medición (Frente 3, MAILS-SEO-IA-OCTUBRE-PLAN.md). Google Analytics 4 sólo se descarga después
-  // de que la persona acepta "Medición" en el banner (components/consent/), pero la CSP tiene que
-  // dejarlo pasar en todas las rutas. gtag.js sale de googletagmanager.com y manda los hits a
-  // *.google-analytics.com / *.analytics.google.com (region1, etc.). No hay <script> inline: el
-  // stub de gtag lo arma lib/analytics.ts, así que el nonce del panel no se toca.
-  // Vercel Web Analytics usa /_vercel/insights (mismo origen, ya cubierto por 'self'); sólo en
-  // `next dev` carga su script de debug desde va.vercel-scripts.com.
-  // A propósito NO se habilita https://www.google.com: gtag.js manda ahí una copia del hit para
-  // las funciones publicitarias (verificado con Playwright 08/10/2026: el hit de medición sale
-  // igual por *.google-analytics.com). BBJobs no hace publicidad, así que esa copia queda bloqueada
-  // y en la consola aparece un aviso de CSP esperable.
-  const gaScript = "https://www.googletagmanager.com";
-  const gaConnect =
-    "https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com";
-  const vercelAnalyticsDev = isDev ? " https://va.vercel-scripts.com" : "";
-
   const cspHeader = `
     default-src 'self';
-    script-src 'self' ${scriptSrc} ${clerkOrigins} ${turnstileOrigin} ${gaScript}${vercelAnalyticsDev}${isDev ? " 'unsafe-eval'" : ""};
+    script-src 'self' ${scriptSrc} ${clerkOrigins} ${turnstileOrigin}${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://res.cloudinary.com https://img.clerk.com ${gaConnect};
+    img-src 'self' blob: data: https://res.cloudinary.com https://img.clerk.com;
     font-src 'self' data:;
-    connect-src 'self' ${apiOrigin()} ${clerkOrigins} ${turnstileOrigin} ${gaConnect}${vercelAnalyticsDev};
+    connect-src 'self' ${apiOrigin()} ${clerkOrigins} ${turnstileOrigin};
     frame-src 'self' ${clerkOrigins} ${turnstileOrigin};
     worker-src 'self' blob:;
     object-src 'none';

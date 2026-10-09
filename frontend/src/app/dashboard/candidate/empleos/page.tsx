@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { applyToJob } from "@/lib/jobApply";
 import { BriefcaseIcon, CheckCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { MODALITY_LABEL, type Application, type CandidateProfile, type Job } from "../types";
 
@@ -34,7 +33,7 @@ export default function CandidateEmpleosPage() {
     if (!applyModal) return;
     setApplyingTo(applyModal.id);
     try {
-      await applyToJob(applyModal.id, coverLetter); // registra también el evento `apply`
+      await api.post(`/jobs/${applyModal.id}/apply`, { cover_letter: coverLetter || undefined });
       toast("Postulación enviada correctamente");
       const r = await api.get("/me/candidate/applications");
       setApplications(r.data);

@@ -22,7 +22,6 @@ import {
   UserGroupIcon,
   MapPinIcon,
 } from "@heroicons/react/24/outline";
-import { jobUrl } from "@/lib/seo/urls";
 
 interface Job extends PreviewJob {
   is_featured?: boolean;
@@ -371,7 +370,7 @@ export default function Home() {
                 {previewJobs.map(job => (
                   <a
                     key={job.id}
-                    href={jobUrl(job)}
+                    href={`/empleos/${job.id}`}
                     onClick={e => { e.preventDefault(); openPreview(job); }}
                     className={`group relative overflow-hidden rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4 ${
                       job.is_featured

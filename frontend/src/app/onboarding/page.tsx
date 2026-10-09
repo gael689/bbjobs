@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { api } from "@/lib/api";
-import { track } from "@/lib/analytics";
 import {
   EnvelopeIcon, UserIcon,
   BuildingOfficeIcon, PhoneIcon, IdentificationIcon,
@@ -161,7 +160,6 @@ export default function OnboardingPage() {
           visible_in_talent_pool: visibleInTalentPool,
           acepta_terminos: aceptaTerminos,
         });
-        track("sign_up", { method: "candidato" });
         router.push(nextPath || `/dashboard/${res.data.role}`);
       } else {
         const selectedIndustry = industries.find(i => i.id === industryId);
@@ -180,7 +178,6 @@ export default function OnboardingPage() {
           ...(isOtro && otherIndustry ? { description: `Industria: ${otherIndustry}` } : {}),
           acepta_terminos: aceptaTerminos,
         });
-        track("sign_up", { method: "empresa" });
         router.push(nextPath || `/dashboard/${res.data.role}`);
       }
     } catch (err: unknown) {

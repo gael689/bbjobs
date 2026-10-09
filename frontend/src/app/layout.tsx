@@ -8,22 +8,15 @@ import Footer from "@/components/layout/Footer";
 import ClerkTokenSync from "@/components/auth/ClerkTokenSync";
 import SessionExpiredBanner from "@/components/auth/SessionExpiredBanner";
 import AvisoCorreccion from "@/components/auth/AvisoCorreccion";
-import { Analytics } from "@vercel/analytics/next";
-import CookieBanner from "@/components/consent/CookieBanner";
-import GoogleAnalytics from "@/components/consent/GoogleAnalytics";
 import { clerkAppearance } from "@/lib/clerk-appearance";
-import JsonLd from "@/components/seo/JsonLd";
-import { SITE_URL, SITIO } from "@/lib/seo/sitio";
-import { organizationSchema, websiteSchema } from "@/lib/seo/schema";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", display: "swap", weight: ["400","500","600","700","800"] });
 const dmSans  = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap", weight: ["400","500","700"] });
 
-// Dominio canónico: www (el apex redirige 308). Ver lib/seo/sitio.ts.
-const OG_IMAGE = SITIO.ogImage;
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bbjobs.com.ar";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
   title: "BBJobs — El trabajo que buscás está en Bahía",
   description: "Portal de empleos local de Bahía Blanca. Empresas verificadas, postulación con un click y oportunidades recomendadas según tu perfil.",
   keywords: "empleo Bahía Blanca, trabajo Bahía Blanca, búsqueda laboral, Talency",
@@ -53,8 +46,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es" className={`${jakarta.variable} ${dmSans.variable}`}>
       <body className="min-h-screen bg-[#FAFBFD] text-[#1C2230] font-sans flex flex-col antialiased relative">
-        {/* JSON-LD del sitio: Organization (BBJobs, iniciativa de Talency) + WebSite con buscador. */}
-        <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <ClerkProvider appearance={clerkAppearance} localization={esES}>
           <ClerkTokenSync />
           <SessionExpiredBanner />
@@ -62,10 +53,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Header />
           <main className="flex-1 w-full relative z-10">{children}</main>
           <Footer />
-          {/* Medición (Frente 3): Vercel Analytics no usa cookies; GA4 sólo con consentimiento. */}
-          <CookieBanner />
-          <GoogleAnalytics />
-          <Analytics />
         </ClerkProvider>
       </body>
     </html>

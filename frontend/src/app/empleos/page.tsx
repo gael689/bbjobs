@@ -3,14 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { track } from "@/lib/analytics";
 import {
   BriefcaseIcon, MagnifyingGlassIcon, MapPinIcon,
   BuildingOffice2Icon, FunnelIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
 import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
-import { jobUrl } from "@/lib/seo/urls";
 
 interface Job extends PreviewJob {
   zone_id?: string;
@@ -117,7 +115,6 @@ export default function EmpleosPage() {
           setJobs(r.data.items);
           setTotal(r.data.total);
           setPage(1);
-          if (q.trim()) track("search", { search_term: q.trim(), results: r.data.total });
         })
         .catch(() => { if (!ignore) { setJobs([]); setTotal(0); } })
         .finally(() => { if (!ignore) setResolvedFiltersKey(filtersKey); });
@@ -171,7 +168,7 @@ export default function EmpleosPage() {
               type="text"
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="Buscar por puesto, empresa, sector o zona..."
+              placeholder="Buscar por puesto, empresa o descripción..."
               className="w-full pl-12 pr-4 py-4 border border-[#DDE3EC] rounded-2xl bg-white text-[#1C2230] text-sm focus:outline-none focus:border-[#1E8EA3] shadow-sm"
             />
           </div>
@@ -306,7 +303,7 @@ export default function EmpleosPage() {
                 {jobs.map(job => (
                   <a
                     key={job.id}
-                    href={jobUrl(job)}
+                    href={`/empleos/${job.id}`}
                     onClick={e => { e.preventDefault(); openPreview(job); }}
                     className={`relative overflow-hidden block rounded-2xl p-6 transition-all group ${
                       job.is_featured
