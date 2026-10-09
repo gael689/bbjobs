@@ -19,12 +19,32 @@ class ContactMessageCreate(BaseModel):
     company_name: Optional[str] = None
     topic: ContactTopic = ContactTopic.general
     message: str
+    # Opcionales del formulario de selección de personal. No tienen columna propia: el endpoint
+    # los antepone al mensaje (ver armar_mensaje en api/v1/contact.py) y así Talency los ve en el
+    # panel de mensajes sin migración.
+    puesto: Optional[str] = Field(default=None, max_length=200)
+    sector: Optional[str] = Field(default=None, max_length=100)
+    vacantes: Optional[int] = Field(default=None, ge=1, le=999)
 
     @field_validator("email", mode="before")
     @classmethod
     def empty_email_is_none(cls, v):
         # Un input vacío llega como "" y EmailStr lo rechazaría.
         if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("puesto", "sector", "company_name", mode="before")
+    @classmethod
+    def empty_text_is_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("vacantes", mode="before")
+    @classmethod
+    def empty_vacantes_is_none(cls, v):
+        if v == "" or v is None:
             return None
         return v
 

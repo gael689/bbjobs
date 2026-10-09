@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PaginaListado from "@/components/seo/PaginaListado";
 import { RUBROS, getRubro } from "@/lib/seo/rubros";
-import { RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
+import { RUBROS_INDICE, ZONAS_INDICE, seleccionHref } from "@/lib/seo/indice";
 import { getActiveJobs, getCatalogos, idsPorSlug } from "@/lib/seo/datos";
 import { SITIO, urlAbs } from "@/lib/seo/sitio";
 
@@ -67,6 +67,7 @@ export default async function EmpleosDeRubroPage({ params }: Props) {
       cruzadosTitulo="Trabajo por zona"
       cruzados={ZONAS_INDICE.map((z) => ({ href: `/trabajo-en/${z.slug}`, nombre: `Trabajo en ${z.nombre}` }))}
       filtroEmpleos="/empleos"
+      empresas={{ titulo: `¿Buscás personal de ${d.rubro.nombre.toLowerCase()}?`, seleccionHref: seleccionHref(slug) }}
     />
   );
 }

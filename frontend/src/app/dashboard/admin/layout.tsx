@@ -5,7 +5,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
   UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon,
-  MagnifyingGlassCircleIcon, MegaphoneIcon, DocumentMagnifyingGlassIcon, BuildingStorefrontIcon, CpuChipIcon
+  MagnifyingGlassCircleIcon, MegaphoneIcon, DocumentMagnifyingGlassIcon, BuildingStorefrontIcon, CpuChipIcon, PresentationChartLineIcon
 } from "@heroicons/react/24/outline";
 import { ETIQUETA_EN_DESARROLLO } from "@/lib/modulos";
 
@@ -29,6 +29,8 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon, section: "Negocio" },
   { href: "/dashboard/admin/talento", label: "Base de Talento", icon: MagnifyingGlassCircleIcon },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
+  // Medición propia del sitio público (visitas, búsquedas, avisos más vistos). Ver lib/medicion.ts.
+  { href: "/dashboard/admin/metricas", label: "Métricas del sitio", icon: PresentationChartLineIcon },
 
   // Módulos nuevos: Eugenia los ve con la etiqueta hasta el lanzamiento (MODULOS_NUEVOS_ACTIVOS).
   { href: "/dashboard/admin/revisiones-cv", label: "Revisiones de CV", icon: DocumentMagnifyingGlassIcon, section: "Próximamente", badge: ETIQUETA_EN_DESARROLLO },

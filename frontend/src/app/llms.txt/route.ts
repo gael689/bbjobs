@@ -4,6 +4,7 @@ import { getActiveJobs, getCatalogos, etiquetasJob } from "@/lib/seo/datos";
 import { localidadDeZona, RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 import { ZONAS } from "@/lib/seo/zonas";
 import { RUBROS } from "@/lib/seo/rubros";
+import { PASOS_SELECCION, SELECCION_HUB, SELECCION_RUBROS } from "@/lib/seo/seleccion";
 
 // Resumen en Markdown para buscadores y asistentes con IA (llmstxt.org): qué es BBJobs, cómo se
 // usa y la lista viva de búsquedas activas por sector, con su link canónico. Se regenera cada hora.
@@ -26,6 +27,16 @@ export async function GET() {
   l.push("- Empresas: se registran, el equipo de Talency las verifica manualmente y, una vez aprobadas, publican búsquedas gratis. Cada búsqueda dura como máximo 20 días.");
   l.push("- Cada aviso indica puesto, empresa, zona, modalidad (presencial, remoto o híbrido), tipo de contratación y, si la empresa lo decide, el sueldo.");
   l.push(`- Postularse: ${urlAbs("/register?type=candidate")} · Publicar una búsqueda: ${urlAbs("/register?type=company")}`, "");
+
+  l.push("## Selección de personal por Talency", "");
+  l.push(SELECCION_HUB.citable, "");
+  l.push(`- Proceso: ${PASOS_SELECCION.map((p) => p.titulo.toLowerCase()).join(", ")}. La empresa elige entre los candidatos presentados.`);
+  l.push("- Para quién: empresas de Bahía Blanca y la región sin área de recursos humanos, sin tiempo para filtrar postulaciones y entrevistar, o con puestos clave o difíciles de cubrir.");
+  l.push("- Diferencia con publicar: publicar en BBJobs es gratis para empresas verificadas y la empresa gestiona sus postulaciones; con el servicio de selección, Talency hace el proceso completo. El costo del servicio se consulta.");
+  l.push(`- Cómo consultar: formulario en ${urlAbs("/seleccion-de-personal#consulta")} (nombre, teléfono y mensaje; puesto, sector y vacantes opcionales). Talency responde por WhatsApp o teléfono.`);
+  l.push(`- [Selección de personal en Bahía Blanca](${urlAbs("/seleccion-de-personal")})`);
+  SELECCION_RUBROS.forEach((r) => l.push(`- [${r.h1}](${urlAbs(`/seleccion-de-personal/${r.slug}`)}): ${r.bajada}`));
+  l.push(`- [Publicar un empleo en Bahía Blanca](${urlAbs("/publicar-empleo")}): cómo publicar gratis por tu cuenta.`, "");
 
   l.push("## Páginas clave", "");
   l.push(`- [Buscador de empleos](${urlAbs("/empleos")}): todas las búsquedas activas, con filtros por sector, zona, modalidad, contrato y sueldo.`);

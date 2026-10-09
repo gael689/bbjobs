@@ -68,6 +68,7 @@ export default async function TrabajoEnZonaPage({ params }: Props) {
       cruzadosTitulo="Empleos por sector"
       cruzados={RUBROS_INDICE.map((r) => ({ href: `/empleos-de/${r.slug}`, nombre: r.nombre }))}
       filtroEmpleos="/empleos"
+      empresas={{ titulo: `¿Buscás personal en ${d.zona.nombre}?`, seleccionHref: "/seleccion-de-personal" }}
     />
   );
 }

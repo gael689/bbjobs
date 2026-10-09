@@ -2,6 +2,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import structlog
 from app.db.session import async_session_maker
 from sqlalchemy.future import select
+from sqlalchemy import delete
+from app.models.metrics import SiteEvent
+from app.services.site_metrics import retention_cutoff
 from app.models.company import CompanyProfile
 from app.models.candidate import CandidateProfile
 from app.models.job import JobPosting, JobPostingStatus
@@ -246,6 +249,14 @@ async def dispatch_emails():
     except Exception as exc:  # una vuelta fallida no puede tumbar el scheduler
         logger.error("email_dispatch_error", error=str(exc)[:300])
 
+async def purge_site_events():
+    """Retención de la medición propia: se borran los eventos de más de 13 meses."""
+    async with async_session_maker() as db:
+        res = await db.execute(delete(SiteEvent).where(SiteEvent.created_at < retention_cutoff()))
+        await db.commit()
+        if res.rowcount:
+            logger.info("site_events_purged", count=res.rowcount)
+
 
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
@@ -265,5 +276,7 @@ def start_scheduler():
         # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
         scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)
         scheduler.add_job(ai_nightly, "cron", hour=6, minute=0, timezone="UTC", max_instances=1, coalesce=True)
+
+    scheduler.add_job(purge_site_events, "interval", hours=24)
     scheduler.start()
     logger.info("scheduler_started")

@@ -1,7 +1,7 @@
 """Mails: cola de envío, plantillas, preferencias, bajas, campañas y frecuencia de alertas
 
 Revision ID: b1e4c7a2d905
-Revises: c7d1e5f9a2b4
+Revises: a9e3f1c5b7d2
 Create Date: 2026-10-01 00:00:00.000000
 
 Ver MODULOS-MAILS-IA-PLAN.md §4.A. Revisaba a7c3e9d2f514; el 06/10/2026 entró en main
@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 
 revision: str = 'b1e4c7a2d905'
-down_revision: Union[str, None] = 'c7d1e5f9a2b4'
+down_revision: Union[str, None] = 'a9e3f1c5b7d2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
