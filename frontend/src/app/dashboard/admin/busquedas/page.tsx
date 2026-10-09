@@ -24,6 +24,17 @@ import { type ApplicantStats } from "../../company/types";
 
 type FilterTab = "all" | "pending_review" | "approved" | "rejected";
 
+// Señales de la IA para moderar (módulo en desarrollo: con la compuerta cerrada el endpoint da
+// 404 y no se muestra nada). Nunca aprueban ni rechazan: sólo avisan.
+interface AiChecks {
+  enabled: boolean;
+  available: boolean;
+  duplicates: { job_id: string; title: string; company: string; same_company: boolean; similarity: number }[];
+  sector: { current_industry?: string | null; suggested_industry: string; current_similarity: number; suggested_similarity: number } | null;
+  note?: string | null;
+  disclaimer: string;
+}
+
 interface EditForm {
   title: string;
   description: string;
@@ -46,6 +57,7 @@ export default function AdminBusquedasPage() {
   const [editForm, setEditForm] = useState<EditForm | null>(null);
 
   const [statsByJob, setStatsByJob] = useState<Record<string, ApplicantStats | null>>({});
+  const [checksByJob, setChecksByJob] = useState<Record<string, AiChecks | null>>({});
   const [showStats, setShowStats] = useState(false);
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
@@ -107,6 +119,15 @@ export default function AdminBusquedasPage() {
       api.get(`/admin/jobs/${selectedId}/applications/stats`)
         .then(r => setStatsByJob(prev => ({ ...prev, [selectedId]: r.data })))
         .catch(() => setStatsByJob(prev => ({ ...prev, [selectedId]: null })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId && !(selectedId in checksByJob)) {
+      api.get<AiChecks>(`/admin/jobs/${selectedId}/ai-checks`)
+        .then(r => setChecksByJob(prev => ({ ...prev, [selectedId]: r.data })))
+        .catch(() => setChecksByJob(prev => ({ ...prev, [selectedId]: null })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -468,6 +489,25 @@ export default function AdminBusquedasPage() {
                     {selectedJob.moderation_notes && selectedJob.moderation_status === "rejected" && (
                       <p className="text-xs text-red-600 mt-2">Nota de rechazo: {selectedJob.moderation_notes}</p>
                     )}
+                    {(() => {
+                      const c = checksByJob[selectedJob.id];
+                      if (!c || !c.enabled || (!c.duplicates.length && !c.sector)) return null;
+                      return (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5" title={c.disclaimer}>
+                          {c.duplicates.map(d => (
+                            <span key={d.job_id} className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              Posible duplicado de &ldquo;{d.title}&rdquo;{d.same_company ? " (misma empresa)" : ` · ${d.company}`}
+                            </span>
+                          ))}
+                          {c.sector && (
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#E6F4F7] text-[#187B8E]">
+                              ¿Sector correcto? Sugerimos {c.sector.suggested_industry}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-[#1C2230]">Sugerencia de la IA: decidís vos.</span>
+                        </div>
+                      );
+                    })()}
                     {/* La búsqueda sólo se ve en el portal cuando moderation_status == approved
                         Y status == active a la vez — son dos cosas independientes y el badge
                         de arriba, solo, no lo deja claro (ver A1 del plan del 14/08). */}

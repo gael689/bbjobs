@@ -132,3 +132,50 @@ class RecommendationRefresh(UUIDMixin, Base):
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("company_profiles.id", ondelete="CASCADE"), nullable=False)
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class AiRecomputeQueue(Base):
+    """Búsquedas que piden recalcular sus recomendados "al instante" (aprobación, postulación
+    nueva). Una fila por búsqueda: varias postulaciones seguidas se juntan en un solo recálculo
+    (migración f2b3c4d5e6a7). La procesa la tarea de 10 minutos, con presupuesto."""
+    __tablename__ = "ai_recompute_queue"
+
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("job_postings.id", ondelete="CASCADE"), primary_key=True
+    )
+    reason: Mapped[str] = mapped_column(String(30), nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CandidateSummary(UUIDMixin, Base):
+    """Resumen de 3 líneas de un candidato para UNA búsqueda (lo ve esa empresa en Recomendados).
+    Habla de la persona: se borra en la lápida de `account_deletion.py`. Cache por `input_hash`
+    (ficha + evaluación + requisitos): si nada cambió, no se vuelve a pagar."""
+    __tablename__ = "candidate_summaries"
+    __table_args__ = (UniqueConstraint("job_id", "candidate_id", name="uq_candidate_summaries_job_candidate"),)
+
+    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False)
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    lines: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    generated_with_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    model: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class JobPostingVector(Base):
+    """Un vector por aviso (título + descripción), para detectar duplicados y sector dudoso al
+    moderar. Datos de la empresa, no de personas. Cache por `text_hash`."""
+    __tablename__ = "job_posting_vectors"
+
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("job_postings.id", ondelete="CASCADE"), primary_key=True
+    )
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding = mapped_column(Vector(DIM), nullable=False)
+    model: Mapped[str] = mapped_column(String(80), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

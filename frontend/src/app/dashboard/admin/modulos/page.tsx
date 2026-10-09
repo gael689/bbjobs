@@ -31,6 +31,8 @@ const INTERRUPTORES: { clave: string; titulo: string; ayuda: string }[] = [
     ayuda: "Los postulantes pueden pagar la revisión. Apagalo si no das abasto." },
   { clave: "busqueda_ia_activa", titulo: "Buscador inteligente de empleos",
     ayuda: "Entiende frases como \"algo de administración part time en Punta Alta\" y propone los filtros. Apagado, el buscador funciona igual sin IA." },
+  { clave: "asistente_ia_activo", titulo: "Asistentes con IA",
+    ayuda: "Ayuda a las empresas a redactar la búsqueda (y avisa si piden algo discriminatorio) y sugiere a los postulantes habilidades según su CV. Apagado, las pantallas quedan como siempre." },
 ];
 
 const FUNCIONES: Record<string, string> = {
@@ -40,6 +42,8 @@ const FUNCIONES: Record<string, string> = {
   campana_borrador: "Redactar campañas",
   campana_audiencia: "Interpretar audiencias",
   busqueda: "Buscador inteligente",
+  redaccion: "Redactar búsquedas",
+  habilidades: "Sugerir habilidades",
 };
 
 // Una búsqueda cuesta medio centavo: con 2 decimales todo el gasto real se leía "USD 0.00".

@@ -65,30 +65,48 @@ async def _ready(db):
 
 
 async def index_tick() -> dict:
+    """Indexa lo que cambió y después recalcula las búsquedas marcadas "al instante" (aprobadas o
+    con postulaciones nuevas, ver `realtime.py`): primero el índice, así la ficha de quien se
+    acaba de postular ya tiene vectores cuando se recalcula. Al final, vectores de los avisos para
+    la moderación (baratos: sólo los que faltan o cambiaron)."""
+    from app.services.ai import moderation, realtime
+
     async with async_session_maker() as db:
         provider = await _ready(db)
         if provider is None:
             return {}
-        ids = await pipeline.candidates_needing_index(db, INDEX_BATCH)
-        if not ids:
-            return {}
-        rows = (await db.execute(
-            select(CandidateProfile, User.email).join(User, User.id == CandidateProfile.user_id)
-            .where(CandidateProfile.id.in_(ids))
-        )).all()
-        for profile, email in rows:
-            await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
-        await db.flush()
+        stats = await _index_changed(db, provider)
+        stats["cola"] = await realtime.process_queue(db, provider)
         try:
-            stats = await pipeline.index_candidates(db, provider, ids)
+            stats["avisos"] = await moderation.embed_missing(db, provider)
+            await db.commit()
         except AIError as exc:
             await db.rollback()
-            logger.warning("ai_index_tick_fallo", error=str(exc)[:200])
-            return {}
-        await db.commit()
-        if stats.get("reindexados"):
-            logger.info("ai_index_tick", **stats)
+            logger.warning("ai_job_vectors_fallo", error=str(exc)[:200])
         return stats
+
+
+async def _index_changed(db, provider) -> dict:
+    ids = await pipeline.candidates_needing_index(db, INDEX_BATCH)
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(CandidateProfile, User.email).join(User, User.id == CandidateProfile.user_id)
+        .where(CandidateProfile.id.in_(ids))
+    )).all()
+    for profile, email in rows:
+        await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+    await db.flush()
+    try:
+        stats = await pipeline.index_candidates(db, provider, ids)
+    except AIError as exc:
+        await db.rollback()
+        logger.warning("ai_index_tick_fallo", error=str(exc)[:200])
+        return {}
+    await db.commit()
+    if stats.get("reindexados"):
+        logger.info("ai_index_tick", **stats)
+    return stats
 
 
 async def nightly(now: datetime | None = None) -> dict:

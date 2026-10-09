@@ -8,6 +8,7 @@ import {
   CheckCircleIcon, BoltIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon,
 } from "@heroicons/react/24/outline";
 import SkillPicker from "@/components/dashboard/SkillPicker";
+import AsistenteRedaccion from "@/components/dashboard/AsistenteRedaccion";
 import type { SkillCatalog, SkillCatalogItem } from "@/app/dashboard/candidate/types";
 import {
   EMPTY_JOB_FORM, MAX_JOB_DURATION_DAYS, MODALITIES, FEATURED_JOB_PRICE,
@@ -158,6 +159,20 @@ export default function PublicarBusquedaPage() {
           de quienes se postulen (CV, perfil) necesitás la verificación —{" "}
           <a href="/dashboard/company/perfil" className="font-bold text-[#1E8EA3] hover:underline">pedila acá</a>.
         </div>
+      )}
+      {/* Asistente con IA (módulo nuevo): rellena los campos de siempre, que se siguen editando. */}
+      {step === 0 && (
+        <AsistenteRedaccion
+          title={form.title}
+          zoneId={form.zone_id}
+          modality={form.modality}
+          onApply={({ skills, ...campos }) => {
+            setForm(f => ({ ...f, ...campos }));
+            if (skills) {
+              setSelectedSkills(prev => [...prev, ...skills.filter(s => !prev.some(p => p.skill_id === s.skill_id))]);
+            }
+          }}
+        />
       )}
       <>
         {/* Progress */}

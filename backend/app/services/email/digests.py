@@ -103,7 +103,9 @@ def _job_detail(job: JobPosting, zone_name: str | None) -> str:
 
 
 def _job_url(job: JobPosting) -> str:
-    return f"/empleos/{job.id}"
+    # Ruta canónica con slug (/empleos/<slug>-<uuid>), igual que el frontend: ver core/urls.py.
+    from app.core.urls import job_public_path
+    return job_public_path(job)
 
 
 async def _active_jobs_since(db: AsyncSession, since: datetime | None):
@@ -212,10 +214,67 @@ def score_for_candidate(job: JobPosting, job_skills: set, cand_skills: set, cand
     return score
 
 
+# Afinidad semántica (Frente 6.2): cuánto pesa, en puntos del puntaje de arriba. Con el
+# percentil en 1 suma lo mismo que 1,5 habilidades en común; nunca alcanza para tapar zona +
+# modalidad + habilidades juntas. Sin vectores, el orden es el de siempre.
+PARA_VOS_SEM_WEIGHT = 3.0
+PARA_VOS_SEM_NEUTRAL = 0.5
+
+
+async def _requirement_matrices(db: AsyncSession, job_ids: list) -> dict:
+    """{job_id: matriz (requisitos × dim)} con los vectores YA calculados por el pipeline de
+    recomendados. Sin llamadas a Gemini."""
+    import numpy as np
+
+    from app.core.config import settings
+    from app.models.ai import JobRequirementVector
+
+    rows = (await db.execute(
+        select(JobRequirementVector.job_id, JobRequirementVector.embedding)
+        .where(JobRequirementVector.job_id.in_(job_ids),
+               JobRequirementVector.model == settings.GEMINI_EMBEDDING_MODEL)
+    )).all()
+    out: dict = {}
+    for job_id, emb in rows:
+        out.setdefault(job_id, []).append(np.asarray(emb, dtype=np.float32))
+    return {k: np.stack(v) for k, v in out.items()}
+
+
+async def _semantic_affinity(db: AsyncSession, candidate_id, req_matrices: dict) -> dict:
+    """{job_id: percentil 0..1} de la afinidad del candidato con cada búsqueda: promedio, sobre los
+    requisitos, del mejor coseno entre sus fragmentos (como `pipeline._semantic`). El coseno crudo
+    está apretado (auditoría R8): se usa el percentil entre las búsquedas de la semana. Las que no
+    tienen vectores quedan neutras."""
+    import numpy as np
+
+    from app.core.config import settings
+    from app.models.ai import CandidateChunk
+    from app.services.ai.scoring import percentiles
+
+    if not req_matrices:
+        return {}
+    chunks = (await db.execute(
+        select(CandidateChunk.embedding).where(CandidateChunk.candidate_id == candidate_id,
+                                               CandidateChunk.model == settings.GEMINI_EMBEDDING_MODEL)
+    )).scalars().all()
+    if not chunks:
+        return {}
+    matrix = np.stack([np.asarray(c, dtype=np.float32) for c in chunks])
+    raw = {job_id: float((reqs @ matrix.T).max(axis=1).mean()) for job_id, reqs in req_matrices.items()}
+    return percentiles(raw) if len(raw) > 1 else {}
+
+
 async def send_para_vos(db: AsyncSession, now: datetime) -> int:
     jobs = await _active_jobs_since(db, now - timedelta(days=7))
     if not jobs:
         return 0
+    from app.core.features import new_modules_enabled
+    from app.models.settings import SettingKey
+    from app.services.settings import get_setting
+
+    req_matrices: dict = {}
+    if new_modules_enabled() and await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        req_matrices = await _requirement_matrices(db, [j.id for j, _ in jobs])
     job_skills: dict = {}
     for job_id, skill_id in (await db.execute(
         select(JobPostingSkill.job_posting_id, JobPostingSkill.skill_id)
@@ -244,8 +303,12 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
         )).scalars().all())
         modalities = {m for m, f in (("onsite", profile.accepts_onsite), ("hybrid", profile.accepts_hybrid),
                                      ("remote", profile.accepts_remote)) if f}
+        affinity = await _semantic_affinity(db, profile.id, req_matrices)
+        bonus = (lambda job_id: PARA_VOS_SEM_WEIGHT * affinity.get(job_id, PARA_VOS_SEM_NEUTRAL)) if affinity \
+            else (lambda job_id: 0.0)
         ranked = sorted(
-            ((score_for_candidate(j, job_skills.get(j.id, set()), skills, profile.location_zone_id, modalities), j, z)
+            ((score_for_candidate(j, job_skills.get(j.id, set()), skills, profile.location_zone_id, modalities)
+              + bonus(j.id), j, z)
              for j, z in jobs if j.id not in applied),
             key=lambda x: -x[0],
         )

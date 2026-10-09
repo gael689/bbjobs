@@ -35,8 +35,9 @@ logger = structlog.get_logger("app.integrations.gemini")
 MAX_EMBED_BATCH = 100
 _MAX_ATTEMPTS = 3
 
-EmbedTask = Literal["document", "query"]
-_TASK_TYPES = {"document": "RETRIEVAL_DOCUMENT", "query": "RETRIEVAL_QUERY"}
+EmbedTask = Literal["document", "query", "similarity"]
+# `similarity`: comparar textos del mismo tipo entre sí (avisos contra avisos, al moderar).
+_TASK_TYPES = {"document": "RETRIEVAL_DOCUMENT", "query": "RETRIEVAL_QUERY", "similarity": "SEMANTIC_SIMILARITY"}
 
 # `deferred` figura en el SDK pero la guía de Flex dice que no existe: no se usa (auditoría R16).
 ServiceTier = Literal["standard", "flex"]

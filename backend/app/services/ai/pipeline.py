@@ -292,9 +292,14 @@ def _semantic(ctx: JobContext, chunks: list[tuple[str, str, np.ndarray]]) -> tup
 
 async def compute_recommendations(
     db: AsyncSession, provider: AIProvider | None, job: JobPosting, *, rerank_enabled: bool,
-    service_tier: str = "standard",
+    service_tier: str = "standard", max_reranks: int | None = None,
 ) -> dict[str, int]:
-    """Recalcula los recomendados de una búsqueda. No commitea."""
+    """Recalcula los recomendados de una búsqueda. No commitea.
+
+    `max_reranks`: tope de llamadas de rerank de esta corrida (por defecto
+    `AI_MAX_RERANKS_PER_RUN`). Lo que no entra queda `skipped_limit` y `stats["tope"] = 1`."""
+    if max_reranks is None:
+        max_reranks = settings.AI_MAX_RERANKS_PER_RUN
     ctx = await job_context(db, provider, job)
     applicants, talent = await _universe(db, job)
     universe = applicants + talent
@@ -339,7 +344,7 @@ async def compute_recommendations(
     keep = set(applicants) | set(talent_ranked[:TALENT_POOL_CONSIDERED])
     rerank_pool = sorted(keep, key=lambda c: -rows[c]["score"])[:RERANK_TOP]
 
-    stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0}
+    stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0}
     can_rerank = rerank_enabled and provider is not None and bool(ctx.requirements)
     for cid in keep:
         row, prev, idx = rows[cid], existing.get(cid), index.get(cid)
@@ -356,6 +361,9 @@ async def compute_recommendations(
         elif can_rerank and cid in rerank_pool:
             if idx is not None and idx.injection_flags:
                 status = "skipped_injection"
+            elif stats["rerank"] + stats["fallidos"] >= max_reranks:
+                status = "skipped_limit"
+                stats["tope"] = 1
             elif not await budget_left(db):
                 status = "skipped_budget"
             elif not chunks.get(cid):

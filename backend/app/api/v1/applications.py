@@ -183,6 +183,10 @@ async def apply_to_job(
 
     await db.commit()
     await db.refresh(app)
+    # Recomendados al instante (módulo en desarrollo): marca la búsqueda y la tarea de 10 min la
+    # recalcula; varias postulaciones seguidas se juntan en un solo recálculo (debounce).
+    from app.services.ai.realtime import request_recompute
+    await request_recompute(job.id, "postulacion")
     return app
 
 @router.get("/me/candidate/applications", response_model=List[ApplicationResponse])

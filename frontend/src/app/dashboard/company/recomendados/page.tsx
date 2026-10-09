@@ -58,8 +58,22 @@ type Estado =
   | { tipo: "error"; mensaje: string }
   | { tipo: "listo"; datos: Respuesta };
 
-function Fila({ r, requisitos, onFeedback }: { r: Recomendado; requisitos: Requisito[]; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void }) {
+interface Resumen { lines: { text: string; evidence?: string | null }[]; generated_with_ai: boolean; disclaimer: string }
+
+function Fila({ r, requisitos, onFeedback, jobId }: { r: Recomendado; requisitos: Requisito[]; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; jobId: string }) {
   const [abierto, setAbierto] = useState(false);
+  // Resumen en 3 líneas: se pide recién al abrirlo (cuesta una llamada a la IA, después queda en caché).
+  const [resumen, setResumen] = useState<Resumen | "cargando" | "error" | null>(null);
+  const [verResumen, setVerResumen] = useState(false);
+  function toggleResumen() {
+    setVerResumen(v => !v);
+    if (resumen === null || resumen === "error") {
+      setResumen("cargando");
+      api.get<Resumen>(`/me/company/jobs/${jobId}/recommendations/${encodeURIComponent(r.candidate_ref)}/summary`)
+        .then(x => setResumen(x.data))
+        .catch(() => setResumen("error"));
+    }
+  }
   const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
   return (
     <div className="px-5 py-4">
@@ -86,6 +100,9 @@ function Fila({ r, requisitos, onFeedback }: { r: Recomendado; requisitos: Requi
                   className={`p-2 rounded-lg border ${r.feedback === -1 ? "border-red-300 bg-red-50 text-red-700" : "border-[#DDE3EC] text-[#1C2230]"}`}>
             <HandThumbDownIcon className="w-4 h-4" />
           </button>
+          <button onClick={toggleResumen} className="ml-1 text-sm font-bold text-[#187B8E] px-3 py-2">
+            {verResumen ? "Ocultar resumen" : "Resumen"}
+          </button>
           <button onClick={() => setAbierto(a => !a)} className="ml-1 text-sm font-bold text-[#187B8E] px-3 py-2">
             {abierto ? "Cerrar" : "Ver detalle"}
           </button>
@@ -95,6 +112,28 @@ function Fila({ r, requisitos, onFeedback }: { r: Recomendado; requisitos: Requi
         <ul className="mt-2 ml-15 list-disc pl-5 text-sm text-[#1C2230] space-y-0.5">
           {r.reasons.map((m, i) => <li key={i}>{m}</li>)}
         </ul>
+      )}
+      {verResumen && (
+        <div className="mt-3 border border-[#9ED4DF] bg-[#E6F4F7]/40 rounded-xl p-3 text-sm text-[#1C2230]">
+          {resumen === "cargando" || resumen === null ? (
+            <p>Armando el resumen…</p>
+          ) : resumen === "error" ? (
+            <p>No se pudo armar el resumen. Probá de nuevo en un rato.</p>
+          ) : resumen.lines.length === 0 ? (
+            <p>Todavía no hay datos suficientes en el perfil para resumirlo.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {resumen.lines.map((l, i) => (
+                <li key={i}>
+                  {l.text}
+                  {l.evidence ? <span className="block text-xs mt-0.5">Según el perfil: <q>{l.evidence}</q></span>
+                    : r.locked ? <em className="block text-xs mt-0.5">La cita se ve al desbloquear el perfil.</em> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs font-bold mt-2">Orientativo, decide la empresa.</p>
+        </div>
       )}
       {abierto && (
         <div className="mt-3 border border-[#DDE3EC] rounded-xl overflow-hidden">
@@ -272,7 +311,7 @@ export default function RecomendadosPage() {
                 <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden mb-8 shadow-sm">
                   {d.applicants.length === 0 ? (
                     <p className="p-8 text-center text-[#1C2230]">Esta búsqueda todavía no tiene postulantes.</p>
-                  ) : d.applicants.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} />)}
+                  ) : d.applicants.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId} />)}
                 </div>
 
                 <h2 className="font-display font-bold text-lg text-[#1C2230] mb-1">De la Base de Talento</h2>
@@ -283,7 +322,7 @@ export default function RecomendadosPage() {
                 <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden shadow-sm">
                   {d.talent.length === 0 ? (
                     <p className="p-8 text-center text-[#1C2230]">Por ahora no hay perfiles de la Base de Talento para esta búsqueda.</p>
-                  ) : d.talent.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} />)}
+                  ) : d.talent.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId} />)}
                 </div>
               </>
             )}

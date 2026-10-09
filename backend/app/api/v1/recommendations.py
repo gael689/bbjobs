@@ -246,6 +246,69 @@ async def recommendation_feedback(
     return {"ok": True}
 
 
+# ── Resumen del candidato en 3 líneas (Frente 6.6) ──────────────────────────────────────
+
+SUMMARY_DISCLAIMER = ("Resumen orientativo armado con IA a partir del perfil sin datos personales. "
+                      "Decide la empresa.")
+
+
+class SummaryLineOut(BaseModel):
+    text: str
+    evidence: Optional[str] = None
+
+
+class SummaryResponse(BaseModel):
+    candidate_ref: str
+    lines: list[SummaryLineOut]
+    generated_with_ai: bool
+    disclaimer: str = SUMMARY_DISCLAIMER
+
+
+@router.get("/me/company/jobs/{job_id}/recommendations/{ref}/summary", response_model=SummaryResponse)
+async def recommendation_summary(
+    job_id: uuid.UUID, ref: str,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Se genera a pedido, cuando la empresa abre el recomendado. Sólo de candidatos que esa
+    empresa ya ve en Recomendados de SU búsqueda: postulantes, o perfiles de la Base de Talento
+    dentro de su cupo (o desbloqueados). Cualquier otro → 404, igual que una búsqueda ajena."""
+    from app.services.ai import summary as summary_svc
+
+    job = await _own_job(db, company, job_id)
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        raise HTTPException(status_code=409, detail="Las recomendaciones no están activas")
+    recs = (await db.execute(
+        select(JobRecommendation).where(JobRecommendation.job_id == job.id)
+        .order_by(JobRecommendation.final_score.desc(), JobRecommendation.computed_at)
+    )).scalars().all()
+    target = next((r for r in recs if candidate_ref(company.id, r.candidate_id) == ref), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    visible = True
+    if target.source == "talent":
+        unlocked = set((await db.execute(
+            select(TalentUnlock.candidate_id).where(TalentUnlock.company_id == company.id)
+        )).scalars().all())
+        shown = [r.candidate_id for r in recs if r.source == "talent"][:await _talent_limit(db, company.id)]
+        if target.candidate_id not in shown and target.candidate_id not in unlocked:
+            raise HTTPException(status_code=404, detail="Not Found")
+        visible = target.candidate_id in unlocked
+
+    profile = (await db.execute(select(JobAiProfile).where(JobAiProfile.job_id == job.id))).scalar_one_or_none()
+    opaque = "#" + hashlib.sha256(f"{job.id}:{target.candidate_id}".encode()).hexdigest()[:6].upper()
+    result = await summary_svc.summarize(
+        db, provider_or_none(), target, requirements=list(profile.requirements) if profile else [],
+        ref=opaque, company_id=company.id,
+    )
+    await db.commit()
+    return SummaryResponse(
+        candidate_ref=ref, generated_with_ai=result.generated_with_ai,
+        # Como la evidencia del detalle: en un perfil ciego la cita se ve al desbloquearlo.
+        lines=[SummaryLineOut(text=l.text, evidence=l.evidence if visible else None) for l in result.lines],
+    )
+
+
 # ── Candidato: "lo que lee la IA de tu CV" (D14) ────────────────────────────────────────
 
 class AiViewChunk(BaseModel):
@@ -314,6 +377,58 @@ async def ai_usage(days: int = Query(default=30, ge=1, le=365),
         period_usd=float(sum(c for _, _, c in by_feature)),
         by_feature=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_feature],
         by_company=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_company],
+    )
+
+
+class DuplicateOut(BaseModel):
+    job_id: uuid.UUID
+    title: str
+    company: str
+    same_company: bool
+    similarity: float
+
+
+class SectorHintOut(BaseModel):
+    current_industry: Optional[str] = None
+    suggested_industry_id: uuid.UUID
+    suggested_industry: str
+    current_similarity: float
+    suggested_similarity: float
+
+
+class AiChecksOut(BaseModel):
+    enabled: bool
+    available: bool = False
+    duplicates: list[DuplicateOut] = []
+    sector: Optional[SectorHintOut] = None
+    note: Optional[str] = None
+    disclaimer: str = "Señales orientativas para revisar. La IA no aprueba ni rechaza nada."
+
+
+@router.get("/admin/jobs/{job_id}/ai-checks", response_model=AiChecksOut)
+async def admin_job_ai_checks(job_id: uuid.UUID, _: User = Depends(require_role([UserRole.admin])),
+                              db: AsyncSession = Depends(get_db)):
+    """Posible duplicado y sector dudoso, para la ficha de moderación (Frente 6.7)."""
+    from app.services.ai import moderation
+
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return AiChecksOut(enabled=False)
+    job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id, JobPosting.deleted_at.is_(None))
+                            )).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    checks = await moderation.checks_for(db, provider_or_none(), job)
+    await db.commit()   # el vector del aviso, si se calculó recién
+    return AiChecksOut(
+        enabled=True, available=checks.available, note=checks.note,
+        duplicates=[DuplicateOut(**d.__dict__) for d in checks.duplicates],
+        sector=SectorHintOut(
+            current_industry=checks.sector.current_industry,
+            suggested_industry_id=checks.sector.suggested_industry_id,
+            suggested_industry=checks.sector.suggested_industry,
+            current_similarity=checks.sector.current_similarity,
+            suggested_similarity=checks.sector.suggested_similarity,
+        ) if checks.sector else None,
     )
 
 

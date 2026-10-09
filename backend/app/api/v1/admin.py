@@ -23,6 +23,7 @@ from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, get_highest_education_level,
 )
 from app.services.job_features import end_active_feature_for_job
+from app.services import indexing
 from app.services.job_status import can_admin_reopen
 from app.services.settings import get_all_settings, set_setting
 from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
@@ -386,8 +387,11 @@ async def suspend_company(
         )
     )
     active_jobs = active_jobs_result.scalars().all()
+    cambios_indexing = []
     for job in active_jobs:
+        antes = indexing.snapshot(job)
         job.status = JobPostingStatus.paused
+        cambios_indexing.append(indexing.change_for(antes, job))
 
     await create_notification(
         db,
@@ -409,6 +413,7 @@ async def suspend_company(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambios_indexing)
     return {"status": "ok", "verification_status": VerificationStatus.suspended, "jobs_paused": len(active_jobs)}
 
 
@@ -466,8 +471,10 @@ async def takedown_job(
     if job.status == JobPostingStatus.closed:
         raise HTTPException(status_code=400, detail="La búsqueda ya está cerrada")
 
+    antes_indexing = indexing.snapshot(job)
     job.status = JobPostingStatus.closed
     job.closed_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     if job.is_featured:
         await end_active_feature_for_job(db, job)
 
@@ -499,6 +506,7 @@ async def takedown_job(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
     return {"status": "ok", "job_id": job_id}
 
 
@@ -880,6 +888,7 @@ async def moderate_job(
     # click de más. Ahora se puede volver a moderar en cualquier momento (aprobar algo que se
     # había rechazado por error, o al revés) — es la misma acción, sólo que ya no es de una
     # sola vez. Ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, A1.
+    antes_indexing = indexing.snapshot(job)
     if payload.action == "approve":
         job.moderation_status = JobModerationStatus.approved
         notif_type, notif_title, notif_body = (
@@ -899,6 +908,7 @@ async def moderate_job(
     job.moderation_notes = payload.notes
     job.moderated_by_admin_id = admin.id
     job.moderated_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
 
     company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.id == job.company_id))
     company = company_result.scalar_one_or_none()
@@ -923,6 +933,12 @@ async def moderate_job(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
+    if payload.action == "approve":
+        # Recomendados al instante (módulo en desarrollo): sólo marca la búsqueda; la tarea de
+        # 10 min la recalcula. No frena la aprobación ni falla si la IA está apagada.
+        from app.services.ai.realtime import request_recompute
+        await request_recompute(job.id, "aprobada")
     return {"status": "ok", "moderation_status": job.moderation_status}
 
 
@@ -948,8 +964,10 @@ async def reopen_job(
             detail="Sólo se puede reabrir una búsqueda dada de baja",
         )
 
+    antes_indexing = indexing.snapshot(job)
     job.status = JobPostingStatus.active
     job.closed_at = None
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     now = datetime.now(timezone.utc)
     if not job.expires_at or job.expires_at <= now:
         job.published_at = now
@@ -979,6 +997,7 @@ async def reopen_job(
 
     await db.commit()
     await db.refresh(job)
+    indexing.notify(cambio_indexing)
     return {"status": "ok", "job_status": job.status, "expires_at": job.expires_at}
 
 
@@ -1008,6 +1027,7 @@ async def update_job_admin(
 
     update_data = payload.model_dump(exclude_unset=True, exclude={"status"})
     duration_changed = "duration_days" in update_data
+    antes_indexing = indexing.snapshot(job)
     for key, value in update_data.items():
         setattr(job, key, value)
 
@@ -1026,8 +1046,11 @@ async def update_job_admin(
     )
     db.add(audit)
 
+    # Sólo avisa si cambió el título de una búsqueda publicada (la URL lleva el slug del título).
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     await db.commit()
     await db.refresh(job)
+    indexing.notify(cambio_indexing)
     return job
 
 
@@ -1049,7 +1072,9 @@ async def delete_job_admin(
     if not job:
         raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
 
+    antes_indexing = indexing.snapshot(job)
     job.deleted_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     if job.is_featured:
         await end_active_feature_for_job(db, job)
 
@@ -1076,6 +1101,7 @@ async def delete_job_admin(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
     return {"status": "ok"}
 
 
@@ -1187,6 +1213,7 @@ class SiteSettingsResponse(BaseModel):
     ia_recomendaciones_activas: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
+    asistente_ia_activo: Optional[bool] = None
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -1196,6 +1223,7 @@ class SiteSettingsUpdate(BaseModel):
     ia_recomendaciones_activas: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
+    asistente_ia_activo: Optional[bool] = None
 
 
 async def _visible_settings(db: AsyncSession) -> SiteSettingsResponse:

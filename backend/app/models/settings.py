@@ -29,6 +29,9 @@ class SettingKey(str, enum.Enum):
     # Buscador inteligente de /empleos (Frente 5.2): Gemini traduce la frase a filtros del
     # catálogo. Apagado, el buscador sigue funcionando sin IA.
     busqueda_ia_activa = "busqueda_ia_activa"
+    # Asistentes con IA (Frente 6, puntos 3 y 5): redactar la búsqueda (empresas) y sugerir
+    # habilidades del catálogo a partir del CV (candidatos). Apagado, las pantallas son las de hoy.
+    asistente_ia_activo = "asistente_ia_activo"
 
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
@@ -39,6 +42,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.ia_recomendaciones_activas: False,
     SettingKey.revision_cv_activa: False,
     SettingKey.busqueda_ia_activa: False,
+    SettingKey.asistente_ia_activo: False,
 }
 
 # Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no
@@ -48,6 +52,7 @@ NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
     SettingKey.ia_recomendaciones_activas,
     SettingKey.revision_cv_activa,
     SettingKey.busqueda_ia_activa,
+    SettingKey.asistente_ia_activo,
 })
 
 
