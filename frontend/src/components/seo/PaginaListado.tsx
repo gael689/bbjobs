@@ -4,6 +4,7 @@ import {
 } from "@heroicons/react/24/outline";
 import JsonLd from "./JsonLd";
 import Migas from "./Migas";
+import BloqueEmpresas from "./BloqueEmpresas";
 import { faqSchema, type Miga } from "@/lib/seo/schema";
 import type { PaginaSeo } from "@/lib/seo/tipos";
 import type { Catalogos, PublicJob } from "@/lib/seo/datos";
@@ -23,7 +24,7 @@ type Enlace = { href: string; nombre: string };
 // citable, búsquedas activas con su link canónico, CTA, preguntas frecuentes (FAQPage), migas y
 // enlaces a las otras zonas/sectores.
 export default function PaginaListado({
-  contenido, jobs, cat, migas, otros, otrosTitulo, cruzados, cruzadosTitulo, filtroEmpleos,
+  contenido, jobs, cat, migas, otros, otrosTitulo, cruzados, cruzadosTitulo, filtroEmpleos, empresas,
 }: {
   contenido: PaginaSeo;
   jobs: PublicJob[];
@@ -35,6 +36,8 @@ export default function PaginaListado({
   cruzadosTitulo: string;
   /** Link a /empleos con el filtro ya aplicado. */
   filtroEmpleos: string;
+  /** Bloque para empresas: publicar gratis o selección de personal por Talency. */
+  empresas: { titulo: string; seleccionHref: string };
 }) {
   // Las alertas de empleo todavía no están lanzadas: el CTA lleva a crear la cuenta de candidato.
   const cta = { href: "/register?type=candidate", texto: "Cargar mi CV gratis", nota: "Con tu perfil listo, te postulás con un click apenas aparece una búsqueda." };
@@ -129,6 +132,8 @@ export default function PaginaListado({
             <p key={t.slice(0, 40)} className="text-[#1C2230] leading-relaxed">{t}</p>
           ))}
         </section>
+
+        <BloqueEmpresas titulo={empresas.titulo} seleccionHref={empresas.seleccionHref} />
 
         {/* Preguntas frecuentes */}
         <section className="mb-12" aria-labelledby="preguntas">

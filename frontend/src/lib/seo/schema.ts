@@ -55,6 +55,37 @@ export function websiteSchema(): Json {
   };
 }
 
+/** Servicio de selección de personal de Talency (/seleccion-de-personal y sus sectores). Talency
+ *  es el proveedor; BBJobs (la Organization del sitio) es el canal por el que se consulta. */
+export function serviceSchema(s: { nombre: string; descripcion: string; path: string; sector?: string }): Json {
+  const url = urlAbs(s.path);
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": `${url}#service`,
+    name: s.nombre,
+    serviceType: "Selección de personal",
+    description: s.descripcion,
+    url,
+    inLanguage: "es-AR",
+    provider: {
+      "@type": "Organization",
+      name: SITIO.talency.nombre,
+      url: SITIO.talency.url,
+      description: "Consultora de recursos humanos de Bahía Blanca.",
+      address: { "@type": "PostalAddress", addressLocality: "Bahía Blanca", addressRegion: "Buenos Aires", addressCountry: "AR" },
+    },
+    broker: { "@id": ORG_ID },
+    areaServed: AREA_SERVIDA,
+    audience: { "@type": "BusinessAudience", audienceType: s.sector ? `Empresas del sector ${s.sector}` : "Empresas" },
+    availableChannel: {
+      "@type": "ServiceChannel",
+      serviceUrl: `${url}#consulta`,
+      name: "Formulario de consulta en BBJobs",
+    },
+  };
+}
+
 export type Miga = { nombre: string; path: string };
 
 export function breadcrumbSchema(migas: Miga[]): Json {

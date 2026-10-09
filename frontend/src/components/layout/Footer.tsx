@@ -21,8 +21,8 @@ export default function Footer() {
 
   return (
     <footer className="bg-white border-t border-[#DDE3EC]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
-        <div className="md:col-span-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-10">
+        <div className="sm:col-span-2">
           <div className="flex items-center gap-2.5 mb-5">
             <Image src="/logo.png" alt="BBJobs" width={32} height={32} className="object-contain" />
             <span className="font-display font-extrabold italic text-xl tracking-tight">
@@ -47,7 +47,18 @@ export default function Footer() {
             {[
               { href: "/", label: "Ver avisos" },
               { href: "/register?type=candidate", label: "Cargar mi cv" },
-              { href: "/register?type=company", label: "Publicar un empleo" },
+            ].map(({ href, label }) => (
+              <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Para empresas</h4>
+          <ul className="space-y-3 text-sm">
+            {[
+              { href: "/publicar-empleo", label: "Publicar un empleo" },
+              { href: "/seleccion-de-personal", label: "Selección de personal" },
               { href: "/planes", label: "Planes y precios" },
             ].map(({ href, label }) => (
               <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
@@ -97,13 +108,23 @@ export default function Footer() {
         </div>
       </nav>
 
-      <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#94A3B8]">
+      <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#64748B]">
         <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
         {/* La norma pide el botón de arrepentimiento visible y de acceso directo: va también acá. */}
         <Link href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
           Botón de arrepentimiento
         </Link>
-        <p>Hecho con ♥ para el mercado laboral local</p>
+        {/* El crédito va al lado en desktop y debajo en mobile, sin partir la frase. */}
+        <div className="flex flex-col sm:flex-row items-center gap-x-2 gap-y-1 text-center">
+          <p>Hecho con ♥ para el mercado laboral local</p>
+          <span aria-hidden className="hidden sm:inline">·</span>
+          <p>
+            Desarrollado por{" "}
+            <a href="https://gaelgonzalez.com.ar" target="_blank" rel="noopener" className="font-semibold hover:text-[#1E8EA3] underline underline-offset-2">
+              Gael González
+            </a>
+          </p>
+        </div>
       </div>
     </footer>
   );

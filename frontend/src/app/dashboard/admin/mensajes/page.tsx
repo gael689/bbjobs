@@ -56,7 +56,7 @@ export default function AdminMensajesPage() {
         <h1 className="text-2xl font-display font-bold text-[#1C2230]">Mensajes de contacto</h1>
       </div>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto y /empresas, y pedidos del botón de arrepentimiento.</p>
+        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto, /empresas y /seleccion-de-personal, y pedidos del botón de arrepentimiento.</p>
         <label className="flex items-center gap-2 text-sm text-[#64748B] cursor-pointer">
           <input type="checkbox" checked={showResolved} onChange={e => setShowResolved(e.target.checked)} className="w-4 h-4 accent-[#1E8EA3]" />
           Mostrar resueltos
@@ -83,7 +83,7 @@ export default function AdminMensajesPage() {
             >
               <div className="flex items-start gap-4">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-extrabold text-sm shrink-0 ${
-                  m.topic === "empresa" ? "bg-[#E6F4F7] text-[#187B8E]" : "bg-[#F7EFE9] text-[#B98F72]"
+                  m.topic === "empresa" || m.topic === "seleccion" ? "bg-[#E6F4F7] text-[#187B8E]" : "bg-[#F7EFE9] text-[#B98F72]"
                 }`}>
                   {m.name.slice(0, 1).toUpperCase()}
                 </div>
@@ -97,8 +97,11 @@ export default function AdminMensajesPage() {
                             Arrepentimiento · {m.tracking_code}
                           </span>
                         ) : (
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.topic === "empresa" ? "bg-[#E6F4F7] text-[#1E8EA3]" : "bg-gray-100 text-gray-600"}`}>
-                            {m.topic === "empresa" ? "Empresa" : "General"}
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            m.topic === "seleccion" ? "bg-[#1E8EA3] text-white"
+                              : m.topic === "empresa" ? "bg-[#E6F4F7] text-[#1E8EA3]" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {m.topic === "seleccion" ? "Selección de personal" : m.topic === "empresa" ? "Empresa" : "General"}
                           </span>
                         )}
                         {m.resolved && (
