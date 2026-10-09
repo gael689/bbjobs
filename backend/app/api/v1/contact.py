@@ -12,6 +12,25 @@ from app.services.notifications import notify_all_admins
 
 router = APIRouter()
 
+TEMAS = {
+    ContactTopic.general: "general",
+    ContactTopic.empresa: "empresa",
+    ContactTopic.seleccion: "selección de personal",
+}
+
+
+def armar_mensaje(payload: ContactMessageCreate) -> str:
+    """Puesto, sector y vacantes (opcionales, formulario de selección) van como encabezado del
+    mensaje: así Talency los lee en el panel sin columnas nuevas."""
+    datos = []
+    if payload.puesto:
+        datos.append(f"Puesto a cubrir: {payload.puesto}")
+    if payload.sector:
+        datos.append(f"Sector: {payload.sector}")
+    if payload.vacantes:
+        datos.append(f"Vacantes: {payload.vacantes}")
+    return "\n".join(datos) + "\n\n" + payload.message if datos else payload.message
+
 
 @router.post("/contact")
 @limiter.limit("5/minute")
@@ -26,18 +45,15 @@ async def submit_contact_message(
         phone=payload.phone,
         company_name=payload.company_name,
         topic=payload.topic,
-        message=payload.message,
+        message=armar_mensaje(payload),
     )
     db.add(msg)
 
     await notify_all_admins(
         db,
         type="contact_message_received",
-        title="Nuevo mensaje de contacto",
-        body=(
-            f"{payload.name} escribió ({'empresa' if payload.topic.value == 'empresa' else 'general'})"
-            f" · Tel: {payload.phone}"
-        ),
+        title="Consulta por selección de personal" if payload.topic == ContactTopic.seleccion else "Nuevo mensaje de contacto",
+        body=f"{payload.name} escribió ({TEMAS.get(payload.topic, 'general')}) · Tel: {payload.phone}",
         link="/dashboard/admin/mensajes",
     )
 

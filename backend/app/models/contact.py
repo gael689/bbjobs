@@ -9,6 +9,9 @@ from app.models.base import Base, UUIDMixin
 class ContactTopic(str, enum.Enum):
     general = "general"
     empresa = "empresa"
+    # Consulta por el servicio de selección de personal de Talency (/seleccion-de-personal).
+    # La columna es String(20), no un ENUM de Postgres: sumar el valor no necesita migración.
+    seleccion = "seleccion"
     # Llega por el botón de arrepentimiento (/arrepentimiento), no por el formulario de contacto.
     arrepentimiento = "arrepentimiento"
 
