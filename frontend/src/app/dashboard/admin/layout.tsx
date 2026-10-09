@@ -5,7 +5,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
   UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon,
-  MagnifyingGlassCircleIcon
+  MagnifyingGlassCircleIcon, PresentationChartLineIcon
 } from "@heroicons/react/24/outline";
 
 // "Skills pendientes" se dio de baja: sin flujo de sugerencia de skills de parte de los
@@ -28,6 +28,8 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/pagos", label: "Pagos", icon: CreditCardIcon, section: "Negocio" },
   { href: "/dashboard/admin/talento", label: "Base de Talento", icon: MagnifyingGlassCircleIcon },
   { href: "/dashboard/admin/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
+  // Medición propia del sitio público (visitas, búsquedas, avisos más vistos). Ver lib/medicion.ts.
+  { href: "/dashboard/admin/metricas", label: "Métricas del sitio", icon: PresentationChartLineIcon },
 
   // "de la landing" se quedó corto: la pantalla tiene además las estadísticas de
   // los postulantes, que no son de la landing. Con el nombre viejo no había forma

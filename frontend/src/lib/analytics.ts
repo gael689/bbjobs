@@ -6,6 +6,8 @@
 // - Consent Mode v2 arranca todo en "denied"; con el sí, sólo analytics_storage pasa a "granted".
 //   Lo publicitario (ad_storage, ad_user_data, ad_personalization) queda denegado siempre: BBJobs
 //   no hace publicidad.
+// - Además de GA, cada evento va a la medición propia (lib/medicion.ts → panel de admin), con el
+//   mismo consentimiento y aunque no haya NEXT_PUBLIC_GA_ID.
 // - Nunca se mandan datos personales: ni nombre, ni mail, ni teléfono, ni ids de usuario. Los ids
 //   de búsquedas (job_id) sí, porque son públicos.
 //
@@ -13,6 +15,7 @@
 // panel no necesita excepciones (sólo el dominio de googletagmanager.com, ver src/proxy.ts).
 
 import { hasMeasurementConsent } from "@/lib/consent";
+import { forgetVisitor, sendOwn } from "@/lib/medicion";
 
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID?.trim() || "";
 
@@ -70,8 +73,9 @@ export function grantAnalytics(): void {
   });
 }
 
-/** Se llama al rechazar después de haber aceptado: corta el envío y borra las cookies _ga*. */
+/** Se llama al rechazar: corta el envío y borra las cookies _ga* y la de la medición propia. */
 export function revokeAnalytics(): void {
+  forgetVisitor();
   if (!GA_ID) return;
   granted = false;
   if (window.gtag) window.gtag("consent", "update", { analytics_storage: "denied" });
@@ -111,16 +115,19 @@ const PERSONAL_KEY = /(name|nombre|mail|phone|telefono|tel[eé]fono|cuit|dni|use
 type Param = string | number | boolean;
 
 /**
- * Evento de GA4. No hace nada sin NEXT_PUBLIC_GA_ID o sin consentimiento de "Medición".
+ * Evento de medición: va a la medición propia y, si hay NEXT_PUBLIC_GA_ID, también a GA4. No hace
+ * nada sin consentimiento de "Medición".
  * Uso: track("search", { search_term: "chofer" }), track("apply", { job_id }).
  */
 export function track(evento: string, params: Record<string, Param | null | undefined> = {}): void {
-  if (typeof window === "undefined" || !GA_ID || !hasMeasurementConsent()) return;
+  if (typeof window === "undefined" || !hasMeasurementConsent()) return;
   const clean: Record<string, Param> = {};
   for (const [key, value] of Object.entries(params)) {
     if (value === null || value === undefined || PERSONAL_KEY.test(key)) continue;
     clean[key] = typeof value === "string" ? value.slice(0, 100) : value;
   }
+  sendOwn(evento, clean);
+  if (!GA_ID) return;
   // Si un componente dispara el evento antes de que GoogleAnalytics.tsx monte, la config tiene que
   // quedar antes en la cola: gtag.js descarta los eventos que llegan sin un "config" previo.
   grantAnalytics();

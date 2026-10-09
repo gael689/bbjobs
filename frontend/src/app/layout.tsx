@@ -11,6 +11,7 @@ import AvisoCorreccion from "@/components/auth/AvisoCorreccion";
 import { Analytics } from "@vercel/analytics/next";
 import CookieBanner from "@/components/consent/CookieBanner";
 import GoogleAnalytics from "@/components/consent/GoogleAnalytics";
+import MedicionPropia from "@/components/consent/MedicionPropia";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import JsonLd from "@/components/seo/JsonLd";
 import { SITE_URL, SITIO } from "@/lib/seo/sitio";
@@ -62,9 +63,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Header />
           <main className="flex-1 w-full relative z-10">{children}</main>
           <Footer />
-          {/* Medición (Frente 3): Vercel Analytics no usa cookies; GA4 sólo con consentimiento. */}
+          {/* Medición (Frente 3): Vercel Analytics no usa cookies; GA4 y la medición propia, sólo con consentimiento. */}
           <CookieBanner />
           <GoogleAnalytics />
+          <MedicionPropia />
           <Analytics />
         </ClerkProvider>
       </body>

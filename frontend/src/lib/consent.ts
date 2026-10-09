@@ -6,12 +6,14 @@
 // (nada de medición antes de elegir), informado (/cookies) y revocable (link del footer).
 
 export const CONSENT_COOKIE = "bbjobs_consent";
-export const CONSENT_VERSION = 1;
+// v2 (09/10/2026): se sumó la medición propia de BBJobs (lib/medicion.ts, cookie bbjobs_vid) a
+// "Medición". Es otra herramienta: quien había aceptado sólo Google Analytics vuelve a elegir.
+export const CONSENT_VERSION = 2;
 const MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
 
 export interface ConsentChoice {
   v: number;
-  /** Cookies de medición (Google Analytics). Las necesarias no se preguntan: van siempre. */
+  /** Cookies de medición (Google Analytics y medición propia). Las necesarias no se preguntan: van siempre. */
   medicion: boolean;
   /** Fecha de la elección, AAAA-MM-DD. */
   fecha: string;

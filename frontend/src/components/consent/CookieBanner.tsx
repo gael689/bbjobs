@@ -98,8 +98,9 @@ export default function CookieBanner() {
         </div>
 
         <p id={descId} className="mt-1.5 text-sm leading-relaxed">
-          Usamos las cookies necesarias para que el sitio funcione. Si nos dejás, también usamos Google Analytics
-          para saber qué páginas se visitan y mejorar BBJobs. No hacemos publicidad.{" "}
+          Usamos las cookies necesarias para que el sitio funcione. Si nos dejás, también medimos qué páginas se
+          visitan y qué se busca (con Google Analytics y con una medición propia de BBJobs, sin datos personales),
+          para mejorar el sitio. No hacemos publicidad.{" "}
           <Link href="/cookies" className="text-[#1E8EA3] font-semibold underline underline-offset-2 hover:text-[#187B8E]">
             Más info
           </Link>
@@ -121,7 +122,8 @@ export default function CookieBanner() {
               <div className="text-sm">
                 <p className="font-bold" id={`${titleId}-medicion`}>Medición</p>
                 <p className="leading-relaxed">
-                  Google Analytics: cuenta visitas y qué secciones se usan, sin tu nombre ni tu mail.
+                  Google Analytics y la medición propia de BBJobs: cuentan visitas, búsquedas y qué secciones se
+                  usan, sin tu nombre ni tu mail.
                 </p>
               </div>
               <button

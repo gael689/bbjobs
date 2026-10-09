@@ -13,13 +13,21 @@ export default function GoogleAnalytics() {
   const pathname = usePathname();
   // En el servidor (y en la hidratación) no hay cookie que leer: "" = sin elección = no medir.
   const raw = useSyncExternalStore(subscribeConsent, rawConsentCookie, () => "");
-  const medicion = parseConsent(raw)?.medicion === true;
+  const choice = parseConsent(raw);
+  const medicion = choice?.medicion === true;
+  // Sólo un "no" explícito borra cookies. Sin elección (o en la pasada de hidratación, donde la
+  // cookie todavía se lee como "") no se toca nada: si no, cada carga de página borraba las
+  // cookies _ga y bbjobs_vid un instante antes de que se leyera el sí, y todo visitante
+  // contaba como nuevo.
+  const rechazo = choice?.medicion === false;
 
   useEffect(() => {
-    if (!GA_ID) return;
-    if (medicion) grantAnalytics();
-    else revokeAnalytics();
-  }, [medicion]);
+    if (medicion) {
+      if (GA_ID) grantAnalytics();
+    } else if (rechazo) {
+      revokeAnalytics(); // también borra bbjobs_vid (medición propia), haya o no GA_ID
+    }
+  }, [medicion, rechazo]);
 
   // Vista de página en cada navegación del App Router (gtag no las ve solo: no hay recarga).
   // Sólo la ruta, sin query: la búsqueda se mide aparte con el evento `search`.

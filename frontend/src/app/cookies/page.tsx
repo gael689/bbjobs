@@ -28,6 +28,12 @@ const NECESARIAS = [
 
 const MEDICION = [
   {
+    nombre: "bbjobs_vid",
+    quien: "BBJobs (medición propia)",
+    para: "Un número al azar para contar visitantes sin saber quién sos. Se crea sólo si aceptás y se borra si retirás el permiso.",
+    dura: "13 meses.",
+  },
+  {
     nombre: "_ga",
     quien: "Google Analytics",
     para: "Distinguir visitas de forma anónima, para contar cuántas personas usan el sitio.",
@@ -122,6 +128,13 @@ export default function CookiesPage() {
               <li>Tenemos apagadas las funciones de publicidad y de &quot;señales de Google&quot;: no se usan para mostrarte anuncios.</li>
               <li>Google procesa estos datos en Estados Unidos, por cuenta nuestra.</li>
             </ul>
+            <p>
+              Con el mismo permiso, BBJobs también lleva su <strong>propia medición</strong>: qué páginas se visitan,
+              qué se busca en el buscador de empleos, qué avisos se abren y cuántas postulaciones salen de ahí. Se guarda
+              en los servidores de BBJobs, no en los de otra empresa, <strong>sin datos personales</strong>: ni tu
+              nombre, ni tu mail, ni tu dirección IP, ni datos de tu cuenta. Para no contarte dos veces usamos la cookie{" "}
+              <code>bbjobs_vid</code>, que es sólo un número al azar. Los registros se borran a los 13 meses.
+            </p>
             <Tabla filas={MEDICION} />
           </Section>
 
@@ -136,8 +149,8 @@ export default function CookiesPage() {
           <Section title="Cómo cambiar tu elección">
             <p>
               Con el botón &quot;Cambiar mi elección&quot; de esta página o con el link <strong>Configurar cookies</strong>{" "}
-              del pie de página. Si retirás el permiso, dejamos de medir en ese momento y borramos las cookies de Google
-              Analytics de tu navegador. Lo que ya se midió antes queda como estadística sin datos tuyos.
+              del pie de página. Si retirás el permiso, dejamos de medir en ese momento y borramos de tu navegador las
+              cookies de Google Analytics y la de la medición propia (<code>bbjobs_vid</code>). Lo que ya se midió antes queda como estadística sin datos tuyos.
             </p>
             <p>
               También podés borrar o bloquear cookies desde la configuración de tu navegador. Ante cualquier duda,

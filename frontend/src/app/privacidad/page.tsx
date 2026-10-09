@@ -196,12 +196,20 @@ export default function PrivacidadPage() {
               no le mandamos tu nombre, tu mail ni datos de tu cuenta, y tenemos apagadas las funciones de publicidad.
             </p>
             <p>
+              <strong>Medición propia (con el mismo consentimiento):</strong> BBJobs también registra, en sus propios
+              servidores, qué páginas se visitan, qué se busca, qué avisos se abren y cuántas postulaciones salen de ahí,
+              para saber qué funciona y qué búsquedas no encuentran resultados. Es <strong>sin datos personales</strong>:
+              no guarda tu nombre, tu mail, tu dirección IP ni tu cuenta; para no contar dos veces al mismo visitante usa
+              la cookie <code>bbjobs_vid</code>, un número al azar que dura 13 meses. Los registros se borran a los 13
+              meses.
+            </p>
+            <p>
               <strong>Sin cookies:</strong> Vercel, que publica el sitio, cuenta las visitas por página sin cookies y sin
               poder identificarte.
             </p>
             <p>
               Podés <strong>retirar o cambiar tu consentimiento</strong> cuando quieras desde &quot;Configurar cookies&quot;, en
-              el pie de página: dejamos de medir en ese momento y borramos las cookies de Google Analytics. No usamos
+              el pie de página: dejamos de medir en ese momento y borramos las cookies de Google Analytics y la de la medición propia. No usamos
               cookies de publicidad. El detalle de cada cookie está en la{" "}
               <Link href="/cookies" className={linkClass}>política de cookies</Link>.
             </p>
