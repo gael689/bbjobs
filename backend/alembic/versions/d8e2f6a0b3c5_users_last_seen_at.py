@@ -6,7 +6,7 @@ Hasta ahora sólo se sabía cuándo había actualizado el perfil o se había pos
 NULL y la reactivación usa la fecha de alta como respaldo.
 
 Revision ID: d8e2f6a0b3c5
-Revises: c7d1e5f9a2b4
+Revises: b6e2d9a4c7f1
 Create Date: 2026-10-08
 """
 from typing import Sequence, Union
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "d8e2f6a0b3c5"
-down_revision: Union[str, None] = "c7d1e5f9a2b4"
+down_revision: Union[str, None] = "b6e2d9a4c7f1"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -28,7 +28,7 @@ correr esta migración (el `IF NOT EXISTS` hace que acá no falle), y la funció
 corra la migración.
 
 Revision ID: c7d1e5f9a2b4
-Revises: b6e2d9a4c7f1
+Revises: c8d4e1f7a2b3
 Create Date: 2026-10-08
 """
 from typing import Sequence, Union
@@ -36,7 +36,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "c7d1e5f9a2b4"
-down_revision: Union[str, None] = "b6e2d9a4c7f1"
+down_revision: Union[str, None] = "c8d4e1f7a2b3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
