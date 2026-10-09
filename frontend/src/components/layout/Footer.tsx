@@ -97,13 +97,23 @@ export default function Footer() {
         </div>
       </nav>
 
-      <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#94A3B8]">
+      <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#64748B]">
         <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
         {/* La norma pide el botón de arrepentimiento visible y de acceso directo: va también acá. */}
         <Link href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
           Botón de arrepentimiento
         </Link>
-        <p>Hecho con ♥ para el mercado laboral local</p>
+        {/* El crédito va al lado en desktop y debajo en mobile, sin partir la frase. */}
+        <div className="flex flex-col sm:flex-row items-center gap-x-2 gap-y-1 text-center">
+          <p>Hecho con ♥ para el mercado laboral local</p>
+          <span aria-hidden className="hidden sm:inline">·</span>
+          <p>
+            Desarrollado por{" "}
+            <a href="https://gaelgonzalez.com.ar" target="_blank" rel="noopener" className="font-semibold hover:text-[#1E8EA3] underline underline-offset-2">
+              Gael González
+            </a>
+          </p>
+        </div>
       </div>
     </footer>
   );
