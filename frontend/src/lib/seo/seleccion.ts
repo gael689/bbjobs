@@ -1,6 +1,10 @@
 // Contenido de las páginas para empresas: /seleccion-de-personal (el servicio de Talency),
 // /seleccion-de-personal/<sector> y /publicar-empleo. Ver SEO-EMPRESAS-TALENCY-PLAN.md.
 //
+// Poco texto y con gancho (reescrito el 10/10/2026): cada página muestra el problema de la empresa
+// y cómo se resuelve, no el proceso entero. El detalle largo quedó en `citable` y PASOS_SELECCION,
+// que alimentan sólo el JSON-LD y /llms.txt (no se ven en pantalla).
+//
 // Regla dura: nada inventado. Los pasos del servicio son los del banner de la home; lo que se
 // dice de publicar sale del código (verificación manual, publicar gratis, revisión de cada
 // búsqueda, 20 días máximos, etapas de la postulación, destacar pago). Sin años de experiencia,
@@ -11,51 +15,31 @@ import type { Pregunta } from "./tipos";
 import { RUBROS_INDICE, SELECCION_INDICE, type EntradaIndice } from "./indice";
 
 export type Paso = { titulo: string; texto: string };
+/** Un dolor de la empresa y cómo se resuelve. */
+export type Par = { problema: string; solucion: string };
 
-/** El proceso, en el orden del banner de la home (app/page.tsx, "Selección de personal por Talency"). */
+/** El proceso completo, en el orden del banner de la home. No se muestra: lo lee /llms.txt. */
 export const PASOS_SELECCION: Paso[] = [
-  {
-    titulo: "Relevamiento del perfil",
-    texto: "Antes de publicar, Talency define con vos qué puesto hay que cubrir, qué tareas tiene y qué requisitos son indispensables.",
-  },
-  {
-    titulo: "Publicación de la búsqueda",
-    texto: "Con el perfil claro, Talency redacta el aviso y publica la búsqueda.",
-  },
-  {
-    titulo: "Revisión de postulaciones",
-    texto: "Talency lee los CV que llegan y separa a quienes cumplen con lo que pide el puesto. No tenés que revisarlos uno por uno.",
-  },
-  {
-    titulo: "Entrevistas",
-    texto: "Talency entrevista a los candidatos que pasaron el primer filtro.",
-  },
-  {
-    titulo: "Evaluaciones psicométricas",
-    texto: "Se suman evaluaciones psicométricas para conocer aspectos de cada candidato que no aparecen en un CV.",
-  },
-  {
-    titulo: "Presentación de candidatos",
-    texto: "Recibís a los candidatos que mejor se ajustan al perfil y la decisión final es tuya.",
-  },
+  { titulo: "Relevamiento del perfil", texto: "Talency define con la empresa qué puesto hay que cubrir y qué requisitos son indispensables." },
+  { titulo: "Publicación de la búsqueda", texto: "Talency redacta el aviso y publica la búsqueda." },
+  { titulo: "Revisión de postulaciones", texto: "Talency lee los CV y separa a quienes cumplen con lo que pide el puesto." },
+  { titulo: "Entrevistas", texto: "Talency entrevista a los candidatos que pasaron el primer filtro." },
+  { titulo: "Evaluaciones psicométricas", texto: "Se suman evaluaciones para conocer aspectos del candidato que no aparecen en un CV." },
+  { titulo: "Presentación de candidatos", texto: "La empresa recibe a los que mejor se ajustan al perfil y decide." },
+];
+
+/** Los mismos seis pasos, en tres, para la página. */
+export const PASOS_CORTOS: Paso[] = [
+  { titulo: "Nos contás el puesto", texto: "Definimos juntos qué perfil necesitás." },
+  { titulo: "Nosotros hacemos el trabajo", texto: "Publicamos, filtramos, entrevistamos y evaluamos." },
+  { titulo: "Vos elegís", texto: "Te presentamos a los que mejor encajan. La decisión es tuya." },
 ];
 
 export const PARA_QUIEN: string[] = [
-  "Empresas que no tienen un área de recursos humanos.",
-  "Equipos que no tienen tiempo de leer CV, filtrar y coordinar entrevistas.",
-  "Puestos clave o difíciles de cubrir, donde conviene una evaluación más a fondo.",
-  "Empresas que quieren sumar evaluaciones psicométricas al proceso.",
-];
-
-/** Comparación honesta: publicar por tu cuenta en BBJobs vs. que Talency se encargue. */
-export const COMPARACION: { aspecto: string; publicar: string; talency: string }[] = [
-  { aspecto: "Costo", publicar: "Gratis para empresas verificadas", talency: "A consultar con Talency" },
-  { aspecto: "Definir el perfil", publicar: "Lo definís vos", talency: "Talency lo releva con vos" },
-  { aspecto: "Publicar el aviso", publicar: "Lo cargás vos en BBJobs", talency: "Talency lo redacta y lo publica" },
-  { aspecto: "Revisar postulaciones", publicar: "Vos, desde tu panel", talency: "Talency" },
-  { aspecto: "Entrevistas", publicar: "Las coordinás vos", talency: "Talency" },
-  { aspecto: "Evaluaciones psicométricas", publicar: "No incluidas", talency: "Incluidas en el proceso" },
-  { aspecto: "Decisión final", publicar: "Vos", talency: "Vos, entre los candidatos presentados" },
+  "No tenés área de RR.HH.",
+  "No te alcanza el tiempo para filtrar CV",
+  "El puesto es clave o difícil de cubrir",
+  "Querés sumar evaluaciones psicométricas",
 ];
 
 export const SELECCION_HUB = {
@@ -63,37 +47,26 @@ export const SELECCION_HUB = {
   description:
     "Talency, la consultora de recursos humanos detrás de BBJobs, se encarga de búsquedas en Bahía Blanca: perfil, avisos, entrevistas y evaluaciones psicométricas.",
   h1: "Selección de personal en Bahía Blanca",
-  bajada: "Talency, la consultora de recursos humanos detrás de BBJobs, se encarga de tu búsqueda de punta a punta.",
+  bajada: "Vos atendés tu negocio. Talency encuentra a la persona que necesitás.",
   citable:
     "Talency es una consultora de recursos humanos de Bahía Blanca y la organización detrás de BBJobs, el portal de empleos de la ciudad. Su servicio de selección de personal cubre todo el proceso: relevamiento del perfil, publicación de la búsqueda, revisión de postulaciones, entrevistas, evaluaciones psicométricas y presentación de candidatos. Las empresas lo consultan desde el formulario de BBJobs.",
+  dolores: [
+    { problema: "Cientos de CV y ninguna hora libre", solucion: "Talency los lee y deja sólo a quienes cumplen el perfil." },
+    { problema: "Entrevistas que no llevan a nada", solucion: "Entrevistamos nosotros. Vos conocés a los candidatos que valen la pena." },
+    { problema: "Un CV no cuenta cómo trabaja alguien", solucion: "Evaluaciones psicométricas para ver lo que el CV no muestra." },
+  ] satisfies Par[],
   preguntas: [
     {
       p: "¿Qué incluye el servicio de selección de personal de Talency?",
-      r: "Todo el proceso: el relevamiento del perfil con la empresa, la publicación de la búsqueda, la revisión de las postulaciones, las entrevistas, las evaluaciones psicométricas y la presentación de los candidatos. La empresa elige entre los candidatos presentados.",
-    },
-    {
-      p: "¿En qué se diferencia de publicar un aviso en BBJobs?",
-      r: "Publicar en BBJobs es gratis para las empresas verificadas, y las postulaciones las gestionás vos desde tu panel. Con el servicio de selección, Talency hace ese trabajo por vos: filtra, entrevista, evalúa y te presenta a los candidatos.",
+      r: "Todo el proceso: relevamiento del perfil, publicación, revisión de postulaciones, entrevistas, evaluaciones psicométricas y presentación de candidatos. La empresa elige entre los presentados.",
     },
     {
       p: "¿Cuánto cuesta?",
-      r: "El servicio de selección no forma parte de la publicación gratuita de BBJobs. Dejanos la consulta con el puesto que necesitás cubrir y Talency te responde con el costo para tu búsqueda.",
-    },
-    {
-      p: "¿Cómo hago la consulta?",
-      r: "Completá el formulario de esta página con tu nombre, un teléfono y lo que necesitás cubrir. Puesto, sector y cantidad de vacantes son opcionales. Talency te responde por WhatsApp o por teléfono.",
+      r: "No forma parte de la publicación gratuita de BBJobs. Dejá tu consulta con el puesto y Talency te responde con el costo para tu búsqueda.",
     },
     {
       p: "¿Puedo publicar por mi cuenta y pedir ayuda después?",
-      r: "Sí. Publicar en BBJobs y consultar por la selección son cosas independientes: podés publicar gratis y, si la búsqueda se complica, escribirle a Talency desde esta página.",
-    },
-    {
-      p: "¿Qué es una evaluación psicométrica?",
-      r: "Es una prueba que ayuda a conocer rasgos de personalidad y formas de trabajar de un candidato, cosas que no aparecen en un CV ni siempre surgen en una entrevista. Talency las suma como parte del proceso de selección.",
-    },
-    {
-      p: "¿Trabajan sólo en Bahía Blanca?",
-      r: "Talency es de Bahía Blanca y BBJobs cubre la ciudad y la región: Punta Alta, Monte Hermoso y Coronel Suárez. Si tu búsqueda es para otra localidad, contalo en la consulta.",
+      r: "Sí. Publicar en BBJobs y consultar por la selección son cosas independientes: si la búsqueda se complica, escribile a Talency desde esta página.",
     },
   ] satisfies Pregunta[],
 };
@@ -104,25 +77,20 @@ export type PaginaSeleccionRubro = {
   title: string;
   description: string;
   h1: string;
+  /** El gancho del sector, una línea. También lo usa /llms.txt. */
   bajada: string;
+  /** Para el JSON-LD y /llms.txt; no se muestra. */
   citable: string;
   /** Perfiles que suelen buscarse en el sector (descripción general, no búsquedas publicadas). */
   perfiles: string[];
-  /** Qué conviene evaluar en una búsqueda del sector. */
-  evaluar: string[];
-  /** Un párrafo propio del sector. */
-  contexto: string;
+  /** Tres dolores del sector y cómo se resuelven. */
+  dolores: Par[];
   preguntas: Pregunta[];
 };
 
 const PREGUNTA_CONSULTA = (sector: string): Pregunta => ({
   p: `¿Cómo consulto por una búsqueda de ${sector.toLowerCase()}?`,
-  r: `Con el formulario de esta página: el sector ${sector} ya viene elegido. Dejá tu teléfono y, si querés, el puesto y la cantidad de vacantes. Talency te responde por WhatsApp o por teléfono.`,
-});
-
-const PREGUNTA_PUBLICAR = (sector: string): Pregunta => ({
-  p: "¿Y si prefiero publicar la búsqueda por mi cuenta?",
-  r: `Registrate como empresa en BBJobs. Talency verifica tus datos y, una vez aprobada, publicás gratis en el sector ${sector} y gestionás las postulaciones desde tu panel.`,
+  r: "Con el formulario de esta página: el sector ya viene elegido. Dejá tu teléfono y, si querés, el puesto y las vacantes. Talency te responde por WhatsApp o por teléfono.",
 });
 
 export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
@@ -132,35 +100,27 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca operarios, técnicos y supervisores para empresas industriales de Bahía Blanca y la región: perfil, entrevistas y evaluaciones psicométricas.",
     h1: "Selección de personal para la industria en Bahía Blanca",
-    bajada: "Operarios, técnicos y supervisión, con el proceso completo a cargo de Talency.",
+    bajada: "Operarios y técnicos que saben hacer el trabajo y cumplen tus turnos.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal para empresas industriales de Bahía Blanca y la región. Releva el perfil, publica la búsqueda, revisa postulaciones, entrevista, evalúa y presenta a los candidatos.",
     perfiles: [
       "Operarios de producción",
-      "Técnicos de mantenimiento mecánico y eléctrico",
+      "Técnicos de mantenimiento",
       "Supervisores y jefes de turno",
-      "Técnicos en seguridad e higiene",
-      "Personal de laboratorio y control de calidad",
+      "Seguridad e higiene",
+      "Laboratorio y calidad",
     ],
-    evaluar: [
-      "La formación técnica y las certificaciones que exige el puesto.",
-      "La experiencia trabajando con normas y procedimientos de seguridad.",
-      "La disponibilidad real para el esquema de turnos.",
-      "El trabajo en equipo, que en planta pesa tanto como lo técnico.",
+    dolores: [
+      { problema: "Una mala incorporación se paga en seguridad", solucion: "Definimos con vos los requisitos indispensables antes de buscar." },
+      { problema: "Turnos que nadie quiere cubrir", solucion: "Buscamos gente que pueda cumplir tu esquema de turnos." },
+      { problema: "El CV no dice cómo trabaja en equipo", solucion: "Las evaluaciones psicométricas muestran lo que el CV no." },
     ],
-    contexto:
-      "Bahía Blanca tiene puerto y polo petroquímico, y alrededor de ellos trabajan empresas industriales y de servicios. En estos puestos, una mala incorporación se nota en la seguridad y en la continuidad de la operación: por eso conviene que el perfil quede bien definido antes de publicar.",
     preguntas: [
       PREGUNTA_CONSULTA("Industria"),
       {
         p: "¿Se puede buscar personal para trabajar por turnos?",
-        r: "Sí. En el relevamiento del perfil se define el esquema de trabajo (turnos, horarios y lugar) y la búsqueda apunta a candidatos que puedan cumplirlo.",
+        r: "Sí. En el relevamiento se define el esquema de turnos y horarios, y la búsqueda apunta a candidatos que puedan cumplirlo.",
       },
-      {
-        p: "¿Las evaluaciones psicométricas sirven para puestos operativos?",
-        r: "Sí. Son parte del servicio de selección de Talency y se usan en puestos operativos, técnicos o de supervisión para conocer cómo trabaja cada candidato más allá del CV.",
-      },
-      PREGUNTA_PUBLICAR("Industria"),
     ],
   },
   {
@@ -169,31 +129,27 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca choferes, personal de depósito y coordinadores de distribución para empresas de Bahía Blanca y la región, con entrevistas y evaluaciones.",
     h1: "Selección de personal para logística en Bahía Blanca",
-    bajada: "Choferes, depósito y distribución, con el proceso completo a cargo de Talency.",
+    bajada: "Choferes y personal de depósito con lo que pide el puesto.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de logística para empresas de Bahía Blanca y la región: choferes, operarios de depósito, autoelevadoristas y coordinación de distribución.",
     perfiles: [
       "Choferes con licencia profesional",
       "Repartidores",
       "Autoelevadoristas",
-      "Operarios y encargados de depósito",
-      "Administrativos de despacho y coordinadores de distribución",
+      "Depósito",
+      "Coordinadores de distribución",
     ],
-    evaluar: [
-      "Que las licencias o carnets que pide el puesto estén vigentes.",
-      "La experiencia con el vehículo, el equipo o el sistema de depósito que se usa.",
-      "El conocimiento de la zona de reparto.",
-      "La responsabilidad y la puntualidad, que en logística se notan el primer día.",
+    dolores: [
+      { problema: "Licencias y carnets que no están al día", solucion: "Los requisitos del puesto se definen antes de publicar." },
+      { problema: "Un reparto frenado por una vacante", solucion: "Filtramos nosotros para que no pierdas tiempo con quienes no cumplen." },
+      { problema: "Cuesta saber quién es responsable de verdad", solucion: "Entrevistas y evaluaciones para conocer a cada candidato." },
     ],
-    contexto:
-      "Con el puerto y las rutas que la cruzan, Bahía Blanca es un nodo de transporte para todo el sudoeste bonaerense. Las búsquedas de logística suelen tener requisitos concretos (licencias, carnets, horarios) que conviene dejar claros desde el principio.",
     preguntas: [
       PREGUNTA_CONSULTA("Logística"),
       {
         p: "¿Qué conviene tener claro para pedir un chofer o un operario de depósito?",
-        r: "El tipo de licencia o carnet que hace falta, el vehículo o equipo que va a manejar, la zona de trabajo y los horarios. Con eso el relevamiento del perfil es más rápido.",
+        r: "El carnet que hace falta, el vehículo o equipo, la zona de trabajo y los horarios. Con eso el relevamiento es más rápido.",
       },
-      PREGUNTA_PUBLICAR("Logística"),
     ],
   },
   {
@@ -202,31 +158,27 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca vendedores, cajeros, repositores y encargados de local para comercios de Bahía Blanca y la región, con entrevistas y evaluaciones.",
     h1: "Selección de personal para comercio en Bahía Blanca",
-    bajada: "Ventas, atención al público y encargados, con el proceso a cargo de Talency.",
+    bajada: "Gente que atiende bien a tus clientes.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal para comercios de Bahía Blanca y la región: vendedores, cajeros, repositores, atención al público y encargados de local.",
     perfiles: [
-      "Vendedores de salón y vendedores externos",
+      "Vendedores",
       "Atención al público",
       "Cajeros",
       "Repositores",
       "Encargados de local",
     ],
-    evaluar: [
-      "La forma de atender y de comunicarse con un cliente.",
-      "La disponibilidad horaria: fines de semana, feriados y temporadas altas.",
-      "El manejo de caja, si el puesto lo incluye.",
-      "En encargados, la experiencia coordinando a otras personas.",
+    dolores: [
+      { problema: "Quien atiende es la cara de tu negocio", solucion: "Entrevistamos para ver la actitud, no sólo la experiencia." },
+      { problema: "Necesitás varias personas a la vez", solucion: "Un solo relevamiento sirve para cubrir todas las vacantes." },
+      { problema: "Los CV de vendedores se parecen todos", solucion: "Las evaluaciones muestran las diferencias." },
     ],
-    contexto:
-      "En un comercio, quien atiende es la cara del negocio. Por eso en estas búsquedas pesa tanto la actitud como la experiencia, y las entrevistas sirven para ver lo que un CV no muestra.",
     preguntas: [
       PREGUNTA_CONSULTA("Comercio"),
       {
         p: "¿Y si necesito varias personas a la vez?",
-        r: "Indicá la cantidad de vacantes en el formulario. El relevamiento del perfil sirve para todas y la búsqueda se arma para cubrirlas.",
+        r: "Indicá la cantidad de vacantes en el formulario. El relevamiento sirve para todas y la búsqueda se arma para cubrirlas.",
       },
-      PREGUNTA_PUBLICAR("Comercio"),
     ],
   },
   {
@@ -235,31 +187,27 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca cocineros, ayudantes, mozos y encargados para locales gastronómicos de Bahía Blanca y la región. Perfil, entrevistas y presentación de candidatos.",
     h1: "Selección de personal gastronómico en Bahía Blanca",
-    bajada: "Cocina, salón y encargados, con el proceso completo a cargo de Talency.",
+    bajada: "Cocina y salón completos antes de abrir.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal gastronómico para Bahía Blanca y la región: cocineros, ayudantes de cocina, mozos, barra y encargados de local.",
     perfiles: [
-      "Cocineros y ayudantes de cocina",
+      "Cocineros y ayudantes",
       "Mozos y mozas",
       "Bacheros",
       "Barra y cafetería",
-      "Cajeros y encargados de local",
+      "Encargados de local",
     ],
-    evaluar: [
-      "La experiencia en puestos parecidos y en locales de un volumen similar.",
-      "La disponibilidad para turnos de noche, fines de semana y feriados.",
-      "El trabajo bajo presión en los momentos de más demanda.",
-      "El carnet de manipulador de alimentos, en los puestos que lo requieren.",
+    dolores: [
+      { problema: "Llega la temporada y el equipo no", solucion: "Empezás con tiempo y entrevistamos sin apuro." },
+      { problema: "Turnos de noche, fines de semana y feriados", solucion: "Buscamos gente con la disponibilidad que necesitás." },
+      { problema: "En el pico de trabajo se nota quién aguanta", solucion: "Evaluaciones para conocer cómo trabaja cada candidato." },
     ],
-    contexto:
-      "En gastronomía muchas búsquedas siguen la temporada, sobre todo en zonas turísticas como Monte Hermoso. Empezar con tiempo da margen para entrevistar y evaluar sin el apuro de tener que abrir con el equipo incompleto.",
     preguntas: [
       PREGUNTA_CONSULTA("Gastronomía"),
       {
         p: "¿Conviene empezar la búsqueda antes de la temporada?",
-        r: "Sí. Armar el equipo con tiempo deja margen para entrevistar y evaluar con calma. Si tu local está en una zona turística, consultá antes de que empiece la temporada.",
+        r: "Sí. Armar el equipo con tiempo deja margen para entrevistar y evaluar con calma, sobre todo en zonas turísticas como Monte Hermoso.",
       },
-      PREGUNTA_PUBLICAR("Gastronomía"),
     ],
   },
   {
@@ -268,31 +216,27 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca oficiales, capataces, técnicos y personal de obra para empresas constructoras de Bahía Blanca y la región, con entrevistas y evaluaciones.",
     h1: "Selección de personal para construcción en Bahía Blanca",
-    bajada: "Oficios, conducción de obra y técnicos, con el proceso a cargo de Talency.",
+    bajada: "Oficios y conducción de obra, con el perfil claro.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal para empresas constructoras de Bahía Blanca y la región: oficiales, ayudantes, capataces, maestros mayores de obra, técnicos y administrativos de obra.",
     perfiles: [
-      "Oficiales, medio oficiales y ayudantes",
-      "Capataces y encargados de obra",
-      "Maestros mayores de obra y técnicos",
-      "Técnicos en seguridad e higiene",
+      "Oficiales y ayudantes",
+      "Capataces y encargados",
+      "Maestros mayores de obra",
+      "Seguridad e higiene",
       "Administrativos de obra",
     ],
-    evaluar: [
-      "El oficio y la experiencia en obras parecidas.",
-      "El manejo de las herramientas y los equipos que se usan.",
-      "El conocimiento de las normas de seguridad en obra.",
-      "La disponibilidad para trasladarse hasta la obra.",
+    dolores: [
+      { problema: "Alguien sin el oficio atrasa a toda la obra", solucion: "Definimos las tareas y la etapa de obra antes de buscar." },
+      { problema: "Entrevistas que no llevan a nada", solucion: "Filtramos nosotros y te presentamos sólo a quienes encajan." },
+      { problema: "La obra queda lejos", solucion: "El traslado se tiene en cuenta desde el perfil." },
     ],
-    contexto:
-      "En construcción los tiempos los marca la obra, y sumar a alguien que no tiene el oficio que se necesita retrasa a todo el equipo. Un buen relevamiento del perfil, con la etapa de la obra y las tareas concretas, ahorra entrevistas que no conducen a nada.",
     preguntas: [
       PREGUNTA_CONSULTA("Construcción"),
       {
         p: "¿Se puede buscar personal para una obra fuera de Bahía Blanca?",
-        r: "Contá la localidad de la obra en la consulta. BBJobs cubre Bahía Blanca y la región (Punta Alta, Monte Hermoso y Coronel Suárez), y el traslado se tiene en cuenta en el perfil.",
+        r: "Contá la localidad de la obra en la consulta. BBJobs cubre Bahía Blanca, Punta Alta, Monte Hermoso y Coronel Suárez.",
       },
-      PREGUNTA_PUBLICAR("Construcción"),
     ],
   },
   {
@@ -301,31 +245,172 @@ export const SELECCION_RUBROS: PaginaSeleccionRubro[] = [
     description:
       "Talency busca administrativos, auxiliares contables, recepcionistas y asistentes para empresas de Bahía Blanca y la región. Perfil, entrevistas y evaluaciones.",
     h1: "Selección de personal administrativo en Bahía Blanca",
-    bajada: "Administración, contabilidad y recepción, con el proceso a cargo de Talency.",
+    bajada: "Administrativos que manejan las tareas de verdad.",
     citable:
       "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal administrativo para empresas de Bahía Blanca y la región: administrativos, auxiliares contables, facturación, cobranzas, recepción y asistentes.",
     perfiles: [
-      "Administrativos generales",
+      "Administrativos",
       "Auxiliares contables",
       "Facturación y cobranzas",
       "Recepcionistas",
       "Asistentes de gerencia",
     ],
-    evaluar: [
-      "El manejo de los programas que usa la empresa.",
-      "La prolijidad y la organización con documentos y plazos.",
-      "La confidencialidad con la información de la empresa.",
-      "La comunicación con clientes y proveedores.",
+    dolores: [
+      { problema: "Cientos de CV para un solo puesto", solucion: "Los leemos nosotros y separamos a quienes cumplen." },
+      { problema: "Cuesta saber quién maneja tu sistema", solucion: "Entrevistamos sobre las tareas y los programas que usás." },
+      { problema: "Vas a confiarle información de tu empresa", solucion: "Entrevistas y evaluaciones para conocer a cada persona antes de sumarla." },
     ],
-    contexto:
-      "Un puesto administrativo suele recibir muchas postulaciones, y separar a quienes de verdad manejan las tareas lleva tiempo. Ahí es donde más se nota que alguien lea los CV, entreviste y evalúe por vos.",
     preguntas: [
       PREGUNTA_CONSULTA("Administración"),
       {
         p: "¿Qué conviene contar en la consulta para un puesto administrativo?",
-        r: "Las tareas principales, los programas que se usan, el horario y si es un reemplazo o un puesto nuevo. Con eso el relevamiento arranca más rápido.",
+        r: "Las tareas, los programas que se usan, el horario y si es un reemplazo o un puesto nuevo.",
       },
-      PREGUNTA_PUBLICAR("Administración"),
+    ],
+  },
+  {
+    slug: "tecnologia",
+    title: "Selección de personal IT en Bahía Blanca | Talency",
+    description:
+      "Talency busca desarrolladores, soporte técnico y administradores de sistemas para empresas de Bahía Blanca y la región, con entrevistas y evaluaciones.",
+    h1: "Selección de personal de tecnología en Bahía Blanca",
+    bajada: "Perfiles técnicos que saben lo que dicen saber y encajan con tu equipo.",
+    citable:
+      "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de tecnología para empresas de Bahía Blanca y la región: desarrolladores, soporte técnico, administradores de sistemas, testers y analistas de datos.",
+    perfiles: [
+      "Desarrolladores",
+      "Soporte técnico",
+      "Administradores de sistemas",
+      "Testers y QA",
+      "Analistas de datos",
+    ],
+    dolores: [
+      { problema: "Un CV lleno de siglas", solucion: "Definimos con vos qué necesitás de verdad antes de buscar." },
+      { problema: "Cuesta saber si alguien sabe lo que dice saber", solucion: "Entrevistamos sobre las tecnologías que realmente usás." },
+      { problema: "Un buen técnico que no encaja en el equipo", solucion: "Las evaluaciones psicométricas muestran cómo trabaja cada persona." },
+    ],
+    preguntas: [
+      PREGUNTA_CONSULTA("Tecnología"),
+      {
+        p: "¿Se puede buscar personal remoto o híbrido?",
+        r: "Sí. Indicá la modalidad (presencial, remoto o híbrido) en la consulta y se define en el relevamiento del perfil.",
+      },
+    ],
+  },
+  {
+    slug: "salud",
+    title: "Selección de personal de salud en Bahía Blanca | Talency",
+    description:
+      "Talency busca enfermeros, administrativos de salud, técnicos y personal de consultorios para empresas de Bahía Blanca y la región. Perfil y entrevistas.",
+    h1: "Selección de personal de salud en Bahía Blanca",
+    bajada: "Personal con la formación que pide el puesto y buen trato con las personas.",
+    citable:
+      "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de salud para clínicas, consultorios y empresas de Bahía Blanca y la región: enfermería, técnicos, administrativos de salud y recepción.",
+    perfiles: [
+      "Enfermería",
+      "Técnicos y auxiliares",
+      "Administrativos de salud",
+      "Recepción de consultorios",
+      "Rehabilitación y kinesiología",
+    ],
+    dolores: [
+      { problema: "Títulos y matrículas que hay que tener claros", solucion: "Definimos los requisitos del puesto antes de publicar." },
+      { problema: "Turnos rotativos y guardias", solucion: "Buscamos gente con la disponibilidad que pide el puesto." },
+      { problema: "El trato con pacientes pesa más que el CV", solucion: "Entrevistas y evaluaciones para conocer cómo trata a las personas." },
+    ],
+    preguntas: [
+      PREGUNTA_CONSULTA("Salud"),
+      {
+        p: "¿Y si el puesto exige matrícula?",
+        r: "Contalo en la consulta: queda entre los requisitos indispensables del perfil.",
+      },
+    ],
+  },
+  {
+    slug: "educacion",
+    title: "Selección de personal de educación en Bahía Blanca | Talency",
+    description:
+      "Talency busca docentes, auxiliares, preceptores y administrativos para instituciones de Bahía Blanca y la región, con entrevistas y evaluaciones.",
+    h1: "Selección de personal de educación en Bahía Blanca",
+    bajada: "Docentes y equipos de instituciones, elegidos por cómo trabajan.",
+    citable:
+      "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de educación para instituciones y empresas de capacitación de Bahía Blanca y la región: docentes, auxiliares, preceptores, coordinadores y administrativos.",
+    perfiles: [
+      "Docentes",
+      "Auxiliares y preceptores",
+      "Coordinadores",
+      "Capacitadores",
+      "Administrativos de instituciones",
+    ],
+    dolores: [
+      { problema: "Un docente se elige por cómo enseña, no sólo por el título", solucion: "Entrevistamos para conocer su forma de trabajar." },
+      { problema: "Cargos que hay que cubrir ya", solucion: "Con el perfil definido, la búsqueda no arranca de cero." },
+      { problema: "Trato diario con chicos y familias", solucion: "Evaluaciones para conocer a la persona más allá del CV." },
+    ],
+    preguntas: [
+      PREGUNTA_CONSULTA("Educación"),
+      {
+        p: "¿Sirve para instituciones y centros de capacitación?",
+        r: "Sí. Contá qué tipo de institución sos y qué puesto necesitás en la consulta.",
+      },
+    ],
+  },
+  {
+    slug: "marketing",
+    title: "Selección de personal de marketing en Bahía Blanca | Talency",
+    description:
+      "Talency busca community managers, diseñadores, redactores y analistas de marketing para empresas de Bahía Blanca y la región, con entrevistas y evaluaciones.",
+    h1: "Selección de personal de marketing en Bahía Blanca",
+    bajada: "Gente creativa que además cumple y encaja en tu equipo.",
+    citable:
+      "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de marketing para empresas de Bahía Blanca y la región: community managers, diseñadores gráficos, redactores, analistas de marketing digital y producción audiovisual.",
+    perfiles: [
+      "Community managers",
+      "Diseñadores gráficos",
+      "Redactores",
+      "Marketing digital",
+      "Fotografía y video",
+    ],
+    dolores: [
+      { problema: "Portfolios lindos que no dicen cómo trabaja", solucion: "Entrevistamos sobre casos y trabajos concretos." },
+      { problema: "No tenés claro qué perfil necesitás", solucion: "El relevamiento define el puesto antes de publicar." },
+      { problema: "En un equipo chico cada persona cuenta", solucion: "Evaluaciones para ver cómo encaja con los demás." },
+    ],
+    preguntas: [
+      PREGUNTA_CONSULTA("Marketing"),
+      {
+        p: "¿Qué conviene contar en la consulta?",
+        r: "El puesto, las herramientas que se usan, si es presencial o remoto y qué conviene que muestre el candidato.",
+      },
+    ],
+  },
+  {
+    slug: "recursos-humanos",
+    title: "Selección de personal de RR.HH. en Bahía Blanca | Talency",
+    description:
+      "Talency busca analistas de recursos humanos, liquidación de sueldos y reclutadores para empresas de Bahía Blanca y la región, con entrevistas y evaluaciones.",
+    h1: "Selección de personal de recursos humanos en Bahía Blanca",
+    bajada: "Quien busca a las personas de tu empresa tiene que ser la persona indicada.",
+    citable:
+      "Talency, la consultora de recursos humanos detrás de BBJobs, hace selección de personal de recursos humanos para empresas de Bahía Blanca y la región: analistas, liquidación de sueldos, reclutadores, administrativos de personal y capacitación.",
+    perfiles: [
+      "Analistas de RR.HH.",
+      "Liquidación de sueldos",
+      "Reclutadores",
+      "Administrativos de personal",
+      "Capacitación",
+    ],
+    dolores: [
+      { problema: "Va a manejar información sensible de tu gente", solucion: "Entrevistas y evaluaciones para conocer a la persona antes de sumarla." },
+      { problema: "Puestos que mezclan administración y trato con personas", solucion: "Definimos qué parte pesa más en tu puesto." },
+      { problema: "Buscar a quien va a buscar a otros", solucion: "Talency es una consultora de RR.HH.: conoce el oficio." },
+    ],
+    preguntas: [
+      PREGUNTA_CONSULTA("Recursos Humanos"),
+      {
+        p: "¿Qué conviene contar en la consulta?",
+        r: "Si el puesto es de liquidación, de reclutamiento o mixto, y qué sistemas usa tu empresa.",
+      },
     ],
   },
 ];
@@ -343,42 +428,34 @@ export const PUBLICAR = {
   description:
     "Publicá tus búsquedas en BBJobs, el portal de empleos de Bahía Blanca. Gratis para empresas verificadas por Talency, con las postulaciones en tu panel.",
   h1: "Publicar un empleo en Bahía Blanca",
-  bajada: "Gratis para empresas verificadas. Publicás vos y gestionás las postulaciones desde tu panel.",
+  bajada: "Publicá gratis y recibí postulaciones ordenadas en tu panel.",
   citable:
     "En BBJobs, el portal de empleos de Bahía Blanca, publicar búsquedas es gratis para las empresas verificadas por Talency. La empresa se registra, Talency verifica sus datos a mano y, una vez aprobada, publica búsquedas sin límite y recibe las postulaciones con el perfil y el CV de cada candidato.",
+  dolores: [
+    { problema: "Avisos que se pierden en grupos y redes", solucion: "Tu búsqueda en el portal de empleos de Bahía Blanca." },
+    { problema: "CV por mail y WhatsApp, todo mezclado", solucion: "Cada postulación en tu panel, con el perfil y el CV del candidato." },
+    { problema: "No sabés cómo viene cada candidato", solucion: "Movés cada postulación por etapas, de Nueva a Seleccionado." },
+  ] satisfies Par[],
   pasos: [
-    {
-      titulo: "Creá tu cuenta de empresa",
-      texto: "Registrate con los datos de tu empresa. Es gratis.",
-    },
-    {
-      titulo: "Talency verifica tu empresa",
-      texto: "El equipo de Talency revisa tus datos a mano antes de habilitarte a publicar. Así los candidatos saben que detrás de cada aviso hay una empresa real.",
-    },
-    {
-      titulo: "Publicá la búsqueda",
-      texto: "Cargás el puesto, el sector, la zona, la modalidad y el tipo de contrato; el sueldo, si querés mostrarlo. Talency revisa cada búsqueda antes de que salga publicada, y cada una dura hasta 20 días.",
-    },
-    {
-      titulo: "Gestioná las postulaciones",
-      texto: "Recibís cada postulación en tu panel, con el perfil y el CV del candidato, y la movés por etapas: Nueva, Perfil revisado, Contactado, En proceso, Finalista, Seleccionado o No avanza.",
-    },
+    { titulo: "Creá tu cuenta", texto: "Con los datos de tu empresa. Es gratis." },
+    { titulo: "Verificamos tu empresa", texto: "Talency revisa tus datos a mano: así los candidatos saben que hay una empresa real." },
+    { titulo: "Publicá y recibí", texto: "Cargás el puesto, Talency lo revisa y empiezan a llegar las postulaciones." },
   ] satisfies Paso[],
   incluye: [
     "Búsquedas ilimitadas",
     "Postulaciones sin límite",
-    "Acceso al perfil y CV de quienes se postulan",
+    "Perfil y CV de cada candidato",
     "Filtros por experiencia, puesto y zona",
     "Estadísticas de tus búsquedas",
   ],
   preguntas: [
     {
       p: "¿Publicar un empleo en BBJobs es gratis?",
-      r: "Sí. Publicar búsquedas es gratis para las empresas verificadas, sin límite de búsquedas ni de postulaciones. Sólo pagás si querés destacar un aviso o acceder a la Base de Talento.",
+      r: "Sí, para empresas verificadas y sin límite de búsquedas ni postulaciones. Sólo pagás si querés destacar un aviso o acceder a la Base de Talento.",
     },
     {
       p: "¿Por qué tengo que esperar la verificación?",
-      r: "Porque en BBJobs sólo publican empresas reales. El equipo de Talency revisa cada cuenta a mano antes de habilitarla, y la verificación es gratis.",
+      r: "Porque en BBJobs sólo publican empresas reales. Talency revisa cada cuenta a mano y la verificación es gratis.",
     },
     {
       p: "¿Cuánto dura publicada una búsqueda?",
@@ -386,15 +463,7 @@ export const PUBLICAR = {
     },
     {
       p: "¿Tengo que mostrar el sueldo?",
-      r: "No. El sueldo es opcional: lo cargás si querés que se vea en el aviso.",
-    },
-    {
-      p: "¿Qué es destacar una búsqueda?",
-      r: "Es una opción paga para búsquedas urgentes o difíciles de cubrir: el aviso aparece primero en los resultados mientras siga activo. Es un pago único por búsqueda; el precio está en la página de planes.",
-    },
-    {
-      p: "¿Y si no tengo tiempo de revisar las postulaciones?",
-      r: "Talency, la consultora detrás de BBJobs, puede encargarse de la búsqueda completa: relevamiento del perfil, publicación, revisión de postulaciones, entrevistas, evaluaciones psicométricas y presentación de candidatos.",
+      r: "No. Es opcional: lo cargás si querés que se vea en el aviso.",
     },
   ] satisfies Pregunta[],
 };

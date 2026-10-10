@@ -24,6 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: urlAbs("/nosotros"), changeFrequency: "monthly", priority: 0.3 },
     { url: urlAbs("/contacto"), changeFrequency: "monthly", priority: 0.3 },
     { url: urlAbs("/planes"), changeFrequency: "monthly", priority: 0.3 },
+    { url: urlAbs("/planes/base-de-talento"), changeFrequency: "monthly", priority: 0.4 },
     // Para empresas (SEO-EMPRESAS-TALENCY-PLAN.md): siempre indexables, no dependen de búsquedas activas.
     { url: urlAbs("/seleccion-de-personal"), changeFrequency: "monthly", priority: 0.7 },
     ...SELECCION_INDICE.map((slug) => ({
@@ -35,6 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: urlAbs("/privacidad"), changeFrequency: "yearly", priority: 0.1 },
     { url: urlAbs("/terminos"), changeFrequency: "yearly", priority: 0.1 },
     { url: urlAbs("/cookies"), changeFrequency: "yearly", priority: 0.1 },
+    { url: urlAbs("/arrepentimiento"), changeFrequency: "yearly", priority: 0.1 },
   ];
 
   const jobRoutes: MetadataRoute.Sitemap = jobs.map((job) => ({

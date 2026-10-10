@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import ConfigurarCookiesButton from "@/components/consent/ConfigurarCookiesButton";
-import { RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
+import { RUBROS_INDICE, SELECCION_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 
 export default function Footer() {
   const pathname = usePathname();
@@ -89,7 +89,7 @@ export default function Footer() {
       </div>
 
       {/* Enlaces a las páginas de zona y de sector (SEO local, ver lib/seo/indice.ts). */}
-      <nav aria-label="Empleos por zona y por sector" className="border-t border-[#DDE3EC] max-w-7xl mx-auto px-4 sm:px-6 py-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+      <nav aria-label="Empleos por zona y por sector, y selección de personal por sector" className="border-t border-[#DDE3EC] max-w-7xl mx-auto px-4 sm:px-6 py-8 grid grid-cols-1 md:grid-cols-5 gap-8">
         <div>
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por zona</h4>
           <ul className="space-y-2 text-sm">
@@ -98,11 +98,19 @@ export default function Footer() {
             ))}
           </ul>
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por sector</h4>
-          <ul className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {RUBROS_INDICE.map((r) => (
               <li key={r.slug}><Link href={`/empleos-de/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{r.nombre}</Link></li>
+            ))}
+          </ul>
+        </div>
+        <div className="md:col-span-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Selección de personal por sector</h4>
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            {RUBROS_INDICE.filter((r) => SELECCION_INDICE.includes(r.slug)).map((r) => (
+              <li key={r.slug}><Link href={`/seleccion-de-personal/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Selección en {r.nombre}</Link></li>
             ))}
           </ul>
         </div>
