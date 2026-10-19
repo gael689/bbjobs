@@ -536,7 +536,6 @@ function Estados({ avisos }: { avisos: Aviso[] }) {
             Cuando la empresa elige un estado, antes de guardar ve exactamente el mail que le va a llegar al postulante,
             con su nombre y el puesto. Si escribe un mensaje y lo marca como visible, el mensaje va adentro del mail.
           </p>
-          <p className="mt-2">«Contactado» y «Finalista» ya no aparecen. Las postulaciones que ya estaban en esos estados los conservan.</p>
         </div>
       </div>
       <div className="min-w-0">
