@@ -20,5 +20,13 @@ function claveValida(recibida: string): boolean {
 export default async function Page({ params }: { params: Promise<{ clave: string }> }) {
   const { clave } = await params;
   if (!claveValida(decodeURIComponent(clave))) notFound();
-  return <VistaPrevia avisos={avisos.avisos} sinMail={avisos.sin_mail} ia={ia} />;
+  return (
+    <VistaPrevia
+      etapas={avisos.etapas}
+      avisos={avisos.avisos}
+      sinMail={avisos.sin_mail}
+      preguntas={avisos.preguntas}
+      ia={ia}
+    />
+  );
 }
