@@ -254,6 +254,7 @@ function Indice({ etapas, avisos }: { etapas: Etapa[]; avisos: Aviso[] }) {
           ))}
         </div>
       ))}
+      <a href="#recomendaciones-ia" className={`mb-4 block font-display text-sm font-bold ${ink} hover:text-[#187B8E]`}>Recomendaciones con IA</a>
       <a href="#mas-informacion" className={`block font-display text-sm font-bold ${ink} hover:text-[#187B8E]`}>Más información</a>
       <a href="#preguntas" className="mt-2 block font-display text-sm font-bold text-[#187B8E]">Preguntas para vos</a>
     </nav>
@@ -723,10 +724,11 @@ export default function VistaPrevia({
     <main className="min-h-screen bg-[#FAFBFD] pb-16 pt-28 sm:pt-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <h1 className={`font-display text-3xl font-extrabold tracking-tight sm:text-4xl ${ink}`}>
-          Vista previa de los mails automáticos
+          Vista previa de los mails automáticos y las recomendaciones con IA
         </h1>
         <p className={`mt-2 max-w-3xl text-base ${ink}`}>
-          Para revisar con calma: qué mail recibe cada persona, en qué momento y con qué texto.
+          Para revisar con calma: qué mail recibe cada persona, en qué momento y con qué texto, y cómo la IA le
+          ordena los postulantes a la empresa.
         </p>
 
         <Intro avisos={ordenados} preguntas={preguntas} />
@@ -751,6 +753,19 @@ export default function VistaPrevia({
               <Grupo key={g.clave} grupo={g} etapas={etapas} avisos={ordenados} sinMail={sinMail} preguntas={preguntas} />
             ))}
 
+            <section id="recomendaciones-ia" className="scroll-mt-28 space-y-4">
+              <div className="border-b-4 border-[#1E8EA3] pb-3">
+                <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Recomendaciones de candidatos con IA</h2>
+                <p className={`mt-1 max-w-3xl text-sm ${ink}`}>
+                  Cuando una búsqueda recibe muchas postulaciones, la IA ayuda a la empresa a ver primero a quienes mejor
+                  cumplen lo que pide el aviso, y explica por qué con frases del propio CV. Abajo, una búsqueda de ejemplo
+                  paso a paso. Cuando aparecen perfiles nuevos, la empresa recibe el mail{" "}
+                  <a href="#aviso-E20" className="font-semibold text-[#187B8E] underline">E20 · Nuevos perfiles recomendados</a>.
+                </p>
+              </div>
+              <IA ia={ia} />
+            </section>
+
             <section id="mas-informacion" className="scroll-mt-28 space-y-3">
               <div className="border-b-4 border-[#D4B7A2] pb-3">
                 <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Más información</h2>
@@ -761,9 +776,6 @@ export default function VistaPrevia({
               </Desplegable>
               <Desplegable titulo="Reglas generales de envío" bajada="Horarios, topes por día y cómo darse de baja.">
                 <Reglas />
-              </Desplegable>
-              <Desplegable titulo="Cómo trabaja la IA con los perfiles recomendados" bajada="Una búsqueda de ejemplo, paso a paso.">
-                <IA ia={ia} />
               </Desplegable>
             </section>
 
