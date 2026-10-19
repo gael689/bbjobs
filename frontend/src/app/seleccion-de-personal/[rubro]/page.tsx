@@ -16,8 +16,9 @@ import { jobUrl } from "@/lib/seo/urls";
 // /seleccion-de-personal/<sector>: sólo los sectores con texto propio en lib/seo/seleccion.ts
 // (SELECCION_INDICE); cualquier otro → 404. Siempre indexables: el contenido es el servicio en
 // ese sector, y las búsquedas activas se muestran como prueba de actividad, no son la página.
-// Se regenera cada 15 minutos por esas búsquedas.
-export const revalidate = 900;
+// Se regenera cada hora por esas búsquedas (era cada 15 minutos hasta el 19/10/2026: acá las
+// búsquedas son una muestra de actividad, no el contenido, y cada regeneración es CPU de Vercel).
+export const revalidate = 3600;
 export const dynamicParams = false;
 
 export function generateStaticParams() {
@@ -52,7 +53,7 @@ export default async function SeleccionRubroPage({ params }: Props) {
   const r = getSeleccionRubro(slug);
   if (!r) notFound();
 
-  const [todas, cat] = await Promise.all([getActiveJobs(900), getCatalogos()]);
+  const [todas, cat] = await Promise.all([getActiveJobs(3600), getCatalogos()]);
   const ids = idsPorSlug(cat.rubros, r.catalogo);
   const jobs = todas.filter((j) => j.industry_id && ids.has(j.industry_id)).slice(0, 4);
   const path = `/seleccion-de-personal/${slug}`;

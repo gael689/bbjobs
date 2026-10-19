@@ -7,9 +7,10 @@ import { getActiveJobs, getCatalogos, idsPorSlug } from "@/lib/seo/datos";
 import { SITIO, urlAbs } from "@/lib/seo/sitio";
 
 // /trabajo-en/<zona>: sólo las zonas de lib/seo/zonas.ts (cualquier otra → 404). Se regenera
-// cada 15 minutos. Sin búsquedas activas, la página queda noindex,follow y fuera del sitemap;
+// cada 30 minutos (eran 15 hasta el 19/10/2026, ver app/empleos-de/[rubro]/page.tsx). Sin
+// búsquedas activas, la página queda noindex,follow y fuera del sitemap;
 // se indexa sola cuando aparece una.
-export const revalidate = 900;
+export const revalidate = 1800;
 export const dynamicParams = false;
 
 export function generateStaticParams() {
@@ -21,7 +22,7 @@ type Props = { params: Promise<{ zona: string }> };
 async function datos(slug: string) {
   const zona = getZona(slug);
   if (!zona) return null;
-  const [jobs, cat] = await Promise.all([getActiveJobs(900), getCatalogos()]);
+  const [jobs, cat] = await Promise.all([getActiveJobs(1800), getCatalogos()]);
   const ids = idsPorSlug(cat.zonas, zona.catalogo);
   return { zona, cat, jobs: jobs.filter((j) => j.zone_id && ids.has(j.zone_id)) };
 }
