@@ -76,10 +76,6 @@ META: list[tuple[str, str | None, str, str, str, str]] = [
     ("application_note", None, "Mensaje de la empresa", "c_postulacion",
      "Cuando la empresa le deja un mensaje visible sin cambiar el estado. Las notas privadas no avisan nada.",
      "Como mucho uno por día."),
-    ("application_contacted", None, "Contactado (estado viejo)", "c_postulacion",
-     "Ya no se puede elegir: sólo para postulaciones que ya estaban en «Contactado».", "Una vez."),
-    ("application_finalist", None, "Finalista (estado viejo)", "c_postulacion",
-     "Ya no se puede elegir: sólo para postulaciones que ya estaban en «Finalista».", "Una vez."),
     ("talent_profile_unlocked", "C8", "Una empresa vio tu perfil", "c_perfil",
      "Cuando una empresa abre su perfil completo en la base de candidatos.", "Como mucho uno por día."),
     ("profile_incomplete", "C9", "Perfil incompleto", "c_perfil",
@@ -169,6 +165,11 @@ META: list[tuple[str, str | None, str, str, str, str]] = [
     ("digest_equipo", None, "Pendientes del equipo", "a_equipo",
      "Una vez por día, si hay algo esperando a Talency.", "Uno por día. Si no hay pendientes, no sale."),
 ]
+
+# Estados que la empresa ya no puede elegir (Eugenia, 08/10/2026). Siguen en el catálogo para las
+# postulaciones viejas que quedaron así, pero no se le muestran a Eugenia: no son parte del producto
+# (Gael, 19/10/2026).
+FUERA_DE_LA_VISTA_PREVIA = {"application_contacted", "application_finalist"}
 
 # El texto de la campanita de cada aviso: (título, cuerpo, link). Es el que escribe el sistema.
 CAMPANITA: dict[str, tuple[str, str, str | None]] = {
@@ -445,7 +446,7 @@ def main() -> None:
     tipos = [a["tipo"] for a in avisos] + [s["tipo"] for s in sin_mail]
     if len(tipos) != len(set(tipos)):
         sys.exit("Hay un tipo repetido en la vista previa")
-    faltan = set(RULES) - set(tipos)
+    faltan = set(RULES) - set(tipos) - FUERA_DE_LA_VISTA_PREVIA
     if faltan:
         sys.exit(f"Faltan muestras para: {sorted(faltan)}")
     codigos = {c for a in avisos for c in a["confirmar"]}
