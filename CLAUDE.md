@@ -90,12 +90,25 @@ Color palette (use these hex values inline with Tailwind — the project uses Ta
 
 State badges: `pending` → yellow-100/yellow-900; `active/published` → primary/accent; `paused` → muted; `closed` → secondary; `discarded` → destructive/10 + destructive text; `featured` → secondary with subtle border.
 
+## Hosting, deploy and CPU (updated 2026-10-19)
+
+- **Frontend:** Vercel, team `talency1`, project `bbjobs`, plan **Pro** since 2026-10-19 (paid by Talency). Every push to `main` deploys to production; other branches get protected Previews (use `vercel curl --deployment <url>` to reach them). Domain `www.bbjobs.com.ar` (apex 308 → www). DNS is hosted on Vercel (nameservers `ns1/ns2.vercel-dns.com`): if the team gets blocked again, DNS records **cannot be edited** either — the escape hatch is moving the zone to Cloudflare from NIC.ar.
+- **Backend + Postgres:** Railway, project `bbjobs` (services `bbjobs` and `Postgres`), `api.bbjobs.com.ar`. ~USD 5/month.
+- **Incident 2026-10-17:** the Hobby team was blocked (`402 DEPLOYMENT_DISABLED`, `FAIR_USE_LIMITS_EXCEEDED` / `fluidCpuDuration`). Root cause: in Next 16 the proxy runs as a Node function on Vercel, and its matcher covered every non-static path; one home visit triggered ~166 same-origin requests (mostly RSC prefetches from Header/Footer links), each running `clerkMiddleware`. Fixed in `perf/optimizacion-vercel` (merged 2026-10-19). Details in `DEPLOY-PLAN.md` § "Incidente 17–19/10/2026".
+- **Rules that keep CPU low — don't undo them:**
+  - `src/proxy.ts` matcher only lists session routes (`/dashboard`, `/onboarding`, `/login`, `/register`, `/post-login`). The matcher must be a literal, so a new session route has to be added **both** there and in `src/lib/rutas-sesion.ts` (`RUTAS_CON_SESION`).
+  - Security headers for public pages come from `headers()` in `next.config.ts`, built by `src/lib/seguridad.ts`; session routes get the nonce CSP from the proxy. Never send both.
+  - Links in the Footer and links to `/login` / `/register` use `prefetch={false}` (or `prefetchDe()` from `lib/rutas-sesion.ts`).
+  - Public pages must stay static/ISR: no `auth()`, `cookies()`, `headers()` or `force-dynamic` outside session layouts.
+  - Server fetches with `AbortSignal` aren't deduped by Next: wrap shared reads in React `cache()` (see `lib/seo/datos.ts`).
+- **Mail preview for Eugenia:** `/vista-previa/<VISTA_PREVIA_CLAVE>` (≥16 chars, env var on Vercel; wrong key → 404, noindex). Two tabs: automatic mails and AI recommendations. Data is static JSON (`src/vista-previa/datos/`) generated on `feat/mails-ia` by `backend/scripts/generar_vista_previa.py`; when it changes, copy only `frontend/src/vista-previa/**` to `main`.
+
 ## Current status & Phase 1 scope
 
 `FASE1-BBJOBS-REPASO.md` (root) is the most up-to-date status document — it's what's used to brief the client (Eugenia) and reflects what's actually built. Prefer it over `docs/planning/`, `ESTADO.md`, and `README.md`, which describe an earlier design (custom JWT auth, Resend email, R2 storage) that has since been replaced by Clerk + Cloudinary and partially contradicts the real code.
 
 Built and working: candidate registration/profile/CV upload/1-click applications, company registration with mandatory manual verification, job posting and public search with filters (rubro, zona, modalidad, contract type, salary range), admin panel (approve/suspend companies, take down jobs, approve suggested skills, create admins, metrics), in-app notifications, public company profiles, contact forms. Psychometric tests store responses but have no UI yet (by design, see below).
 
-Remaining for Phase 1 close-out: Mercado Pago integration for featured-job payments (the biggest remaining item — models/webhook scaffolding exist but the flow isn't wired end-to-end), SEO/GEO, Google Business Profile listing, production deploy (currently local-only, no Railway/Vercel config checked in), and moving Clerk out of test mode.
+Remaining for Phase 1 close-out: Mercado Pago integration for featured-job payments (the biggest remaining item — models/webhook scaffolding exist but the flow isn't wired end-to-end), SEO/GEO, Google Business Profile listing, and moving Clerk out of test mode. (Production deploy is done: see "Hosting, deploy and CPU" above.)
 
 Explicitly out of scope for Phase 1 (deferred to Phase 2): AI-based candidate matching, interpreted psychometric test results, internal company↔candidate messaging, and the public Observatorio Laboral.

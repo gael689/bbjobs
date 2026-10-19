@@ -115,6 +115,12 @@ atrapa — pero la documentación dice que sí.
 
 ### C. ✅ Headers de seguridad HTTP — resuelto 2026-07-16, con CSP estricta (nonce)
 
+> **Actualización 19/10/2026:** los headers ya no salen todos del proxy. Las páginas públicas los
+> reciben desde `headers()` en `next.config.ts` (CSP fija con `'unsafe-inline'`), y las rutas con sesión
+> (`/dashboard`, `/onboarding`, `/login`, `/register`, `/post-login`) los reciben del proxy, con nonce.
+> Los dos caminos usan el mismo armado: `frontend/src/lib/seguridad.ts`. El cambio fue para bajar el
+> consumo de CPU en Vercel (ver `DEPLOY-PLAN.md`, "Incidente 17–19/10/2026").
+
 Hoy `next.config.ts` está prácticamente vacío y no hay ningún header de seguridad configurado.
 Esta es la mejora de mejor relación impacto/esfuerzo de todo el plan.
 

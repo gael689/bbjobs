@@ -7,6 +7,32 @@
 > (JWT propio, Cloudflare R2, Resend). Estructura en bloques A→P, como el resto de los planes del
 > repo, para poder tildar a medida que se ejecuta.
 
+## ⚠️ Incidente 17–19/10/2026: Vercel pausó el sitio por CPU
+
+- **Qué pasó:** el 17/10 a las 18:50 Vercel bloqueó el equipo `talency1` (plan Hobby) por
+  `FAIR_USE_LIMITS_EXCEEDED` / `fluidCpuDuration`. `www.bbjobs.com.ar` respondía
+  `402 DEPLOYMENT_DISABLED`. El desbloqueo automático era recién el 16/11. Con el equipo bloqueado
+  **tampoco se podía editar el DNS** (los nameservers son de Vercel), así que no había forma de apuntar
+  el dominio a otro hosting sin pasar la zona a Cloudflare desde NIC.ar.
+- **Qué se probó:** se armó el frontend en Railway (servicio `frontend`, rama `infra/railway-frontend`)
+  y funcionó en `*.up.railway.app`, pero sin poder tocar el DNS no se podía conectar el dominio. Se
+  descartaron DonWeb (el hosting compartido no corre Node; un Cloud Server es mantenimiento propio) y
+  pasar el sitio a estático (rompe Clerk, ISR y el SEO de los empleos).
+- **Decisión:** Talency pagó **Vercel Pro** el 19/10 y el sitio volvió en el acto. El servicio
+  `frontend` de Railway se borró ese mismo día; la rama `infra/railway-frontend` quedó sin mergear.
+- **Causa raíz y arreglo** (rama `perf/optimizacion-vercel`, mergeada a `main` el 19/10): en Next 16 el
+  proxy corre como función Node, y su matcher tomaba todo salvo los estáticos. Una visita a la home
+  disparaba ~166 requests al propio origen (casi todos prefetch de RSC de los links del Header y el
+  Footer), cada uno con `clerkMiddleware`. Ahora el proxy corre sólo en las rutas con sesión, los
+  headers de las públicas salen de `next.config.ts` (`lib/seguridad.ts`), los links del Footer y los de
+  login/registro no hacen prefetch, las lecturas de SEO usan `cache()` y los listados regeneran cada 30
+  a 60 minutos. Medido con Playwright: home de 166 a 33 requests por visita, `/empleos` de 164 a 27, y
+  ninguno pasa por el proxy.
+- **Qué mirar en Vercel → Observability:** invocaciones del proxy (deberían aparecer sólo en las rutas
+  con sesión), CPU de las rutas ISR (`/empleos/[id]`, `/empresas/[id]`, listados), y bots pegándole a
+  `/empleos/*` o `/empresas/*` con IDs inventados (si aparece, regla de Vercel Firewall).
+- **Pendiente:** poner un tope en Vercel → Settings → Billing → Spend Management (sugerido USD 30–40).
+
 ## Cómo leer este documento
 - 🔴 **Bloqueante real** — sin esto, el deploy no funciona o rompe algo (encontrado auditando el
   código, no una suposición).
@@ -759,7 +785,7 @@ Con dominio, Clerk producción y Mercado Pago sandbox (mínimo) ya andando:
 | Servicio | Plan | Costo aprox. |
 |---|---|---|
 | Railway | Hobby/uso ($5 incluidos + excedente) | ~USD 5–10/mes |
-| Vercel | **Pro** (Hobby no cubre uso comercial) | ~USD 20/mes |
+| Vercel | **Pro** desde el 19/10/2026 (en Hobby se bloqueó por CPU, ver el incidente arriba) | USD 20/mes + uso |
 | Dominio `.com.ar` | NIC.ar, renovación anual | bajo, anual |
 | Clerk | Free tier (hasta el límite de MAU gratuito) | USD 0 hasta escalar |
 | Mercado Pago | Sin costo fijo, comisión por transacción | variable según ventas |
