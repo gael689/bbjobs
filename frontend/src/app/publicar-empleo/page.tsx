@@ -83,7 +83,7 @@ export default function PublicarEmpleoPage() {
       <section className="max-w-4xl mx-auto px-4 sm:px-6">
         <div className="bg-[#E6F4F7] border border-[#9ED4DF] rounded-3xl p-8 flex flex-col sm:flex-row sm:items-center gap-5 justify-between">
           <p className="font-display font-extrabold text-2xl text-[#1C2230]">Publicá tu primera búsqueda hoy</p>
-          <Link href="/register?type=company" className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-4 transition-colors shrink-0">
+          <Link prefetch={false} href="/register?type=company" className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-4 transition-colors shrink-0">
             Crear cuenta de empresa <ArrowRightIcon className="w-4 h-4" aria-hidden />
           </Link>
         </div>

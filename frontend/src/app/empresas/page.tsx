@@ -66,7 +66,7 @@ export default function EmpresasPage() {
             y sin perder postulaciones entre mails y grupos de WhatsApp.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-3.5 transition-colors shadow-sm">
+            <Link prefetch={false} href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-7 py-3.5 transition-colors shadow-sm">
               Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
             </Link>
             <a href="#contacto-empresa" className="inline-flex items-center gap-2 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-7 py-3.5 hover:bg-white transition-colors">

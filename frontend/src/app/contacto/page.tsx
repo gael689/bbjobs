@@ -64,6 +64,7 @@ export default function ContactoPage() {
               <div className="flex flex-col gap-3">
                 <Link
                   href="/register?type=company"
+                  prefetch={false}
                   className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors"
                 >
                   Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
