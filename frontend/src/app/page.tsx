@@ -291,10 +291,10 @@ export default function Home() {
 
           {/* CTAs secundarios */}
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#E6F4F7] transition-colors shadow-sm">
+            <Link prefetch={false} href="/register?type=candidate" className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#E6F4F7] transition-colors shadow-sm">
               Cargar mi cv <ArrowRightIcon className="w-4 h-4" />
             </Link>
-            <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#187B8E] transition-colors shadow-sm">
+            <Link prefetch={false} href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-6 py-2.5 text-sm hover:bg-[#187B8E] transition-colors shadow-sm">
               Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
             </Link>
           </div>
@@ -461,7 +461,7 @@ export default function Home() {
               <p className="text-xs text-[#64748B] mb-4 leading-relaxed">
                 Cada empresa en BBJobs es revisada y aprobada por el equipo de Talency.
               </p>
-              <Link href="/register?type=company" className="block text-center bg-[#1E8EA3] text-white text-sm font-bold rounded-xl py-2.5 hover:bg-[#187B8E] transition-colors">
+              <Link prefetch={false} href="/register?type=company" className="block text-center bg-[#1E8EA3] text-white text-sm font-bold rounded-xl py-2.5 hover:bg-[#187B8E] transition-colors">
                 Publicar un empleo
               </Link>
             </div>
@@ -505,7 +505,7 @@ export default function Home() {
                 ))}
               </div>
               <div className="flex flex-wrap gap-4">
-                <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-7 py-3 hover:bg-[#187B8E] transition-colors shadow-sm">
+                <Link prefetch={false} href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-7 py-3 hover:bg-[#187B8E] transition-colors shadow-sm">
                   Publicar tu búsqueda <ArrowRightIcon className="w-4 h-4" />
                 </Link>
                 <Link href="/planes" className="inline-flex items-center gap-2 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-7 py-3 hover:bg-[#E6F4F7] transition-colors">
@@ -557,7 +557,7 @@ export default function Home() {
                   </span>
                 ))}
               </div>
-              <Link href="/register?type=candidate" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-4 text-lg hover:bg-[#187B8E] transition-colors shadow-sm">
+              <Link prefetch={false} href="/register?type=candidate" className="inline-flex items-center gap-2 bg-[#1E8EA3] text-white font-bold rounded-xl px-8 py-4 text-lg hover:bg-[#187B8E] transition-colors shadow-sm">
                 Cargar mi cv — es gratis <ArrowRightIcon className="w-5 h-5" />
               </Link>
             </div>

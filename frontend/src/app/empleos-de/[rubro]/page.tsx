@@ -7,8 +7,10 @@ import { getActiveJobs, getCatalogos, idsPorSlug } from "@/lib/seo/datos";
 import { SITIO, urlAbs } from "@/lib/seo/sitio";
 
 // /empleos-de/<sector>: los 11 sectores de lib/seo/rubros.ts (cualquier otro → 404). Se
-// regenera cada 15 minutos. Sin búsquedas activas, noindex,follow y fuera del sitemap.
-export const revalidate = 900;
+// regenera cada 30 minutos (eran 15 hasta el 19/10/2026: 11 sectores + 4 zonas regenerándose
+// cada 15 minutos era CPU de Vercel para listas que cambian unas pocas veces por día).
+// Sin búsquedas activas, noindex,follow y fuera del sitemap.
+export const revalidate = 1800;
 export const dynamicParams = false;
 
 export function generateStaticParams() {
@@ -20,7 +22,7 @@ type Props = { params: Promise<{ rubro: string }> };
 async function datos(slug: string) {
   const rubro = getRubro(slug);
   if (!rubro) return null;
-  const [jobs, cat] = await Promise.all([getActiveJobs(900), getCatalogos()]);
+  const [jobs, cat] = await Promise.all([getActiveJobs(1800), getCatalogos()]);
   const ids = idsPorSlug(cat.rubros, rubro.catalogo);
   return { rubro, cat, jobs: jobs.filter((j) => j.industry_id && ids.has(j.industry_id)) };
 }

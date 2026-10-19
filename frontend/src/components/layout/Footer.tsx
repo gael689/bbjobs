@@ -19,6 +19,12 @@ export default function Footer() {
     pathname?.startsWith("/onboarding");
   if (hideFooter) return null;
 
+  // Todos los links del footer van con `prefetch={false}` (19/10/2026). Son ~35 y el footer está
+  // en todas las páginas públicas: al entrar en pantalla, Next pedía de antemano cada destino
+  // (4 o 5 requests de RSC por link, ~150 por visita, medido con Playwright). Son links de SEO y
+  // de pie de página que casi nadie aprieta; sin prefetch la navegación sigue siendo del lado del
+  // cliente, sólo que se pide al hacer click. Ver también lib/rutas-sesion.ts.
+
   return (
     <footer className="bg-white border-t border-[#DDE3EC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-10">
@@ -36,7 +42,7 @@ export default function Footer() {
               Talency
             </a>.
           </p>
-          <Link href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-lg px-5 py-2.5 transition-colors">
+          <Link prefetch={false} href="/register?type=company" className="inline-flex items-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-lg px-5 py-2.5 transition-colors">
             Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
           </Link>
         </div>
@@ -48,7 +54,7 @@ export default function Footer() {
               { href: "/", label: "Ver avisos" },
               { href: "/register?type=candidate", label: "Cargar mi cv" },
             ].map(({ href, label }) => (
-              <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
+              <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
           </ul>
         </div>
@@ -61,7 +67,7 @@ export default function Footer() {
               { href: "/seleccion-de-personal", label: "Selección de personal" },
               { href: "/planes", label: "Planes y precios" },
             ].map(({ href, label }) => (
-              <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
+              <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
           </ul>
         </div>
@@ -77,7 +83,7 @@ export default function Footer() {
               { href: "/contacto", label: "Contacto" },
               { href: "/arrepentimiento", label: "Botón de arrepentimiento" },
             ].map(({ href, label }) => (
-              <li key={href}><Link href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
+              <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
             <li>
               <ConfigurarCookiesButton className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium text-left">
@@ -94,7 +100,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por zona</h4>
           <ul className="space-y-2 text-sm">
             {ZONAS_INDICE.map((z) => (
-              <li key={z.slug}><Link href={`/trabajo-en/${z.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Trabajo en {z.nombre}</Link></li>
+              <li key={z.slug}><Link prefetch={false} href={`/trabajo-en/${z.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Trabajo en {z.nombre}</Link></li>
             ))}
           </ul>
         </div>
@@ -102,7 +108,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por sector</h4>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {RUBROS_INDICE.map((r) => (
-              <li key={r.slug}><Link href={`/empleos-de/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{r.nombre}</Link></li>
+              <li key={r.slug}><Link prefetch={false} href={`/empleos-de/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{r.nombre}</Link></li>
             ))}
           </ul>
         </div>
@@ -110,7 +116,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Selección de personal por sector</h4>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {RUBROS_INDICE.filter((r) => SELECCION_INDICE.includes(r.slug)).map((r) => (
-              <li key={r.slug}><Link href={`/seleccion-de-personal/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Selección en {r.nombre}</Link></li>
+              <li key={r.slug}><Link prefetch={false} href={`/seleccion-de-personal/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Selección en {r.nombre}</Link></li>
             ))}
           </ul>
         </div>
@@ -119,7 +125,7 @@ export default function Footer() {
       <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#64748B]">
         <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
         {/* La norma pide el botón de arrepentimiento visible y de acceso directo: va también acá. */}
-        <Link href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
+        <Link prefetch={false} href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
           Botón de arrepentimiento
         </Link>
         {/* El crédito va al lado en desktop y debajo en mobile, sin partir la frase. */}

@@ -121,7 +121,7 @@ export default function PaginaListado({
               <p className="text-sm text-[#1C2230]">{cta.nota}</p>
             </div>
           </div>
-          <Link href={cta.href} className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-xl px-6 py-3 transition-colors shrink-0">
+          <Link href={cta.href} prefetch={false} className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-xl px-6 py-3 transition-colors shrink-0">
             {cta.texto} <ArrowRightIcon className="w-4 h-4" />
           </Link>
         </section>

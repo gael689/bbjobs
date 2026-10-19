@@ -1,7 +1,16 @@
 // Lecturas públicas de la API para las páginas server-rendered (fichas, zonas, sectores,
 // sitemap, llms.txt). Sólo endpoints públicos: búsquedas activas y aprobadas, catálogos y
-// empresas verificadas. `fetch` con la misma URL y opciones se memoiza dentro de un mismo render.
+// empresas verificadas.
+//
+// Memoización (19/10/2026): cada lectura va envuelta en `cache()` de React. Se suponía que `fetch`
+// ya deduplicaba dentro de un render, pero Next NO memoiza un fetch que lleva `signal` (lo toma
+// como "otro controla este request", ver next/dist/server/lib/dedupe-fetch.js), y acá todos llevan
+// el timeout. Resultado: generateMetadata y la página pedían lo mismo dos veces (el job, los tres
+// catálogos y, en zonas y sectores, hasta 20 páginas de búsquedas), cada vez leyendo la caché de
+// datos y parseando el JSON de nuevo, o yendo al backend si estaba vencida. Con `cache()` cada
+// lectura se hace una vez por render. Fuera de un render (sitemap, llms.txt) no cambia nada.
 
+import { cache } from "react";
 import { API_URL } from "./sitio";
 
 export interface PublicJob {
@@ -68,15 +77,15 @@ export function estaVencida(job: Pick<PublicJob, "expires_at">): boolean {
   return !!job.expires_at && new Date(job.expires_at).getTime() < Date.now();
 }
 
-export async function getJob(id: string): Promise<PublicJob | null> {
+export const getJob = cache(async function getJob(id: string): Promise<PublicJob | null> {
   const job = await getJson<PublicJob>(`/jobs/${id}`, 300);
   if (!job || estaVencida(job)) return null;
   return job;
-}
+});
 
 /** Todas las búsquedas activas (a la escala de hoy son pocas: se traen enteras y se filtran
  *  en memoria para las páginas de zona y sector). */
-export async function getActiveJobs(revalidate = 300): Promise<PublicJob[]> {
+export const getActiveJobs = cache(async function getActiveJobs(revalidate: number = 300): Promise<PublicJob[]> {
   const jobs: PublicJob[] = [];
   const pageSize = 100;
   for (let page = 1; page <= 20; page++) {
@@ -86,29 +95,29 @@ export async function getActiveJobs(revalidate = 300): Promise<PublicJob[]> {
     if (items.length < pageSize) break;
   }
   return jobs.filter((j) => !estaVencida(j));
-}
+});
 
-export async function getCompanyJobs(companyId: string): Promise<PublicJob[]> {
+export const getCompanyJobs = cache(async function getCompanyJobs(companyId: string): Promise<PublicJob[]> {
   const data = await getJson<{ items: PublicJob[] }>(`/jobs?company_id=${companyId}&page_size=50`, 3600);
   return (data?.items ?? []).filter((j) => !estaVencida(j));
-}
+});
 
-export async function getCompany(id: string): Promise<PublicCompany | null> {
+export const getCompany = cache(async function getCompany(id: string): Promise<PublicCompany | null> {
   return getJson<PublicCompany>(`/companies/${id}`, 3600);
-}
+});
 
-export async function getVerifiedCompanies(): Promise<PublicCompany[]> {
+export const getVerifiedCompanies = cache(async function getVerifiedCompanies(): Promise<PublicCompany[]> {
   return (await getJson<PublicCompany[]>(`/companies/verified?limit=100`, 3600)) ?? [];
-}
+});
 
-export async function getCatalogos(): Promise<Catalogos> {
+export const getCatalogos = cache(async function getCatalogos(): Promise<Catalogos> {
   const [zonas, rubros, contratos] = await Promise.all([
     getJson<CatalogItem[]>("/catalogs/zones", 3600),
     getJson<CatalogItem[]>("/catalogs/industries", 3600),
     getJson<CatalogItem[]>("/catalogs/contract-types", 3600),
   ]);
   return { zonas: zonas ?? [], rubros: rubros ?? [], contratos: contratos ?? [] };
-}
+});
 
 export function nombrePorId(lista: CatalogItem[], id?: string | null): CatalogItem | undefined {
   return id ? lista.find((x) => x.id === id) : undefined;

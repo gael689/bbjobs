@@ -107,12 +107,14 @@ export default function NosotrosPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 href="/register?type=company"
+                prefetch={false}
                 className="inline-flex items-center justify-center gap-2 bg-[#1E8EA3] hover:bg-[#187B8E] text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors"
               >
                 Publicar un empleo <ArrowRightIcon className="w-4 h-4" />
               </Link>
               <Link
                 href="/register?type=candidate"
+                prefetch={false}
                 className="inline-flex items-center justify-center gap-2 border-2 border-[#1E8EA3] text-[#1E8EA3] font-bold rounded-xl px-5 py-3 text-sm hover:bg-white transition-colors"
               >
                 Cargar mi cv

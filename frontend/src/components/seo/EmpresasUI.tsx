@@ -4,6 +4,7 @@ import { ArrowDownIcon, ArrowRightIcon, CheckIcon, XMarkIcon } from "@heroicons/
 import Migas from "@/components/seo/Migas";
 import type { Miga } from "@/lib/seo/schema";
 import type { Par, Paso } from "@/lib/seo/seleccion";
+import { prefetchDe } from "@/lib/rutas-sesion";
 
 // Piezas visuales de las páginas para empresas (/seleccion-de-personal, sus sectores y
 // /publicar-empleo). Poco texto, mucho diseño: el hero oscuro con el "BBJobs" gigante de fondo,
@@ -70,7 +71,7 @@ export function BotonPrincipal({ href, children }: { href: string; children: Rea
   return href.startsWith("#") ? (
     <a href={href} className={clase}>{contenido}</a>
   ) : (
-    <Link href={href} className={clase}>{contenido}</Link>
+    <Link href={href} prefetch={prefetchDe(href)} className={clase}>{contenido}</Link>
   );
 }
 
@@ -78,6 +79,7 @@ export function BotonSecundario({ href, children }: { href: string; children: Re
   return (
     <Link
       href={href}
+      prefetch={prefetchDe(href)}
       className="inline-flex items-center justify-center gap-2 border-2 border-white/80 hover:bg-white hover:text-[#1C2230] text-white font-bold rounded-xl px-7 py-4 transition-colors"
     >
       {children}
