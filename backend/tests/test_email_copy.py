@@ -4,7 +4,7 @@ import uuid
 from app.models.email import EmailCategory
 from app.models.job import NOT_ADVANCED_STATUSES, SELECTABLE_STATUSES, ApplicationStatus
 from app.services.email.catalog import RULES
-from app.services.email.copy import COPY, DIGESTS, fill_copy, first_name, greeting
+from app.services.email.copy import COPY, DIGESTS, MailCopy, dias_texto, fill_copy, first_name, greeting
 from app.services.email.outbox import build_content
 
 UID = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -52,7 +52,7 @@ def test_user_values_cannot_inject_bold_or_html():
 
 
 def test_empty_variable_paragraph_is_dropped():
-    copy = COPY["company_rejected"]
+    copy = MailCopy("Asunto", "", ("Revisamos los datos de **{empresa}**.", "**Motivo:** {detalle}"))
     sin = fill_copy(copy, {"empresa": "ACME", "detalle": ""}, None)
     con = fill_copy(copy, {"empresa": "ACME", "detalle": "Falta el CUIT"}, None)
     assert "Motivo" not in sin.body

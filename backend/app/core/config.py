@@ -138,6 +138,11 @@ class Settings(BaseSettings):
     # Tope de gasto diario en IA (USD). Al pasarlo, la IA se apaga sola hasta mañana y los
     # recomendados siguen con el puntaje híbrido (regla R13). ~USD 30/mes = 1/día.
     AI_DAILY_BUDGET_USD: float = 1.0
+    # WhatsApp de Talency para el renglón de ayuda de los mails de empresas (PDF de Eugenia,
+    # 19/10/2026). El link lo arma el render desde acá, nunca desde texto de un usuario. El
+    # mismo número está en el frontend (contacto y ConsultaSeleccion).
+    TALENCY_WHATSAPP: str = "5492915089353"
+    TALENCY_WHATSAPP_DISPLAY: str = "291 508-9353"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

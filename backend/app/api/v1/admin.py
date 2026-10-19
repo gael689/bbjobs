@@ -24,6 +24,7 @@ from app.services.applicant_stats import (
 )
 from app.services.job_features import end_active_feature_for_job
 from app.services import indexing
+from app.core.urls import job_public_path
 from app.services.job_status import can_admin_reopen
 from app.services.settings import get_all_settings, get_setting, set_setting
 from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
@@ -968,7 +969,9 @@ async def moderate_job(
             title=notif_title,
             body=notif_body,
             link="/dashboard/company/estadisticas",
-            email_vars={"puesto": job.title, "detalle": payload.notes or ""},
+            # E7: "Ver mi publicación" abre la ficha pública. E8 no lleva el motivo (P11).
+            email_vars={"puesto": job.title, "detalle": payload.notes or "",
+                        **({"enlace": job_public_path(job)} if payload.action == "approve" else {})},
         )
 
     audit = AuditLog(
@@ -1031,7 +1034,7 @@ async def reopen_job(
             title="Tu búsqueda volvió a estar activa",
             body=f"'{job.title}' fue reactivada por el equipo de BBJobs.",
             link="/dashboard/company/estadisticas",
-            email_vars={"puesto": job.title},
+            email_vars={"puesto": job.title, "enlace": job_public_path(job)},
         )
 
     audit = AuditLog(
@@ -1373,7 +1376,8 @@ async def set_job_featured_admin(
         await create_notification(
             db,
             user_id=company.user_id,
-            type="job_feature_active" if payload.featured else "job_feature_expired",
+            # Destacado a mano = sin cargo: su propio aviso, sin "el servicio que contrataste" (P9).
+            type="job_feature_granted" if payload.featured else "job_feature_expired",
             title="Destacado activado" if payload.featured else "Destacado desactivado",
             body=(
                 f"Talency destacó '{job.title}' en el portal, sin cargo."
@@ -1381,7 +1385,10 @@ async def set_job_featured_admin(
                 else f"'{job.title}' ya no aparece destacada."
             ),
             link="/dashboard/company/busquedas",
-            email_vars={"puesto": job.title},
+            email_vars={"puesto": job.title,
+                        **({"enlace": job_public_path(job)} if payload.featured
+                           and job.moderation_status == JobModerationStatus.approved
+                           and job.status == JobPostingStatus.active else {})},
         )
 
     await db.commit()

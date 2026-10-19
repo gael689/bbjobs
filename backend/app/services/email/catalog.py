@@ -158,6 +158,9 @@ RULES: dict[str, Rule] = {
     "job_feature_expired": _CUENTA,
     "talent_pack_active": _CUENTA,
     "talent_pack_rejected": _CUENTA,
+    # Destacado y pack que regala Talency (sin pago): textos aparte, sin "contrataste" (P9).
+    "job_feature_granted": _CUENTA,
+    "talent_pack_granted": _CUENTA,
     "application_new": Rule(C.postulaciones, mode="digest"),  # resumen diario de la empresa
     # Candidatos nuevos que encajan (IA, de noche): una por empresa por noche, ya agrupada.
     "recommended_candidates_new": _POSTULACION,

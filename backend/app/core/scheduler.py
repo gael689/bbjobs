@@ -11,6 +11,7 @@ from app.models.job import JobPosting, JobPostingStatus
 from app.services.notifications import create_notification
 from app.services.job_features import end_active_feature_for_job
 from app.services import indexing
+from app.services.email.copy import dias_texto
 from app.services.profile_completion import (
     compute_profile_completion_bulk, should_send_completion_reminder,
 )
@@ -21,6 +22,13 @@ scheduler = AsyncIOScheduler()
 
 # Aviso "vence pronto" — se manda una única vez por búsqueda, cuando entra en esta ventana.
 EXPIRING_SOON_WINDOW_DAYS = 3
+
+
+def days_until(expires_at: datetime.datetime, now: datetime.datetime) -> int:
+    """Días que faltan para que venza, redondeando para arriba: a 2 días y 20 horas son "3 días",
+    no "2". Nunca menos de 1 (el aviso sólo sale para búsquedas todavía vigentes)."""
+    seconds = (expires_at - now).total_seconds()
+    return max(1, -int(-seconds // 86400))
 
 # El destacado ya no vence por su propio timer (ver services/job_features.py) — se apaga como
 # consecuencia directa de que la búsqueda deja de estar activa, dentro de expire_jobs() (acá
@@ -59,7 +67,8 @@ async def expire_jobs():
                         title="Tu búsqueda venció",
                         body=f"La búsqueda '{job.title}' llegó a su plazo máximo de {job.duration_days} días y dejó de estar visible en el portal.",
                         link="/dashboard/company/estadisticas",
-                        email_vars={"puesto": job.title},
+                        # E13: la duración real de la búsqueda (20 días como máximo), no 30 (P8).
+                        email_vars={"puesto": job.title, "dias": dias_texto(job.duration_days)},
                     )
 
         if expired_jobs:
@@ -95,7 +104,7 @@ async def notify_expiring_soon():
                 )
                 company = res_company.scalar_one_or_none()
                 if company:
-                    days_left = max(0, (job.expires_at - now).days)
+                    days_left = days_until(job.expires_at, now)
                     await create_notification(
                         db,
                         user_id=company.user_id,
@@ -103,7 +112,8 @@ async def notify_expiring_soon():
                         title="Tu búsqueda está por vencer",
                         body=f"'{job.title}' se va a dar de baja en {days_left} día{'s' if days_left != 1 else ''} por llegar a su plazo máximo. Revisá el estado de tus búsquedas desde tu panel.",
                         link="/dashboard/company/estadisticas",
-                        email_vars={"puesto": job.title},
+                        # E12: los días que faltan de verdad, no "3" fijo (P8).
+                        email_vars={"puesto": job.title, "dias": dias_texto(days_left)},
                     )
 
         if jobs_expiring_soon:

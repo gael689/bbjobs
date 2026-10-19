@@ -165,6 +165,17 @@ async def nightly(now: datetime | None = None) -> dict:
         return total
 
 
+def recommended_email_vars(titles: list[str], count: int) -> dict:
+    """Variables de E20 (copy.py). Su texto es por búsqueda; como sale uno por empresa por
+    noche, con varias búsquedas o con un solo perfil van las variantes propuestas (P10)."""
+    if len(titles) > 1:
+        return {"variante": "varias", "cantidad": count, "puestos": ", ".join(titles)}
+    puesto = titles[0] if titles else ""
+    if count == 1:
+        return {"variante": "uno", "puesto": puesto}
+    return {"cantidad": count, "puesto": puesto}
+
+
 async def notify_new_fits(db, now: datetime) -> int:
     """Una notificación por empresa por noche con los candidatos nuevos que encajan:
     puntaje ≥ 80 y cobertura ≥ 50 %, búsqueda activa con 3 días o más, como mucho 3 por
@@ -190,10 +201,11 @@ async def notify_new_fits(db, now: datetime) -> int:
                 JobRecommendation.job_id == job.id, JobRecommendation.notified_at >= week_ago)
         )).scalar_one()
         bucket = by_company.setdefault(job.company_id, {"jobs": {}, "count": 0})
-        per_job = bucket["jobs"].setdefault(job.id, {"title": job.title, "n": already})
+        per_job = bucket["jobs"].setdefault(job.id, {"title": job.title, "n": already, "new": 0})
         if per_job["n"] >= NEW_FIT_PER_JOB_PER_WEEK:
             continue
         per_job["n"] += 1
+        per_job["new"] += 1
         rec.notified_at = now
         bucket["count"] += 1
 
@@ -204,13 +216,16 @@ async def notify_new_fits(db, now: datetime) -> int:
         user_id = (await db.execute(select(CompanyProfile.user_id).where(CompanyProfile.id == company_id))).scalar_one_or_none()
         if user_id is None:
             continue
-        titles = ", ".join(f"'{j['title']}'" for j in bucket["jobs"].values())
+        # Sólo las búsquedas que suman perfiles hoy (las que ya llegaron al tope semanal, no).
+        jobs_today = [j for j in bucket["jobs"].values() if j["new"]]
+        titles = ", ".join(f"'{j['title']}'" for j in jobs_today)
         await create_notification(
             db, user_id=user_id, type="recommended_candidates_new",
             title="Hay candidatos nuevos que encajan con tus búsquedas",
             body=(f"Encontramos {'1 perfil que encaja' if bucket['count'] == 1 else str(bucket['count']) + ' perfiles que encajan'}"
                   f" con {titles}. Miralos en Recomendados."),
-            link="/dashboard/company/postulaciones",
+            link="/dashboard/company/recomendados",
+            email_vars=recommended_email_vars([j["title"] for j in jobs_today], bucket["count"]),
         )
         sent += 1
     return sent

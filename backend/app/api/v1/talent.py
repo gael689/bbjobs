@@ -779,10 +779,12 @@ async def admin_grant_talent_pack(
         )
     )
     await create_notification(
-        db, user_id=company.user_id, type="talent_pack_active",
+        # Regalo de Talency: su propio aviso, sin "Se acreditó tu pago" (P9).
+        db, user_id=company.user_id, type="talent_pack_granted",
         title="Te asignamos acceso a la Base de Talento",
         body=f"Tenés {payload.credits} desbloqueos para usar con los perfiles que quieras.",
         link="/dashboard/company/talento",
+        email_vars={"cantidad_contactos": payload.credits},
     )
 
     await db.commit()

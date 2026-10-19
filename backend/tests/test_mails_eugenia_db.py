@@ -208,3 +208,55 @@ async def test_last_seen_is_touched_at_most_once_per_hour(maker, monkeypatch):
     async with maker() as db:
         segundo = (await db.execute(select(User.last_seen_at).where(User.id == user.id))).scalar_one()
     assert segundo == primero
+
+
+# ── Empresas (E12, E13 y regalos de Talency, 19/10/2026) ──────────────────────────────
+
+async def _job_dates(maker, job_id, *, expires_at, duration_days):
+    async with maker() as db:
+        await db.execute(text("UPDATE job_postings SET expires_at=:e, duration_days=:d WHERE id=:id"),
+                         {"e": expires_at, "d": duration_days, "id": job_id})
+        await db.commit()
+
+
+async def test_expiring_soon_mail_says_the_real_days_left(maker, monkeypatch):
+    from app.core import scheduler
+
+    w = await _world(maker)
+    a = w["a"]
+    monkeypatch.setattr(scheduler, "async_session_maker", maker)
+    await _job_dates(maker, a["job"].id, expires_at=datetime.now(timezone.utc) + timedelta(days=1, hours=20),
+                     duration_days=10)
+    await scheduler.notify_expiring_soon()
+    [mail] = await _mails(maker, a["user"].id, "job_expiring_soon")
+    assert "vencerá en 2 días" in mail.html
+    assert "Hola, R:" in mail.html and "Equipo de BBJobs" in mail.html
+    assert "https://wa.me/5492915089353" in mail.html
+
+
+async def test_expired_mail_says_the_job_duration_not_30(maker, monkeypatch):
+    from app.core import scheduler
+
+    w = await _world(maker)
+    a = w["a"]
+    monkeypatch.setattr(scheduler, "async_session_maker", maker)
+    await _job_dates(maker, a["job"].id, expires_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+                     duration_days=15)
+    await scheduler.expire_jobs()
+    [mail] = await _mails(maker, a["user"].id, "job_expired")
+    assert mail.subject == "Finalizó el plazo de tu publicación en BBJobs"
+    assert "plazo máximo de 15 días" in mail.html
+    assert "30 días" not in mail.html
+
+
+async def test_granted_talent_pack_uses_its_own_notice(client, maker):
+    w = await _world(maker)
+    client.as_user(w["admin"])
+    r = await client.post("/api/v1/admin/talent/packs",
+                          json={"company_id": str(w["a"]["company"].id), "credits": 7})
+    assert r.status_code == 200, r.text
+    uid = w["a"]["user"].id
+    assert [n.type for n in await _notifs(maker, uid)] == ["talent_pack_granted"]
+    [mail] = await _mails(maker, uid, "talent_pack_granted")
+    assert "7 contactos" in mail.html
+    assert "acredit" not in mail.html and "compra" not in mail.html.lower()

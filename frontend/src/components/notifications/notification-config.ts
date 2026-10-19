@@ -75,6 +75,9 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   job_feature_active: SECONDARY,
   job_feature_rejected: SECONDARY,
   job_feature_expired: SECONDARY,
+  // Destacado y pack que regala Talency (sin pago)
+  job_feature_granted: SECONDARY,
+  talent_pack_granted: SECONDARY,
   admin_payment_received: SECONDARY,
   // Vencimiento de búsqueda
   job_expiring_soon: WARNING,

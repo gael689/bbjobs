@@ -62,11 +62,15 @@ def build_content(
     variables.setdefault("titulo", clean_value(title))
     variables.setdefault("mensaje", clean_value(body))
     copy = copy_for(type) if type else None
+    voice, help_line = "candidato", None
     if copy is not None:
         filled = fill_copy(copy, variables, link)
         heading, subject, text = filled.heading, filled.subject, filled.body
         cta, link = filled.cta_label or cta_label, filled.link
-        hello = greeting(variables.get("nombre"))
+        if not filled.button:
+            cta = None
+        voice, help_line = filled.voice, filled.help_whatsapp
+        hello = greeting(variables.get("nombre"), voice)
     else:
         heading, subject, text, cta, hello = title, title, body, cta_label, None
     if override and override.subject_override:
@@ -81,6 +85,8 @@ def build_content(
         greeting=hello,
         manage_url=manage_url_for(role) if unsubscribable else None,
         unsubscribe_url=unsubscribe_page_url(user_id, category) if unsubscribable else None,
+        voice=voice,
+        help_whatsapp=help_line,
     )
     return subject[:500], rendered
 

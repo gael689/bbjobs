@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from svix.webhooks import Webhook, WebhookVerificationError
 from app.api.deps import get_db
 from app.core.config import settings
+from app.core.urls import job_public_path
 from app.db.session import async_session_maker
 from app.models.core import User, UserRole
 from app.models.company import CompanyProfile
@@ -131,7 +132,11 @@ async def process_mp_payment(event_id: str):
                                     db, user_id=company.user_id, type="job_feature_active",
                                     title="Destacado activado", body=body,
                                     link="/dashboard/company/pagos",
-                                    email_vars={"puesto": res_job.title},
+                                    # E15. Si todavía espera aprobación, el mail no dice "ya está
+                                    # activo" (variante `sin_aprobar` en copy.py).
+                                    email_vars={"puesto": res_job.title, **(
+                                        {"enlace": job_public_path(res_job)} if already_public
+                                        else {"variante": "sin_aprobar"})},
                                 )
 
                             await notify_all_admins(
@@ -219,6 +224,7 @@ async def _procesar_pack_de_talento(db, payment: Payment, mp_status: str) -> Non
                     "perfiles que quieras."
                 ),
                 link="/dashboard/company/talento",
+                email_vars={"cantidad_contactos": sumados},  # E18
             )
         await notify_all_admins(
             db, type="admin_payment_received",

@@ -79,13 +79,15 @@ async def enqueue_digest(
     copy = DIGESTS.get(key)
     item_cta = None
     hello = None
+    voice, outro, help_line = "candidato", None, None
     if copy is not None:
         subject, heading, intro, cta_label, item_cta = (
             copy.subject, copy.heading, copy.intro, copy.cta_label, copy.item_cta)
-        hello = greeting((await recipient_variables(db, user)).get("nombre"))
+        voice, outro, help_line = copy.voice, copy.outro, copy.help_whatsapp
+        hello = greeting((await recipient_variables(db, user)).get("nombre"), voice)
     rendered = render_email(
         heading=heading, body=intro, items=items[:MAX_ITEMS], cta_label=cta_label, cta_url=cta_url,
-        greeting=hello, item_cta=item_cta,
+        greeting=hello, item_cta=item_cta, voice=voice, outro=outro, help_whatsapp=help_line,
         manage_url=manage_url_for(user.role) if rule.unsubscribable else None,
         unsubscribe_url=unsubscribe_page_url(user.id, rule.category) if rule.unsubscribable else None,
     )

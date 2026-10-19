@@ -34,6 +34,9 @@ _VAR_RE = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 TAGLINE = "BBJobs. El talento de Bahía, más cerca."
 INITIATIVE = "Una iniciativa de Talency."
+# Firma de los mails de empresas (PDF de Eugenia, 19/10/2026).
+COMPANY_SIGNOFF = ("Saludos,", "Equipo de BBJobs", "Una iniciativa de Talency")
+WHATSAPP_TOKEN = "{whatsapp}"
 _FONT = "'DM Sans', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 
@@ -83,6 +86,25 @@ def strip_bold(text: str) -> str:
     return _BOLD_RE.sub(r"\1", text)
 
 
+def whatsapp_url() -> str:
+    """Link de WhatsApp de Talency, armado sólo desde la configuración."""
+    digits = "".join(ch for ch in settings.TALENCY_WHATSAPP if ch.isdigit())
+    return f"https://wa.me/{digits}"
+
+
+def _help_html(line: str) -> str:
+    """El renglón de ayuda con el número como link. El texto es fijo (copy.py) y se escapa igual;
+    el link y el número salen de la configuración."""
+    e = html.escape
+    link = (f'<a href="{e(whatsapp_url(), quote=True)}" style="color:{BUTTON};font-weight:600;">'
+            f'{e(settings.TALENCY_WHATSAPP_DISPLAY)}</a>')
+    return link.join(e(part) for part in line.split(WHATSAPP_TOKEN))
+
+
+def _help_text(line: str) -> str:
+    return line.replace(WHATSAPP_TOKEN, f"{settings.TALENCY_WHATSAPP_DISPLAY} ({whatsapp_url()})")
+
+
 def _paragraphs(body: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", body.strip()) if p.strip()]
 
@@ -101,16 +123,36 @@ def render_email(
     greeting: str | None = None,
     manage_url: str | None = None,
     item_cta: str | None = None,
+    voice: str = "candidato",
+    help_whatsapp: str | None = None,
+    outro: str | None = None,
 ) -> RenderedEmail:
-    """`body` es texto plano: párrafos separados por línea en blanco, saltos simples = <br>."""
+    """`body` es texto plano: párrafos separados por línea en blanco, saltos simples = <br>.
+
+    `voice="empresa"`: cierra con "Saludos, / Equipo de BBJobs / Una iniciativa de Talency"
+    dentro de la carta y el pie sólo lleva los links de preferencias (si hay). `help_whatsapp`
+    es el renglón de ayuda (texto fijo con `{whatsapp}`); `outro`, un párrafo después de la
+    lista. `heading` vacío = sin línea en negrita."""
     cta_url = absolute_url(cta_url)
     image_url = absolute_url(image_url)
     manage_url = absolute_url(manage_url)
     e = html.escape
+    empresa = voice == "empresa"
 
-    paragraphs_html = "".join(
-        f'<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{TEXT};">{_inline(p)}</p>'
-        for p in _paragraphs(body)
+    def _p(inner: str) -> str:
+        return f'<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{TEXT};">{inner}</p>'
+
+    paragraphs_html = "".join(_p(_inline(p)) for p in _paragraphs(body))
+    outro_html = "".join(_p(_inline(p)) for p in _paragraphs(outro or ""))
+    help_html = _p(_help_html(help_whatsapp)) if help_whatsapp else ""
+    signoff_html = (
+        f'<p style="margin:16px 0 8px;font-size:16px;line-height:1.6;color:{TEXT};">'
+        f'{e(COMPANY_SIGNOFF[0])}<br><strong>{e(COMPANY_SIGNOFF[1])}</strong><br>{e(COMPANY_SIGNOFF[2])}</p>'
+        if empresa else ""
+    )
+    heading_html = (
+        f'<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{TEXT};">{e(heading)}</h1>'
+        if heading else ""
     )
     greeting_html = (
         f'<p style="margin:0 0 8px;font-size:16px;line-height:1.5;color:{TEXT};">{e(greeting)}</p>'
@@ -150,7 +192,7 @@ def render_email(
         if preheader else ""
     )
     # Firma de Talency (PDF de Eugenia, 08/10/2026) y, abajo, los links de preferencias.
-    footer_lines = [f'<strong style="font-size:14px;">{e(TAGLINE)}</strong>', e(INITIATIVE)]
+    footer_lines = [] if empresa else [f'<strong style="font-size:14px;">{e(TAGLINE)}</strong>', e(INITIATIVE)]
     if footer_note:
         footer_lines.append(e(footer_note))
     links = []
@@ -162,6 +204,11 @@ def render_email(
     if links:
         footer_lines.append(" · ".join(links))
     footer_html = "<br>".join(footer_lines)
+    footer_row = (
+        f'<tr><td style="padding:16px 32px 24px;background:{SECONDARY_LIGHT};'
+        f'font-size:12px;line-height:1.6;color:{TEXT};">{footer_html}</td></tr>'
+        if footer_lines else ""
+    )
     logo_url = absolute_url(LOGO_PATH)
     logo_html = (
         f'<td style="padding-right:8px;vertical-align:middle;"><img src="{e(logo_url, quote=True)}" alt="" '
@@ -172,7 +219,7 @@ def render_email(
     document = (
         f'<!doctype html><html lang="es"><head><meta charset="utf-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<title>{e(heading)}</title></head>'
+        f'<title>{e(heading or "BBJobs")}</title></head>'
         f'<body style="margin:0;padding:0;background:{BG};font-family:{_FONT};">'
         f'{preheader_html}'
         f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{BG};">'
@@ -189,23 +236,27 @@ def render_email(
         f'<span style="color:{TEAL};">BB</span>JOBS</td></tr></table></td></tr>'
         f'<tr><td style="padding:24px 32px 8px;">'
         f'{greeting_html}'
-        f'<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{TEXT};">{e(heading)}</h1>'
-        f'{image_html}{paragraphs_html}{items_html}{cta_html}</td></tr>'
-        f'<tr><td style="padding:16px 32px 24px;background:{SECONDARY_LIGHT};'
-        f'font-size:12px;line-height:1.6;color:{TEXT};">{footer_html}</td></tr>'
+        f'{heading_html}'
+        f'{image_html}{paragraphs_html}{items_html}{outro_html}{cta_html}{help_html}{signoff_html}</td></tr>'
+        f'{footer_row}'
         f'</table></td></tr></table></body></html>'
     )
 
-    text_parts = ([greeting, ""] if greeting else []) + [heading, "", strip_bold(body.strip())]
+    text_parts = (([greeting, ""] if greeting else []) + ([heading, ""] if heading else [])
+                  + [strip_bold(body.strip())])
     for it in items or []:
         link = absolute_url(it.url)
         text_parts.append("")
         text_parts.append(f"- {it.title}" + (f" ({it.detail})" if it.detail else ""))
         if link:
             text_parts.append(f"  {(item_cta + ': ') if item_cta else ''}{link}")
+    if outro:
+        text_parts += ["", strip_bold(outro.strip())]
     if cta_url:
         text_parts += ["", f"{cta_label or 'Ver más'}: {cta_url}"]
-    text_parts += ["", TAGLINE, INITIATIVE]
+    if help_whatsapp:
+        text_parts += ["", _help_text(help_whatsapp)]
+    text_parts += ["", *COMPANY_SIGNOFF] if empresa else ["", TAGLINE, INITIATIVE]
     if footer_note:
         text_parts.append(footer_note)
     if manage_url:
