@@ -254,7 +254,6 @@ function Indice({ etapas, avisos }: { etapas: Etapa[]; avisos: Aviso[] }) {
           ))}
         </div>
       ))}
-      <a href="#recomendaciones-ia" className={`mb-4 block font-display text-sm font-bold ${ink} hover:text-[#187B8E]`}>Recomendaciones con IA</a>
       <a href="#mas-informacion" className={`block font-display text-sm font-bold ${ink} hover:text-[#187B8E]`}>Más información</a>
       <a href="#preguntas" className="mt-2 block font-display text-sm font-bold text-[#187B8E]">Preguntas para vos</a>
     </nav>
@@ -714,74 +713,117 @@ function Desplegable({ titulo, bajada, children }: { titulo: string; bajada: str
 
 // ── Página ────────────────────────────────────────────────────────────────────────────
 
+// Dos pestañas arriba de todo (Gael, 19/10/2026): los mails por un lado y las recomendaciones con IA por
+// otro. Antes la IA iba al final de la página de mails y Eugenia no llegaba a verla.
+type Vista = "mails" | "ia";
+
+function Pestanas({ vista, elegir, totalMails }: { vista: Vista; elegir: (v: Vista) => void; totalMails: number }) {
+  const opciones: { clave: Vista; titulo: string; bajada: string }[] = [
+    { clave: "mails", titulo: "Mails automáticos", bajada: `Los ${totalMails} mails: qué recibe cada persona, cuándo y con qué texto.` },
+    { clave: "ia", titulo: "Recomendaciones con IA", bajada: "Cómo la IA le ordena los postulantes a la empresa, con un ejemplo." },
+  ];
+  return (
+    <div role="tablist" aria-label="Qué querés ver" className="mt-6 grid gap-3 sm:grid-cols-2">
+      {opciones.map((o) => {
+        const activa = vista === o.clave;
+        return (
+          <button
+            key={o.clave}
+            type="button"
+            role="tab"
+            aria-selected={activa}
+            onClick={() => elegir(o.clave)}
+            className={`rounded-xl border-2 p-4 text-left transition-colors sm:p-5 ${
+              activa ? "border-[#1E8EA3] bg-[#E6F4F7]" : "border-[#DDE3EC] bg-white hover:border-[#9ED4DF]"
+            }`}
+          >
+            <span className={`block font-display text-lg font-bold ${activa ? "text-[#187B8E]" : ink}`}>{o.titulo}</span>
+            <span className={`mt-1 block text-sm ${muted}`}>{o.bajada}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function VistaPrevia({
   etapas, avisos, sinMail, preguntas, ia,
 }: {
   etapas: Etapa[]; avisos: Aviso[]; sinMail: SinMail[]; preguntas: Pregunta[]; ia: DatosIA;
 }) {
+  const [vista, setVista] = useState<Vista>("mails");
   const ordenados = [...avisos].sort((a, b) => a.orden - b.orden);
+  const elegir = (v: Vista) => {
+    setVista(v);
+    window.scrollTo({ top: 0 });
+  };
   return (
     <main className="min-h-screen bg-[#FAFBFD] pb-16 pt-28 sm:pt-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <h1 className={`font-display text-3xl font-extrabold tracking-tight sm:text-4xl ${ink}`}>
-          Vista previa de los mails automáticos y las recomendaciones con IA
+          Vista previa de BBJobs
         </h1>
         <p className={`mt-2 max-w-3xl text-base ${ink}`}>
-          Para revisar con calma: qué mail recibe cada persona, en qué momento y con qué texto, y cómo la IA le
-          ordena los postulantes a la empresa.
+          Para revisar con calma lo que viene. Elegí qué querés ver: nada de esto está funcionando todavía.
         </p>
 
-        <Intro avisos={ordenados} preguntas={preguntas} />
+        <Pestanas vista={vista} elegir={elegir} totalMails={ordenados.length} />
 
-        <details className="mt-6 rounded-xl border border-[#DDE3EC] bg-white lg:hidden">
-          <summary className={`cursor-pointer p-4 font-display text-base font-bold ${ink}`}>Índice: ir a un aviso</summary>
-          <div className="border-t border-[#DDE3EC] p-4">
-            <Indice etapas={etapas} avisos={ordenados} />
-          </div>
-        </details>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)]">
-          <aside className="hidden lg:block">
-            <div className="sticky top-28 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-[#DDE3EC] bg-white p-4">
-              <p className={`mb-3 text-xs font-semibold uppercase tracking-wide ${muted}`}>Índice</p>
-              <Indice etapas={etapas} avisos={ordenados} />
+        {vista === "ia" ? (
+          <section className="mt-8 max-w-4xl space-y-4">
+            <div className="border-b-4 border-[#1E8EA3] pb-3">
+              <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Recomendaciones de candidatos con IA</h2>
+              <p className={`mt-1 text-sm ${ink}`}>
+                Cuando una búsqueda recibe muchas postulaciones, la IA ayuda a la empresa a ver primero a quienes mejor
+                cumplen lo que pide el aviso, y explica por qué con frases del propio CV. Abajo, una búsqueda de ejemplo
+                paso a paso. Cuando aparecen perfiles nuevos, la empresa recibe el mail E20 («Nuevos perfiles
+                recomendados»), que está en la pestaña de mails.
+              </p>
             </div>
-          </aside>
+            <IA ia={ia} />
+          </section>
+        ) : (
+          <>
+            <Intro avisos={ordenados} preguntas={preguntas} />
 
-          <div className="min-w-0 space-y-14">
-            {GRUPOS.map((g) => (
-              <Grupo key={g.clave} grupo={g} etapas={etapas} avisos={ordenados} sinMail={sinMail} preguntas={preguntas} />
-            ))}
-
-            <section id="recomendaciones-ia" className="scroll-mt-28 space-y-4">
-              <div className="border-b-4 border-[#1E8EA3] pb-3">
-                <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Recomendaciones de candidatos con IA</h2>
-                <p className={`mt-1 max-w-3xl text-sm ${ink}`}>
-                  Cuando una búsqueda recibe muchas postulaciones, la IA ayuda a la empresa a ver primero a quienes mejor
-                  cumplen lo que pide el aviso, y explica por qué con frases del propio CV. Abajo, una búsqueda de ejemplo
-                  paso a paso. Cuando aparecen perfiles nuevos, la empresa recibe el mail{" "}
-                  <a href="#aviso-E20" className="font-semibold text-[#187B8E] underline">E20 · Nuevos perfiles recomendados</a>.
-                </p>
+            <details className="mt-6 rounded-xl border border-[#DDE3EC] bg-white lg:hidden">
+              <summary className={`cursor-pointer p-4 font-display text-base font-bold ${ink}`}>Índice: ir a un aviso</summary>
+              <div className="border-t border-[#DDE3EC] p-4">
+                <Indice etapas={etapas} avisos={ordenados} />
               </div>
-              <IA ia={ia} />
-            </section>
+            </details>
 
-            <section id="mas-informacion" className="scroll-mt-28 space-y-3">
-              <div className="border-b-4 border-[#D4B7A2] pb-3">
-                <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Más información</h2>
-                <p className={`mt-1 text-sm ${muted}`}>Para ver cuando quieras. Tocá cada título para abrirlo.</p>
+            <div className="mt-8 grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)]">
+              <aside className="hidden lg:block">
+                <div className="sticky top-28 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-[#DDE3EC] bg-white p-4">
+                  <p className={`mb-3 text-xs font-semibold uppercase tracking-wide ${muted}`}>Índice</p>
+                  <Indice etapas={etapas} avisos={ordenados} />
+                </div>
+              </aside>
+
+              <div className="min-w-0 space-y-14">
+                {GRUPOS.map((g) => (
+                  <Grupo key={g.clave} grupo={g} etapas={etapas} avisos={ordenados} sinMail={sinMail} preguntas={preguntas} />
+                ))}
+
+                <section id="mas-informacion" className="scroll-mt-28 space-y-3">
+                  <div className="border-b-4 border-[#D4B7A2] pb-3">
+                    <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Más información</h2>
+                    <p className={`mt-1 text-sm ${muted}`}>Para ver cuando quieras. Tocá cada título para abrirlo.</p>
+                  </div>
+                  <Desplegable titulo="Qué ve la empresa al cambiar el estado de una postulación" bajada="Elegí un estado y mirá el mail que le llega al postulante.">
+                    <Estados avisos={ordenados} />
+                  </Desplegable>
+                  <Desplegable titulo="Reglas generales de envío" bajada="Horarios, topes por día y cómo darse de baja.">
+                    <Reglas />
+                  </Desplegable>
+                </section>
+
+                <Preguntas preguntas={preguntas} avisos={ordenados} />
               </div>
-              <Desplegable titulo="Qué ve la empresa al cambiar el estado de una postulación" bajada="Elegí un estado y mirá el mail que le llega al postulante.">
-                <Estados avisos={ordenados} />
-              </Desplegable>
-              <Desplegable titulo="Reglas generales de envío" bajada="Horarios, topes por día y cómo darse de baja.">
-                <Reglas />
-              </Desplegable>
-            </section>
-
-            <Preguntas preguntas={preguntas} avisos={ordenados} />
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
