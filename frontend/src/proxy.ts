@@ -1,133 +1,60 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { construirCsp, headersSeguridad } from "@/lib/seguridad";
 
 // Público-primero: BBJobs es un portal público (home, /empleos, /login, /register, etc.).
 // Sólo el panel autenticado y el onboarding requieren sesión.
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/onboarding(.*)"]);
 
-// Rutas que se renderizan por request y llevan la CSP estricta con nonce: donde hay sesión,
-// datos personales o formularios de Clerk. Tienen su `layout.tsx` con `force-dynamic`.
-// Todo lo demás (home, /empleos, /empresas, /planes, /contacto…) es contenido público: se sirve
-// prerenderizado/ISR y lleva una CSP fija, sin nonce. Ver el comentario de `publicCsp` abajo.
-const isStrictCspRoute = createRouteMatcher([
-  "/dashboard(.*)", "/onboarding(.*)", "/login(.*)", "/register(.*)", "/post-login(.*)",
-]);
-
-// Origen del backend, derivado de NEXT_PUBLIC_API_URL (ej. http://localhost:8000/api/v1 en dev,
-// https://api.bbjobs.com.ar/api/v1 en prod) — connect-src necesita el origen, no la ruta.
-function apiOrigin(): string {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").origin;
-  } catch {
-    return "http://localhost:8000";
-  }
-}
-
+// El proxy corre SÓLO en las rutas con sesión o formularios de Clerk (19/10/2026, ver `matcher`
+// abajo y lib/rutas-sesion.ts): ahí se renderiza por request y va la CSP estricta con nonce.
+// Las páginas públicas no pasan por acá: son estáticas/ISR y sus headers de seguridad (CSP fija
+// sin nonce, HSTS, etc.) los pone next.config.ts `headers()`, que la CDN aplica sin función.
+//
+// Por qué alcanza con Clerk sólo en estas rutas: ninguna página pública llama a auth() ni a
+// currentUser() del lado del servidor (lo único que exige que el middleware haya corrido), y el
+// <ClerkProvider> del layout raíz no es `dynamic`, así que no lee la sesión en el servidor. En
+// las públicas la sesión la maneja clerk-js en el navegador (useUser en el Header, getToken para
+// la API). El handshake de Clerk (refrescar la cookie __session vencida) sí necesita el
+// middleware, y por eso sigue corriendo en /login, /register, /post-login, /onboarding y
+// /dashboard, que son las únicas que leen la sesión en el servidor (auth.protect()).
 export default clerkMiddleware(async (auth, request) => {
   if (isProtectedRoute(request)) {
     await auth.protect();
   }
 
-  const strict = isStrictCspRoute(request);
-  const nonce = strict ? Buffer.from(crypto.randomUUID()).toString("base64") : null;
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
-
-  // Preview deploys siguen en la instancia de test de Clerk (*.clerk.accounts.dev, cubierto por
-  // el wildcard). Production (DEPLOY-PLAN.md bloque G, 2026-07-20) pasó a un dominio custom de
-  // Clerk (clerk.www.bbjobs.com.ar para el Frontend API, accounts.www.bbjobs.com.ar para el
-  // Account Portal) que el wildcard de *.clerk.accounts.dev no cubre — hay que listarlo
-  // explícito. isDev sólo distingue "corriendo local" de "deployado" (Preview y Production
-  // corren ambos con NODE_ENV=production), así que se listan los tres orígenes siempre.
-  const clerkOrigins =
-    "https://*.clerk.accounts.dev https://clerk.www.bbjobs.com.ar https://accounts.www.bbjobs.com.ar";
-
-  // NO usar 'strict-dynamic' acá: verificado con Playwright (ver SEGURIDAD-PLAN.md bloque C)
-  // que ClerkProvider inyecta sus propios <script src="https://...clerk.accounts.dev/..."> ya
-  // en el HTML servido, sin nonce — no son scripts "cargados por un script ya confiable", son
-  // tags de primer nivel. 'strict-dynamic' hace que el navegador IGNORE cualquier dominio
-  // explícito en script-src (por spec CSP3), así que combinarlo con el dominio de Clerk sería
-  // inútil: el dominio nunca se respetaría. En cambio, confiamos en el nonce (para lo que
-  // genera Next.js) + el dominio exacto de Clerk (para su script) — nada más pasa.
-  //
-  // style-src usa 'unsafe-inline' a propósito, no nonce: Tailwind/Next generan bastante estilo
-  // inline (style={{}} en componentes como el anillo de perfil), y CSP no soporta nonce para
-  // atributos style="" (sólo para <style>/<link>, ver CSP3). La inyección de CSS es un riesgo
-  // mucho menor que la de JS (no ejecuta código ni exfiltra datos), así que el compromiso es
-  // script-src estricto (con nonce + allowlist puntual) + style-src relajado.
-  // Clerk usa Cloudflare Turnstile (challenges.cloudflare.com) para el CAPTCHA de bot-protection
-  // en signup/signin. Sin este origen en script-src/frame-src/connect-src, Turnstile no carga y
-  // Clerk devuelve 400 con "CAPTCHA failed to load" (visto en prod 2026-07-21).
-  const turnstileOrigin = "https://challenges.cloudflare.com";
-
-  // Páginas públicas: 'unsafe-inline' en vez de nonce (23/09/2026). Con nonce, TODAS las páginas
-  // tenían que renderizarse por request (`force-dynamic` en el layout raíz), y eso agotaba el CPU
-  // del plan de Vercel: cada visita a la home o a /empleos era una función corriendo, aunque esas
-  // páginas traen sus datos desde el navegador. El costo de seguridad es acotado: estas páginas no
-  // tienen sesión ni formularios de login (esos quedan en `isStrictCspRoute`, con nonce), y no
-  // renderizan HTML de terceros — React escapa todo, y el único dangerouslySetInnerHTML (JSON-LD de
-  // /empleos/[id]) ya escapa "<". Ver SEGURIDAD-PLAN.md, bloque C (actualización).
-  const scriptSrc = nonce ? `'nonce-${nonce}'` : "'unsafe-inline'";
-
-  // Medición (Frente 3, MAILS-SEO-IA-OCTUBRE-PLAN.md). Google Analytics 4 sólo se descarga después
-  // de que la persona acepta "Medición" en el banner (components/consent/), pero la CSP tiene que
-  // dejarlo pasar en todas las rutas. gtag.js sale de googletagmanager.com y manda los hits a
-  // *.google-analytics.com / *.analytics.google.com (region1, etc.). No hay <script> inline: el
-  // stub de gtag lo arma lib/analytics.ts, así que el nonce del panel no se toca.
-  // Vercel Web Analytics usa /_vercel/insights (mismo origen, ya cubierto por 'self'); sólo en
-  // `next dev` carga su script de debug desde va.vercel-scripts.com.
-  // A propósito NO se habilita https://www.google.com: gtag.js manda ahí una copia del hit para
-  // las funciones publicitarias (verificado con Playwright 08/10/2026: el hit de medición sale
-  // igual por *.google-analytics.com). BBJobs no hace publicidad, así que esa copia queda bloqueada
-  // y en la consola aparece un aviso de CSP esperable.
-  const gaScript = "https://www.googletagmanager.com";
-  const gaConnect =
-    "https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com";
-  const vercelAnalyticsDev = isDev ? " https://va.vercel-scripts.com" : "";
-
-  const cspHeader = `
-    default-src 'self';
-    script-src 'self' ${scriptSrc} ${clerkOrigins} ${turnstileOrigin} ${gaScript}${vercelAnalyticsDev}${isDev ? " 'unsafe-eval'" : ""};
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://res.cloudinary.com https://img.clerk.com ${gaConnect};
-    font-src 'self' data:;
-    connect-src 'self' ${apiOrigin()} ${clerkOrigins} ${turnstileOrigin} ${gaConnect}${vercelAnalyticsDev};
-    frame-src 'self' ${clerkOrigins} ${turnstileOrigin};
-    worker-src 'self' blob:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-    upgrade-insecure-requests;
-  `.replace(/\s{2,}/g, " ").trim();
+  const cspHeader = construirCsp({ nonce, isDev });
 
   // El CSP con nonce viaja también en el request: es de donde Next.js lo lee para ponerle el
-  // atributo nonce a sus <script> al renderizar. En las públicas no hay nonce que pasar.
+  // atributo nonce a sus <script> al renderizar.
   const requestHeaders = new Headers(request.headers);
-  if (nonce) {
-    requestHeaders.set("x-nonce", nonce);
-    requestHeaders.set("Content-Security-Policy", cspHeader);
-  }
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", cspHeader);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   response.headers.set("Content-Security-Policy", cspHeader);
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  // max-age corto a propósito para el lanzamiento — HSTS es difícil de revertir (el navegador
-  // recuerda la directiva). Subir el valor con el tiempo, no arrancar en el máximo. Sin
-  // "preload": eso sí es prácticamente irreversible.
-  if (!isDev) {
-    response.headers.set("Strict-Transport-Security", "max-age=86400; includeSubDomains");
+  for (const { key, value } of headersSeguridad(isDev)) {
+    response.headers.set(key, value);
   }
 
   return response;
 });
 
 export const config = {
+  // Antes (hasta el 19/10/2026) el matcher tomaba todo salvo estáticos: el proxy, que en Next 16
+  // corre en Node.js, era una invocación de función por cada request del sitio, incluidos los
+  // prefetch de RSC (~160 por visita a la home, medido con Playwright) y los bots. Ahora sólo
+  // estas rutas. Tiene que coincidir con RUTAS_CON_SESION (lib/rutas-sesion.ts): Next exige un
+  // literal acá. `/:path*` también toma la ruta pelada (/dashboard, /login).
+  // No hay rutas /api en el frontend (el backend es api.bbjobs.com.ar), así que no se listan.
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
+    "/dashboard/:path*",
+    "/onboarding/:path*",
+    "/login/:path*",
+    "/register/:path*",
+    "/post-login/:path*",
   ],
 };
