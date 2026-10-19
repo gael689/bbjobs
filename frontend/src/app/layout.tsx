@@ -8,7 +8,6 @@ import Footer from "@/components/layout/Footer";
 import ClerkTokenSync from "@/components/auth/ClerkTokenSync";
 import SessionExpiredBanner from "@/components/auth/SessionExpiredBanner";
 import AvisoCorreccion from "@/components/auth/AvisoCorreccion";
-import { Analytics } from "@vercel/analytics/next";
 import CookieBanner from "@/components/consent/CookieBanner";
 import GoogleAnalytics from "@/components/consent/GoogleAnalytics";
 import MedicionPropia from "@/components/consent/MedicionPropia";
@@ -63,11 +62,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Header />
           <main className="flex-1 w-full relative z-10">{children}</main>
           <Footer />
-          {/* Medición (Frente 3): Vercel Analytics no usa cookies; GA4 y la medición propia, sólo con consentimiento. */}
+          {/* Medición (Frente 3): GA4 y la medición propia, sólo con consentimiento. Vercel Analytics se sacó al pasar a Railway (19/10/2026): su /_vercel/insights no existe fuera de Vercel. */}
           <CookieBanner />
           <GoogleAnalytics />
           <MedicionPropia />
-          <Analytics />
         </ClerkProvider>
       </body>
     </html>
