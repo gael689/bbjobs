@@ -723,10 +723,7 @@ export default function VistaPrevia({
   return (
     <main className="min-h-screen bg-[#FAFBFD] pb-16 pt-28 sm:pt-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <p className="font-display text-2xl font-extrabold italic tracking-tight text-[#1C2230]">
-          <span className="text-[#1E8EA3]">BB</span>JOBS
-        </p>
-        <h1 className={`mt-2 font-display text-3xl font-extrabold tracking-tight sm:text-4xl ${ink}`}>
+        <h1 className={`font-display text-3xl font-extrabold tracking-tight sm:text-4xl ${ink}`}>
           Vista previa de los mails automáticos
         </h1>
         <p className={`mt-2 max-w-3xl text-base ${ink}`}>
