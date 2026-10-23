@@ -16,7 +16,7 @@ from app.models.job import JobPosting, Application, ApplicationStatus, JobModera
 from app.models.catalogs import Skill
 from app.models.history import ApplicationStatusHistory
 from app.schemas.application import ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate
-from app.schemas.common import Paginated, PageQuery, PageSizeQuery, contar, recortar
+from app.schemas.common import Paginated, PageQuery, PageSizeQuery, contar
 from app.schemas.candidate import (
     CandidateFullProfile, ExperienceForCompany, EducationForCompany,
     SkillForCompany, LanguageForCompany, calculate_age,
@@ -34,20 +34,14 @@ from app.services.applicant_stats import (
     anios_de_experiencia, etiqueta_educacion, educacion_mas_alta,
 )
 from app.services.settings import get_setting
+from app.services.applicant_search import (
+    FiltrosPostulantes, Lado, aplicar_filtros, coincidencias, columna_estrella, columna_visto,
+    conteos, filtros_postulantes,
+)
 from app.models.settings import SettingKey
 from app.services.history import log_application_status_change, log_candidate_activity
 
 router = APIRouter()
-
-
-def _birth_date_cutoff(years_ago: int) -> datetime.date:
-    """Fecha de nacimiento límite para un filtro de edad — corrimiento de N años desde hoy,
-    con fallback si el 29/feb no existe en el año resultante (no bisiesto)."""
-    today = datetime.date.today()
-    try:
-        return today.replace(year=today.year - years_ago)
-    except ValueError:
-        return today.replace(month=2, day=28, year=today.year - years_ago)
 
 
 # ── Inline schema for enriched application view ───────────────────────────────
@@ -78,10 +72,15 @@ class ApplicationWithCandidateResponse(BaseModel):
     job_posting_id: uuid.UUID
     cover_letter: Optional[str] = None
     status: ApplicationStatus
+    # El visto y la estrella son los del lado que pide: a la empresa le llegan los suyos y al
+    # admin los de Talency (`admin_seen_at`, `admin_starred_at`). Nunca los del otro.
     seen_at: Optional[datetime.datetime] = None
+    starred_at: Optional[datetime.datetime] = None
     status_updated_at: Optional[datetime.datetime] = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    # Por qué apareció con el buscador ("Experiencia: Soldador en Profertil"). Sólo con texto.
+    match: Optional[str] = None
     candidate: Optional[CandidateSummary] = None
 
     class Config:
@@ -209,135 +208,162 @@ async def my_application_history(
     return result.scalars().all()
 
 
+class ApplicantCounts(BaseModel):
+    """Los chips de la lista de postulantes: por estado, con estrella y sin ver. Sobre la
+    búsqueda entera; la estrella y el visto son los del lado que pregunta."""
+    total: int
+    by_status: dict[str, int]
+    starred: int
+    unseen: int
+
+
+async def listar_postulantes(
+    db: AsyncSession,
+    job_id: uuid.UUID,
+    filtros: FiltrosPostulantes,
+    *,
+    lado: Lado,
+    page: int,
+    page_size: int,
+) -> Paginated[ApplicationWithCandidateResponse]:
+    """El listado de postulantes de una búsqueda, para la empresa y para el admin.
+
+    El que llama ya validó el acceso a `job_id` (la empresa, contra su `company_id`). La
+    estrella y el visto que viajan son los de `lado`: la empresa nunca recibe los de Talency ni
+    al revés."""
+    # select_from explícito: el buscador reusa esta consulta con otras columnas (la compuerta
+    # del parecido) y sin él Postgres no sabría desde dónde arranca el JOIN.
+    # Join con CandidateProfile en la consulta principal (antes era un SELECT por postulación):
+    # también es lo que permite filtrar por los datos del candidato sin otra consulta.
+    query = (
+        select(Application, CandidateProfile)
+        .select_from(Application)
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
+        .where(Application.job_posting_id == job_id)
+    )
+    query = await aplicar_filtros(db, query, filtros, lado=lado)
+
+    total = await contar(db, query)
+    rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).all()
+    candidatos = [c for _a, c in rows]
+    completions = await compute_profile_completion_bulk(db, candidatos)
+    por_que = await coincidencias(db, candidatos, filtros.q)
+
+    estrella, visto = columna_estrella(lado), columna_visto(lado)
+    items = [
+        ApplicationWithCandidateResponse(
+            id=app.id,
+            candidate_id=app.candidate_id,
+            job_posting_id=app.job_posting_id,
+            cover_letter=app.cover_letter,
+            status=app.status,
+            seen_at=getattr(app, visto.key),
+            starred_at=getattr(app, estrella.key),
+            status_updated_at=app.status_updated_at,
+            created_at=app.created_at,
+            updated_at=app.updated_at,
+            match=por_que.get(candidate.id),
+            candidate=CandidateSummary(
+                id=candidate.id,
+                first_name=candidate.first_name,
+                last_name=candidate.last_name,
+                phone=candidate.phone or None,
+                photo_url=candidate.photo_url,
+                cv_file_url=candidate.cv_file_url,
+                completion_percent=completions[candidate.id].percent,
+                age=calculate_age(candidate.birth_date),
+                gender=candidate.gender,
+                has_own_transport=candidate.has_own_transport,
+                availability=candidate.availability,
+                immediate_availability=candidate.immediate_availability,
+            ),
+        )
+        for app, candidate in rows
+    ]
+    return Paginated(items=items, total=total, page=page, page_size=page_size)
+
+
+async def _job_de_la_empresa(db: AsyncSession, job_id: uuid.UUID, company: CompanyProfile) -> JobPosting:
+    job = (await db.execute(
+        select(JobPosting).where(JobPosting.id == job_id, JobPosting.company_id == company.id)
+    )).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or not owned by company")
+    return job
+
+
 @router.get("/me/company/jobs/{id}/applications", response_model=Paginated[ApplicationWithCandidateResponse])
 async def list_job_applications(
     id: uuid.UUID,
     page: int = PageQuery,
     page_size: int = PageSizeQuery,
-    age_min: Optional[int] = Query(None, ge=0),
-    age_max: Optional[int] = Query(None, ge=0),
-    gender: Optional[Gender] = Query(None),
-    has_own_transport: Optional[bool] = Query(None),
-    availability: Optional[Availability] = Query(None),
-    immediate_availability: Optional[bool] = Query(None),
-    position: Optional[str] = Query(None, description="Busca en el puesto de la experiencia laboral"),
-    experience_min: Optional[float] = Query(None, ge=0, description="Años de experiencia, mínimo"),
-    experience_max: Optional[float] = Query(None, ge=0, description="Años de experiencia, máximo"),
-    zone_id: Optional[uuid.UUID] = Query(None, description="Zona donde vive el candidato"),
+    filtros: FiltrosPostulantes = Depends(filtros_postulantes),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db)
 ):
-    result_job = await db.execute(select(JobPosting).where(JobPosting.id == id, JobPosting.company_id == company.id))
-    job = result_job.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found or not owned by company")
+    job = await _job_de_la_empresa(db, id, company)
+    return await listar_postulantes(db, job.id, filtros, lado="empresa", page=page, page_size=page_size)
 
-    # Join con CandidateProfile en la query principal — antes hacía un SELECT extra por cada
-    # postulación (N+1) sólo para traer el candidato; acá además habilita filtrar por los
-    # campos demográficos sin fetch adicional.
-    query = (
-        select(Application, CandidateProfile)
-        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
-        .where(Application.job_posting_id == job.id)
-    )
-    if gender is not None:
-        query = query.where(CandidateProfile.gender == gender)
-    if has_own_transport is not None:
-        query = query.where(CandidateProfile.has_own_transport == has_own_transport)
-    if availability is not None:
-        query = query.where(CandidateProfile.availability == availability)
-    if immediate_availability is not None:
-        query = query.where(CandidateProfile.immediate_availability == immediate_availability)
-    if age_min is not None:
-        # edad >= age_min  <=>  nació en o antes de "hoy - age_min años"
-        query = query.where(CandidateProfile.birth_date <= _birth_date_cutoff(age_min))
-    if age_max is not None:
-        # edad <= age_max  <=>  nació después de "hoy - (age_max+1) años"
-        query = query.where(CandidateProfile.birth_date > _birth_date_cutoff(age_max + 1))
-    if zone_id is not None:
-        query = query.where(CandidateProfile.location_zone_id == zone_id)
-    if position:
-        # EXISTS, no JOIN: un candidato con 3 trabajos que coinciden no tiene que aparecer 3
-        # veces en el resultado.
-        query = query.where(
-            select(Experience.id)
-            .where(Experience.candidate_id == CandidateProfile.id, Experience.role_title.ilike(f"%{position}%"))
-            .exists()
-        )
 
-    # Orden determinístico y no sólo "prolijo": sin un desempate estable, dos postulaciones
-    # con el mismo created_at pueden salir en distinto orden en cada consulta y el OFFSET
-    # repetir una en la página 2 mientras se saltea otra.
-    query = query.order_by(Application.created_at.desc(), Application.id.desc())
+@router.get("/me/company/jobs/{id}/applications/counts", response_model=ApplicantCounts)
+async def job_application_counts(
+    id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _job_de_la_empresa(db, id, company)
+    return ApplicantCounts(**await conteos(db, job.id, lado="empresa"))
 
-    filtra_por_experiencia = experience_min is not None or experience_max is not None
 
-    if not filtra_por_experiencia:
-        total = await contar(db, query)
-        rows = (
-            await db.execute(query.offset((page - 1) * page_size).limit(page_size))
-        ).all()
-    else:
-        # El único caso en que la página se corta en memoria: los años de experiencia no se
-        # pueden filtrar en SQL sin repetir la lógica de fusión de tramos superpuestos (ver
-        # _years_of_experience en applicant_stats.py). Se traen las filas que ya pasaron el
-        # resto de los filtros, se descarta, y recién ahí se cuenta y se corta.
-        rows = (await db.execute(query)).all()
+class StarResponse(BaseModel):
+    starred_at: Optional[datetime.datetime] = None
 
-    if filtra_por_experiencia:
-        candidate_ids = [candidate.id for _, candidate in rows]
-        exps_result = await db.execute(
-            select(Experience).where(Experience.candidate_id.in_(candidate_ids))
-        )
-        exps_por_candidato: dict[uuid.UUID, list[Experience]] = {}
-        for exp in exps_result.scalars().all():
-            exps_por_candidato.setdefault(exp.candidate_id, []).append(exp)
 
-        def _en_rango(candidate_id: uuid.UUID) -> bool:
-            anios = anios_de_experiencia(exps_por_candidato.get(candidate_id, []))
-            if experience_min is not None and anios < experience_min:
-                return False
-            if experience_max is not None and anios > experience_max:
-                return False
-            return True
+async def _postulacion_de_la_empresa(
+    db: AsyncSession, app_id: uuid.UUID, company: CompanyProfile
+) -> Application:
+    """La postulación sólo si es de una búsqueda de esta empresa. 404 y no 403 para no
+    confirmar que existe."""
+    app = (await db.execute(
+        select(Application)
+        .join(JobPosting, Application.job_posting_id == JobPosting.id)
+        .where(Application.id == app_id, JobPosting.company_id == company.id)
+    )).scalar_one_or_none()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return app
 
-        rows = [(app, candidate) for app, candidate in rows if _en_rango(candidate.id)]
-        total = len(rows)
-        rows = recortar(rows, page, page_size)
 
-    completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
+@router.put("/me/company/applications/{app_id}/star", response_model=StarResponse)
+async def star_application(
+    app_id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """La estrella de la empresa. Privada a propósito: no cambia el estado, no entra al
+    historial y no le avisa al postulante (cada cambio de estado sí le avisa, por eso la
+    estrella no puede ser un estado)."""
+    app = await _postulacion_de_la_empresa(db, app_id, company)
+    # Se lee antes del commit: después los atributos quedan vencidos y releerlos en async falla.
+    starred_at = app.company_starred_at
+    if starred_at is None:
+        starred_at = datetime.datetime.now(datetime.timezone.utc)
+        app.company_starred_at = starred_at
+        await db.commit()
+    return StarResponse(starred_at=starred_at)
 
-    enriched = []
-    for app, candidate in rows:
-        completion_percent = completions[candidate.id].percent
-        enriched.append(
-            ApplicationWithCandidateResponse(
-                id=app.id,
-                candidate_id=app.candidate_id,
-                job_posting_id=app.job_posting_id,
-                cover_letter=app.cover_letter,
-                status=app.status,
-                seen_at=app.seen_at,
-                created_at=app.created_at,
-                updated_at=app.updated_at,
-                candidate=CandidateSummary(
-                    id=candidate.id,
-                    first_name=candidate.first_name,
-                    last_name=candidate.last_name,
-                    phone=candidate.phone or None,
-                    photo_url=candidate.photo_url,
-                    cv_file_url=candidate.cv_file_url,
-                    completion_percent=completion_percent,
-                    age=calculate_age(candidate.birth_date),
-                    gender=candidate.gender,
-                    has_own_transport=candidate.has_own_transport,
-                    availability=candidate.availability,
-                    immediate_availability=candidate.immediate_availability,
-                ),
-            )
-        )
 
-    return Paginated(items=enriched, total=total, page=page, page_size=page_size)
+@router.delete("/me/company/applications/{app_id}/star", response_model=StarResponse)
+async def unstar_application(
+    app_id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    app = await _postulacion_de_la_empresa(db, app_id, company)
+    if app.company_starred_at is not None:
+        app.company_starred_at = None
+        await db.commit()
+    return StarResponse(starred_at=None)
 
 
 @router.get("/me/company/jobs/{id}/applications/stats", response_model=ApplicantStats)
@@ -528,15 +554,43 @@ async def _assert_candidate_applied_to_company(
         raise HTTPException(status_code=403, detail="No tenés acceso al perfil de este candidato")
 
 
+async def _marcar_visto(
+    db: AsyncSession, company: CompanyProfile, candidate_id: uuid.UUID, application_id: Optional[uuid.UUID]
+) -> None:
+    """Completa `seen_at` de la postulación desde la que la empresa abrió la ficha o el CV.
+
+    Sólo la marca de "ya lo vi" (la fila queda distinta en la lista y sirve el filtro "Sin
+    ver"): sin cambio de estado y sin aviso al postulante. Un solo UPDATE con `seen_at IS NULL`:
+    la segunda vez no hace nada. Si la postulación no es de esta empresa o de este candidato,
+    no toca nada y no avisa por qué."""
+    if application_id is None:
+        return
+    de_la_empresa = select(JobPosting.id).where(JobPosting.company_id == company.id)
+    res = await db.execute(
+        Application.__table__.update()
+        .where(
+            Application.id == application_id,
+            Application.candidate_id == candidate_id,
+            Application.job_posting_id.in_(de_la_empresa),
+            Application.seen_at.is_(None),
+        )
+        .values(seen_at=func.now())
+    )
+    if res.rowcount:
+        await db.commit()
+
+
 @router.get("/me/company/candidates/{candidate_id}/cv/link", response_model=SignedDocumentLink)
 async def get_candidate_cv_link(
     candidate_id: uuid.UUID,
     attachment: bool = False,
+    application_id: Optional[uuid.UUID] = Query(None, description="Desde qué postulación se abre (marca visto)"),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
     """Link firmado al CV de un postulante. Vence a los pocos minutos: si se reenvía, se muere."""
     await _assert_candidate_applied_to_company(db, candidate_id, company)
+    await _marcar_visto(db, company, candidate_id, application_id)
 
     profile = (await db.execute(
         select(CandidateProfile).where(CandidateProfile.id == candidate_id)
@@ -553,6 +607,7 @@ async def get_candidate_cv_link(
 @router.get("/me/company/candidates/{candidate_id}", response_model=CandidateFullProfile)
 async def get_candidate_full_profile(
     candidate_id: uuid.UUID,
+    application_id: Optional[uuid.UUID] = Query(None, description="Desde qué postulación se abre (marca visto)"),
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
@@ -561,6 +616,7 @@ async def get_candidate_full_profile(
     to at least one of this company's job postings.
     """
     await _assert_candidate_applied_to_company(db, candidate_id, company)
+    await _marcar_visto(db, company, candidate_id, application_id)
     return await build_candidate_full_profile(db, candidate_id)
 
 

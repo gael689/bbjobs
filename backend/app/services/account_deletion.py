@@ -175,7 +175,9 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
         for model in (Experience, Education, Language, CandidateSkill, JobAlert, TestSubmission, CandidateActivityLog):
             await db.execute(delete(model).where(model.candidate_id == p.id))
         await db.execute(
-            Application.__table__.update().where(Application.candidate_id == p.id).values(cover_letter=None))
+            Application.__table__.update().where(Application.candidate_id == p.id).values(
+                # Las estrellas son un juicio sobre la persona: se van con ella.
+                cover_letter=None, company_starred_at=None, admin_starred_at=None, admin_starred_by=None))
         p.first_name = "Candidato"
         p.last_name = "eliminado"
         p.phone = ""

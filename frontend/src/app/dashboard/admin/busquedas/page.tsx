@@ -11,10 +11,14 @@ import Paginacion from "@/components/ui/Paginacion";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
+import BuscadorPostulantes from "@/components/dashboard/postulantes/BuscadorPostulantes";
+import BotonEstrella from "@/components/dashboard/postulantes/BotonEstrella";
+import { FILTROS_VACIOS, hayFiltros, type FiltrosPostulantes } from "@/components/dashboard/postulantes/filtros";
+import { usePostulantes } from "@/components/dashboard/postulantes/usePostulantes";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import {
   MODERATION_CLS, MODERATION_LABEL, MODALITY_LABEL,
-  JOB_STATUS_CLS, JOB_STATUS_LABEL,
+  JOB_STATUS_CLS, JOB_STATUS_LABEL, APP_STATUS_LABEL,
   CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   type Job, type AdminApplication,
 } from "../types";
@@ -48,6 +52,10 @@ export default function AdminBusquedasPage() {
   const [statsByJob, setStatsByJob] = useState<Record<string, ApplicantStats | null>>({});
   const [showStats, setShowStats] = useState(false);
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
+  // Desde qué postulación se abrió la ficha: el CV abierto desde ahí también marca el visto.
+  const [abiertaDesde, setAbiertaDesde] = useState<string | null>(null);
+  const [filtrosPostulantes, setFiltrosPostulantes] = useState<FiltrosPostulantes>(FILTROS_VACIOS);
+  const [zonas, setZonas] = useState<{ id: string; name: string }[]>([]);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [refrescoPendientes, setRefrescoPendientes] = useState(0);
@@ -91,13 +99,23 @@ export default function AdminBusquedasPage() {
 
   const selectJob = useCallback((jobId: string) => {
     setSeleccionManual(jobId);
+    // El texto y los chips son de la búsqueda anterior; el orden elegido se mantiene.
+    setFiltrosPostulantes(f => ({ ...FILTROS_VACIOS, orden: f.orden }));
     setEditing(false);
   }, []);
 
-  const postulantes = useListaPaginada<AdminApplication>(
-    selectedId ? `/admin/jobs/${selectedId}/applications` : null,
-  );
+  // Mismo buscador que la empresa, con la estrella y el visto de Talency (pedido de Eugenia,
+  // 22/10/2026): la estrella es para no tener que volver a buscar a quien ya le gustó.
+  const postulantes = usePostulantes<AdminApplication>("admin", selectedId, filtrosPostulantes);
   const applicants = postulantes.items;
+
+  useEffect(() => {
+    api.get("/catalogs/zones").then(r => setZonas(r.data)).catch(() => {});
+  }, []);
+
+  async function alternarEstrella(app: AdminApplication) {
+    if (!(await postulantes.alternarEstrella(app))) toast("No se pudo guardar la estrella", "error");
+  }
 
   // Las mismas estadísticas que ve la empresa. El admin decide si se publican
   // —el interruptor de Indicadores— y hasta ahora no tenía dónde ver lo que
@@ -222,12 +240,17 @@ export default function AdminBusquedasPage() {
     }
   }
 
-  async function openCandidateProfile(candidateId: string) {
+  async function openCandidateProfile(candidateId: string, applicationId?: string) {
     setLoadingViewProfile(true);
     setViewProfile(null);
+    setAbiertaDesde(applicationId ?? null);
     try {
-      const r = await api.get(`/admin/candidates/${candidateId}`);
+      // Con `application_id` marca el "ya lo vi" de Talency (nunca el de la empresa, sin aviso).
+      const r = await api.get(`/admin/candidates/${candidateId}`, {
+        params: applicationId ? { application_id: applicationId } : {},
+      });
       setViewProfile(r.data);
+      if (applicationId) postulantes.marcarVista(applicationId);
     } catch {
       toast("Error al cargar el perfil del candidato", "error");
     } finally {
@@ -563,7 +586,7 @@ export default function AdminBusquedasPage() {
                       cargada y lo dicen. Los promedios de verdad, sobre todos los postulantes,
                       están en las Estadísticas de acá abajo. */}
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
-                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{postulantes.total}</p>
+                    <p className="text-lg font-display font-extrabold text-[#1C2230]">{postulantes.conteos?.total ?? "—"}</p>
                     <p className="text-[11px] text-[#64748B]">Postulantes</p>
                   </div>
                   <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-xl px-4 py-3">
@@ -636,17 +659,37 @@ export default function AdminBusquedasPage() {
 
                 {/* Postulantes */}
                 <h3 className="font-display font-bold text-sm text-[#1C2230] mb-3">Postulantes</h3>
+                <div className="mb-4">
+                  <BuscadorPostulantes
+                    key={selectedId ?? ""}
+                    filtros={filtrosPostulantes}
+                    onCambiar={setFiltrosPostulantes}
+                    conteos={postulantes.conteos}
+                    resultado={postulantes.cargando ? null : postulantes.total}
+                    estados={APP_STATUS_LABEL}
+                    zonas={zonas}
+                    generos={CANDIDATE_GENDER_LABEL}
+                    disponibilidades={CANDIDATE_AVAILABILITY_LABEL}
+                  />
+                </div>
                 {postulantes.cargando ? (
                   <div className="py-8 flex justify-center">
                     <div className="w-5 h-5 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : applicants.length === 0 ? (
-                  <p className="text-sm text-[#64748B]">Todavía no hay postulantes.</p>
+                  <p className="text-sm text-[#64748B]">
+                    {hayFiltros(filtrosPostulantes) ? "Ningún postulante coincide con estos filtros." : "Todavía no hay postulantes."}
+                  </p>
                 ) : (
                   <>
                   <div className="divide-y divide-[#DDE3EC]/60">
                     {applicants.map(app => (
                       <div key={app.id} className="flex items-center gap-2.5 py-3">
+                        <BotonEstrella
+                          marcada={!!app.starred_at}
+                          onClick={() => alternarEstrella(app)}
+                          quienLaVe="Sólo la ve el equipo de Talency, no la empresa."
+                        />
                         {app.candidate?.photo_url ? (
                           <img
                             src={app.candidate.photo_url}
@@ -664,9 +707,15 @@ export default function AdminBusquedasPage() {
                           <ProfileCompletionRing percent={app.candidate.completion_percent} size={34} strokeWidth={4} />
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
-                            {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato eliminado"}
+                          <p className="font-bold text-[13.5px] text-[#1C2230] truncate flex items-center gap-1.5">
+                            <span className="truncate">
+                              {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato eliminado"}
+                            </span>
+                            {!app.seen_at && (
+                              <span className="shrink-0 text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] px-1.5 py-0.5 rounded-full">Sin ver</span>
+                            )}
                           </p>
+                          {app.match && <p className="text-[11.5px] text-[#1C2230] truncate">{app.match}</p>}
                           <p className="text-[11.5px] text-[#64748B] truncate">
                             {app.candidate?.age && `${app.candidate.age} años · `}
                             {app.candidate?.gender && `${CANDIDATE_GENDER_LABEL[app.candidate.gender]} · `}
@@ -674,9 +723,13 @@ export default function AdminBusquedasPage() {
                             Postuló {new Date(app.created_at).toLocaleDateString("es-AR")}
                           </p>
                         </div>
+                        {/* El estado lo maneja la empresa: acá es sólo lectura. */}
+                        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${APP_STATUS_LABEL[app.status]?.cls ?? "bg-slate-100 text-slate-600"}`}>
+                          {APP_STATUS_LABEL[app.status]?.label ?? app.status}
+                        </span>
                         {app.candidate && (
                           <button
-                            onClick={() => openCandidateProfile(app.candidate!.id)}
+                            onClick={() => openCandidateProfile(app.candidate!.id, app.id)}
                             className="shrink-0 text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] px-2.5 py-1.5 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                           >
                             Ver perfil
@@ -704,8 +757,10 @@ export default function AdminBusquedasPage() {
       <CandidateProfileModal
         profile={viewProfile}
         loading={loadingViewProfile}
-        onClose={() => setViewProfile(null)}
-        cvLinkEndpoint={viewProfile ? `/admin/candidates/${viewProfile.id}/cv/link` : undefined}
+        onClose={() => { setViewProfile(null); setAbiertaDesde(null); }}
+        cvLinkEndpoint={viewProfile
+          ? `/admin/candidates/${viewProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
+          : undefined}
         showCompletion
       />
     </div>

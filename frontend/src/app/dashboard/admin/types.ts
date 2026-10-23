@@ -86,6 +86,13 @@ export interface AdminApplication {
   job_posting_id: string;
   status: string;
   created_at: string;
+  status_updated_at?: string;
+  /** Cuándo alguien de Talency abrió la ficha o el CV desde esta postulación. */
+  seen_at?: string | null;
+  /** La estrella de Talency: la empresa no la ve y el postulante no recibe aviso. */
+  starred_at?: string | null;
+  /** Por qué apareció con el buscador ("Experiencia: Soldador en Profertil"). */
+  match?: string | null;
   cover_letter?: string;
   candidate?: {
     id: string;

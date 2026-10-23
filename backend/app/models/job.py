@@ -117,7 +117,17 @@ class Application(UUIDMixin, Base):
     
     seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+
+    # La estrella de cada lado (octubre/2026): "este me gustó, lo quiero tener a mano". Es
+    # privada y no es un estado: no le avisa al postulante, no entra al historial y ningún
+    # endpoint de candidato la devuelve. La de la empresa no la ve Talency y la de Talency no
+    # la ve la empresa. Con fecha y no booleano: `IS NOT NULL` es la estrella y la fecha ordena.
+    company_starred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    admin_starred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    admin_starred_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # El "ya lo vi" de Talency, separado del `seen_at` de la empresa: uno para todo el equipo.
+    admin_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

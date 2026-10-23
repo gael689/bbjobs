@@ -96,6 +96,12 @@ export interface Application {
   status: string;
   created_at: string;
   status_updated_at?: string;
+  /** Cuándo la empresa abrió su ficha o su CV desde esta postulación (o le cambió el estado). */
+  seen_at?: string | null;
+  /** La estrella de la empresa: privada, no le avisa al postulante. */
+  starred_at?: string | null;
+  /** Por qué apareció con el buscador ("Experiencia: Soldador en Profertil"). */
+  match?: string | null;
   cover_letter?: string;
   candidate?: {
     id: string;
@@ -112,25 +118,6 @@ export interface Application {
     immediate_availability?: boolean;
   };
 }
-
-export interface ApplicantFilters {
-  age_min?: string;
-  age_max?: string;
-  gender?: "" | CandidateGender;
-  has_own_transport?: "" | "true" | "false";
-  availability?: "" | CandidateAvailability;
-  immediate_availability?: boolean;
-  position?: string;
-  experience_min?: string;
-  experience_max?: string;
-  zone_id?: string;
-}
-
-export const EMPTY_APPLICANT_FILTERS: ApplicantFilters = {
-  age_min: "", age_max: "", gender: "", has_own_transport: "", availability: "",
-  immediate_availability: false, position: "", experience_min: "", experience_max: "",
-  zone_id: "",
-};
 
 export interface Bucket {
   label: string;

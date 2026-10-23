@@ -36,7 +36,11 @@ from app.schemas.history import ApplicationStatusHistoryResponse, CandidateActiv
 from app.schemas.payment import FeatureHistoryItem
 from app.schemas.job import JobPostingUpdate
 from app.api.v1.applications import (
-    ApplicationWithCandidateResponse, CandidateSummary, build_candidate_full_profile,
+    ApplicantCounts, ApplicationWithCandidateResponse, StarResponse, build_candidate_full_profile,
+    listar_postulantes,
+)
+from app.services.applicant_search import (
+    FiltrosPostulantes, condiciones_texto, conteos, filtros_postulantes,
 )
 from pydantic import BaseModel
 
@@ -501,7 +505,7 @@ async def takedown_job(
 
 @router.get("/admin/candidates", response_model=Paginated[CandidateAdminResponse])
 async def list_candidates(
-    q: Optional[str] = Query(None, description="Buscar por nombre o apellido"),
+    q: Optional[str] = Query(None, max_length=200, description="Nombre, apellido, puesto, empresa, estudios o habilidades"),
     page: int = PageQuery,
     page_size: int = PageSizeQuery,
     age_min: Optional[int] = Query(None, ge=0),
@@ -517,11 +521,11 @@ async def list_candidates(
     db: AsyncSession = Depends(get_db),
 ):
     query = select(CandidateProfile).where(CandidateProfile.deleted_at.is_(None))
-    if q:
-        search_term = f"%{q}%"
-        query = query.where(
-            (CandidateProfile.first_name.ilike(search_term)) | (CandidateProfile.last_name.ilike(search_term))
-        )
+    # Mismo buscador que los postulantes (sin tildes, nombre y apellido juntos, puesto,
+    # empresa, estudios, habilidades), sin el parecido por tipeo: sobre toda la base no hay una
+    # búsqueda que acote contra qué medir si la palabra "existe".
+    for condicion in condiciones_texto(q):
+        query = query.where(condicion)
     if gender is not None:
         query = query.where(CandidateProfile.gender == gender)
     if has_own_transport is not None:
@@ -715,60 +719,90 @@ async def list_job_applications_admin(
     job_id: uuid.UUID,
     page: int = PageQuery,
     page_size: int = PageSizeQuery,
+    filtros: FiltrosPostulantes = Depends(filtros_postulantes),
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    query = (
-        select(Application, CandidateProfile)
-        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)
-        .where(Application.job_posting_id == job_id)
-        # Mismo orden que el listado que ve la empresa (applications.py): las últimas
-        # postulaciones arriba, con el id como desempate para que el OFFSET sea estable.
-        .order_by(Application.created_at.desc(), Application.id.desc())
-    )
-    total = await contar(db, query)
-    rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).all()
-    completions = await compute_profile_completion_bulk(db, [c for _a, c in rows])
+    """Los mismos filtros y el mismo buscador que ve la empresa (antes no tenía ninguno), con la
+    estrella y el visto de Talency en lugar de los de la empresa."""
+    return await listar_postulantes(db, job_id, filtros, lado="admin", page=page, page_size=page_size)
 
-    enriched = []
-    for app, candidate in rows:
-        completion_percent = completions[candidate.id].percent
-        enriched.append(
-            ApplicationWithCandidateResponse(
-                id=app.id,
-                candidate_id=app.candidate_id,
-                job_posting_id=app.job_posting_id,
-                cover_letter=app.cover_letter,
-                status=app.status,
-                seen_at=app.seen_at,
-                created_at=app.created_at,
-                updated_at=app.updated_at,
-                candidate=CandidateSummary(
-                    id=candidate.id,
-                    first_name=candidate.first_name,
-                    last_name=candidate.last_name,
-                    photo_url=candidate.photo_url,
-                    cv_file_url=candidate.cv_file_url,
-                    completion_percent=completion_percent,
-                    age=calculate_age(candidate.birth_date),
-                    gender=candidate.gender,
-                    has_own_transport=candidate.has_own_transport,
-                    availability=candidate.availability,
-                    immediate_availability=candidate.immediate_availability,
-                ),
-            )
+
+@router.get("/admin/jobs/{job_id}/applications/counts", response_model=ApplicantCounts)
+async def job_application_counts_admin(
+    job_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    return ApplicantCounts(**await conteos(db, job_id, lado="admin"))
+
+
+async def _postulacion(db: AsyncSession, application_id: uuid.UUID) -> Application:
+    app = (await db.execute(select(Application).where(Application.id == application_id))).scalar_one_or_none()
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    return app
+
+
+@router.put("/admin/applications/{application_id}/star", response_model=StarResponse)
+async def star_application_admin(
+    application_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """La estrella de Talency: separada de la de la empresa, que no la ve. No avisa a nadie."""
+    app = await _postulacion(db, application_id)
+    starred_at = app.admin_starred_at
+    if starred_at is None:
+        starred_at = datetime.now(timezone.utc)
+        app.admin_starred_at = starred_at
+        app.admin_starred_by = admin.id
+        await db.commit()
+    return StarResponse(starred_at=starred_at)
+
+
+@router.delete("/admin/applications/{application_id}/star", response_model=StarResponse)
+async def unstar_application_admin(
+    application_id: uuid.UUID,
+    _: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    app = await _postulacion(db, application_id)
+    if app.admin_starred_at is not None:
+        app.admin_starred_at = None
+        app.admin_starred_by = None
+        await db.commit()
+    return StarResponse(starred_at=None)
+
+
+async def _marcar_visto_admin(db: AsyncSession, candidate_id: uuid.UUID, application_id: Optional[uuid.UUID]) -> None:
+    """El "ya lo vi" de Talency (P5 de Eugenia, 22/10/2026): sólo `admin_seen_at`, nunca el
+    `seen_at` de la empresa, sin cambio de estado y sin aviso."""
+    if application_id is None:
+        return
+    res = await db.execute(
+        Application.__table__.update()
+        .where(
+            Application.id == application_id,
+            Application.candidate_id == candidate_id,
+            Application.admin_seen_at.is_(None),
         )
-    return Paginated(items=enriched, total=total, page=page, page_size=page_size)
+        .values(admin_seen_at=func.now())
+    )
+    if res.rowcount:
+        await db.commit()
 
 
 @router.get("/admin/candidates/{candidate_id}", response_model=CandidateFullProfile)
 async def get_candidate_full_profile_admin(
     candidate_id: uuid.UUID,
+    application_id: Optional[uuid.UUID] = Query(None, description="Desde qué postulación se abre (marca visto)"),
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
     """A diferencia de /me/company/candidates/{id}, el admin ve el perfil completo de
     cualquier candidato sin necesidad de que se haya postulado a nada."""
+    await _marcar_visto_admin(db, candidate_id, application_id)
     return await build_candidate_full_profile(db, candidate_id)
 
 
@@ -776,6 +810,7 @@ async def get_candidate_full_profile_admin(
 async def get_candidate_cv_link_admin(
     candidate_id: uuid.UUID,
     attachment: bool = False,
+    application_id: Optional[uuid.UUID] = Query(None, description="Desde qué postulación se abre (marca visto)"),
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
@@ -790,6 +825,7 @@ async def get_candidate_cv_link_admin(
     if not profile.cv_file_url:
         raise HTTPException(status_code=404, detail="El candidato no tiene CV cargado")
 
+    await _marcar_visto_admin(db, candidate_id, application_id)
     url = signed_document_url(profile.cv_file_url, attachment=attachment)
     if not url:
         raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")

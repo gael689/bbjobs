@@ -121,11 +121,12 @@ export default function CompanyBusquedasPage() {
     }
   }
 
-  async function openCandidateProfile(candidateId: string) {
+  async function openCandidateProfile(candidateId: string, applicationId: string) {
     setLoadingViewProfile(true);
     setViewProfile(null);
     try {
-      const r = await api.get(`/me/company/candidates/${candidateId}`);
+      // `application_id`: abrir la ficha marca esa postulación como vista (sin aviso).
+      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: applicationId } });
       setViewProfile(r.data);
     } catch {
       toast("Error al cargar el perfil del candidato", "error");
@@ -432,13 +433,23 @@ export default function CompanyBusquedasPage() {
                 {/* Postulantes */}
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-bold text-sm text-[#1C2230]">Postulantes</h3>
+                  {/* Con la búsqueda en el link: antes caía en la primera búsqueda de la lista,
+                      no en esta. */}
                   {postulantes.total > 0 && (
-                    <Link
-                      href="/dashboard/company/postulaciones"
-                      className="text-xs font-bold text-[#1E8EA3] hover:underline"
-                    >
-                      Ver los {postulantes.total} en Postulaciones →
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/dashboard/company/postulaciones?busqueda=${selectedJob.id}&starred=true`}
+                        className="text-xs font-bold text-[#64748B] hover:text-[#1C2230] hover:underline"
+                      >
+                        ★ Con estrella
+                      </Link>
+                      <Link
+                        href={`/dashboard/company/postulaciones?busqueda=${selectedJob.id}`}
+                        className="text-xs font-bold text-[#1E8EA3] hover:underline"
+                      >
+                        Ver los {postulantes.total} en Postulaciones →
+                      </Link>
+                    </div>
                   )}
                 </div>
                 {postulantes.cargando ? (
@@ -478,7 +489,7 @@ export default function CompanyBusquedasPage() {
                         </div>
                         {app.candidate && (
                           <button
-                            onClick={() => openCandidateProfile(app.candidate!.id)}
+                            onClick={() => openCandidateProfile(app.candidate!.id, app.id)}
                             className="shrink-0 text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] px-2.5 py-1.5 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                           >
                             Ver perfil
