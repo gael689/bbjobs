@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   UsersIcon, UserCircleIcon, CheckCircleIcon,
@@ -34,7 +34,7 @@ export default function CompanyPostulacionesPage() {
 }
 
 function Postulaciones() {
-  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [zonas, setZonas] = useState<{ id: string; name: string }[]>([]);
@@ -73,7 +73,10 @@ function Postulaciones() {
     if (jobId) params.set("busqueda", jobId);
     for (const [clave, valor] of Object.entries(aParametros(f))) params.set(clave, String(valor));
     const qs = params.toString();
-    router.replace(`/dashboard/company/postulaciones${qs ? `?${qs}` : ""}`, { scroll: false });
+    // History API nativa y no `router.replace`: el router de Next vuelve a pedirle la página al
+    // servidor con cada cambio (una invocación en Vercel por tecla). `replaceState` sólo
+    // cambia la URL y Next la sincroniza igual con `useSearchParams`.
+    window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
   }
 
   function cambiarFiltros(f: FiltrosPostulantes) {
