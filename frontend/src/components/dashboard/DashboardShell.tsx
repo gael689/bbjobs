@@ -8,6 +8,7 @@ import { useClerk, useAuth } from "@clerk/nextjs";
 import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import NovedadesVersion, { MarcaVersion } from "@/components/dashboard/NovedadesVersion";
 
 const NAV_BADGE_POLL_MS = 45_000;
 
@@ -142,6 +143,9 @@ export default function DashboardShell({
             </span>
           </Link>
           <p className="text-xs font-bold text-[#5C767D] uppercase tracking-wider mt-3">{ROLE_LABEL[role]}</p>
+          {/* La versión en todos los paneles; las novedades, por ahora, sólo para empresas y
+              Talency (v2.1, 23/10/2026). */}
+          <MarcaVersion conNovedades={role !== "candidate"} />
         </div>
 
         <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} />
@@ -191,7 +195,10 @@ export default function DashboardShell({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <p className="text-xs font-bold text-[#5C767D] uppercase tracking-wider">{ROLE_LABEL[role]}</p>
+              <div>
+                <p className="text-xs font-bold text-[#5C767D] uppercase tracking-wider">{ROLE_LABEL[role]}</p>
+                <MarcaVersion conNovedades={role !== "candidate"} />
+              </div>
               <button onClick={() => setMobileOpen(false)} className="p-1 text-[#A9C0C6]" aria-label="Cerrar menú">
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -221,6 +228,7 @@ export default function DashboardShell({
 
       {/* Contenido */}
       <main className="flex-1 min-w-0">{children}</main>
+      {role !== "candidate" && <NovedadesVersion rol={role} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import ConfigurarCookiesButton from "@/components/consent/ConfigurarCookiesButton";
 import { RUBROS_INDICE, SELECCION_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
+import { VERSION_ACTUAL } from "@/lib/novedades";
 
 export default function Footer() {
   const pathname = usePathname();
@@ -123,7 +124,12 @@ export default function Footer() {
       </nav>
 
       <div className="border-t border-[#DDE3EC] py-5 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#64748B]">
-        <p>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</p>
+        <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
+          <span>© {new Date().getFullYear()} BBJobs · Una iniciativa de Talency · Bahía Blanca, Argentina</span>
+          <span className="rounded-full border border-[#DDE3EC] bg-white px-2 py-0.5 text-[10px] font-bold text-[#1E8EA3]">
+            v{VERSION_ACTUAL}
+          </span>
+        </p>
         {/* La norma pide el botón de arrepentimiento visible y de acceso directo: va también acá. */}
         <Link prefetch={false} href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
           Botón de arrepentimiento
