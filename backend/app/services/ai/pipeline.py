@@ -20,13 +20,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import numpy as np
 import structlog
-from sqlalchemy import delete, func, select, true
+from sqlalchemy import delete, func, select, true, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,6 +93,11 @@ async def spent_today(db: AsyncSession, now: datetime | None = None) -> float:
     return float(total)
 
 
+def cost_mark_of(db: AsyncSession) -> Decimal:
+    """Lo que gastó esta sesión hasta ahora (lo acumula `log_usage`)."""
+    return Decimal(db.info.get("ai_cost_usd", Decimal(0)))
+
+
 async def budget_left(db: AsyncSession) -> bool:
     return await spent_today(db) < settings.AI_DAILY_BUDGET_USD
 
@@ -121,6 +127,16 @@ async def load_candidates(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.U
     langs = (await db.execute(select(Language).where(Language.candidate_id.in_(ids)))).scalars().all()
     cvs = (await db.execute(select(CandidateCvText).where(CandidateCvText.candidate_id.in_(ids)))).scalars().all()
     cv_by = {c.candidate_id: c.text for c in cvs if c.status == "ok" and c.text}
+    # Agrupado una vez por candidato: recorrer las listas enteras por cada uno era O(candidatos × filas).
+    skills_by, exps_by, edus_by, langs_by = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+    for cid, sid, name in skills:
+        skills_by[cid].append((sid, name))
+    for e in exps:
+        exps_by[e.candidate_id].append(e)
+    for e in edus:
+        edus_by[e.candidate_id].append(e)
+    for lang in langs:
+        langs_by[lang.candidate_id].append(lang)
 
     out = {}
     for p, email, zone_name in profiles:
@@ -130,17 +146,17 @@ async def load_candidates(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.U
             id=str(p.id), first_name=p.first_name, last_name=p.last_name, phone=p.phone or "", email=email or "",
             zone_name=zone_name, availability=str(getattr(p.availability, "value", p.availability) or "") or None,
             modalities=sorted(modalities), own_transport=p.has_own_transport, immediate=p.immediate_availability,
-            technical_skills=[n for cid, _, n in skills if cid == p.id], other_skill=p.other_skill,
-            languages=[(l.language_name, str(getattr(l.level, "value", l.level))) for l in langs if l.candidate_id == p.id],
+            technical_skills=[n for _, n in skills_by[p.id]], other_skill=p.other_skill,
+            languages=[(l.language_name, str(getattr(l.level, "value", l.level))) for l in langs_by[p.id]],
             summary=p.summary,
             experiences=[ExpData(e.role_title, e.start_date, e.end_date, e.description, e.company_name)
-                         for e in exps if e.candidate_id == p.id],
+                         for e in exps_by[p.id]],
             educations=[EduData(str(getattr(e.level, "value", e.level)), e.degree,
                                 str(getattr(e.status, "value", e.status)), e.institution)
-                        for e in edus if e.candidate_id == p.id],
+                        for e in edus_by[p.id]],
             cv_text=cv_by.get(p.id),
         )
-        out[p.id] = (data, {sid for cid, sid, _ in skills if cid == p.id}, p.location_zone_id, modalities)
+        out[p.id] = (data, {sid for sid, _ in skills_by[p.id]}, p.location_zone_id, modalities)
     return out
 
 
@@ -155,19 +171,29 @@ async def index_candidates(db: AsyncSession, provider: AIProvider, ids: list[uui
     )).scalars().all()}
     model = settings.GEMINI_EMBEDDING_MODEL
     pending: list[tuple[uuid.UUID, object]] = []
+    unchanged: list[uuid.UUID] = []
     for cid, (cdata, *_rest) in data.items():
         stats["revisados"] += 1
         ficha = build_ficha(cdata)
         prev = current.get(cid)
         if prev and prev.ficha_hash == ficha.ficha_hash and prev.model == model:
+            unchanged.append(cid)
             continue
         pending.append((cid, ficha))
+    # El perfil cambió en algo que no entra a la ficha (un recordatorio, el consentimiento…): se
+    # marca como al día, si no la tarea de 10 minutos lo vuelve a levantar en cada vuelta.
+    if unchanged:
+        await db.execute(update(CandidateAiIndex).where(CandidateAiIndex.candidate_id.in_(unchanged))
+                         .values(indexed_at=datetime.now(timezone.utc)))
 
     budget = settings.AI_MAX_EMBEDDINGS_PER_RUN
     for cid, ficha in pending:
-        if not ficha.chunks or budget < len(ficha.chunks):
-            if not ficha.chunks:
-                await db.execute(delete(CandidateChunk).where(CandidateChunk.candidate_id == cid))
+        if not ficha.chunks:
+            # Ficha vacía: sin fragmentos, pero queda registrada para no revisarla de nuevo.
+            await db.execute(delete(CandidateChunk).where(CandidateChunk.candidate_id == cid))
+            await _upsert_index(db, cid, ficha, model)
+            continue
+        if budget < len(ficha.chunks):
             continue
         vectors = await provider.embed([c.text for c in ficha.chunks], task="document")
         budget -= len(ficha.chunks)
@@ -176,17 +202,18 @@ async def index_candidates(db: AsyncSession, provider: AIProvider, ids: list[uui
         for chunk, vec in zip(ficha.chunks, vectors):
             db.add(CandidateChunk(id=uuid.uuid4(), candidate_id=cid, kind=chunk.kind, ordinal=chunk.ordinal,
                                   text=chunk.text, embedding=vec, model=model))
-        stmt = pg_insert(CandidateAiIndex).values(
-            candidate_id=cid, ficha_hash=ficha.ficha_hash, model=model, chunks=len(ficha.chunks),
-            injection_flags=ficha.injection_flags, indexed_at=datetime.now(timezone.utc),
-        ).on_conflict_do_update(index_elements=["candidate_id"], set_={
-            "ficha_hash": ficha.ficha_hash, "model": model, "chunks": len(ficha.chunks),
-            "injection_flags": ficha.injection_flags, "indexed_at": datetime.now(timezone.utc),
-        })
-        await db.execute(stmt)
+        await _upsert_index(db, cid, ficha, model)
         stats["reindexados"] += 1
         stats["fragmentos"] += len(ficha.chunks)
     return stats
+
+
+async def _upsert_index(db: AsyncSession, cid: uuid.UUID, ficha, model: str) -> None:
+    now = datetime.now(timezone.utc)
+    values = {"ficha_hash": ficha.ficha_hash, "model": model, "chunks": len(ficha.chunks),
+              "injection_flags": ficha.injection_flags, "indexed_at": now}
+    await db.execute(pg_insert(CandidateAiIndex).values(candidate_id=cid, **values)
+                     .on_conflict_do_update(index_elements=["candidate_id"], set_=values))
 
 
 # ── Perfil de la búsqueda ───────────────────────────────────────────────────────────────
@@ -377,6 +404,10 @@ async def _compute_recommendations(
 
     stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0}
     can_rerank = rerank_enabled and provider is not None and bool(ctx.requirements)
+    # El gasto del día se lee una vez y se le suma lo que gasta esta vuelta (antes era una suma
+    # sobre ai_usage_log por candidato).
+    spent_start = await spent_today(db) if can_rerank else 0.0
+    cost_start = cost_mark_of(db)
     for cid in keep:
         row, prev, idx = rows[cid], existing.get(cid), index.get(cid)
         cdata = data[cid][0]
@@ -395,7 +426,7 @@ async def _compute_recommendations(
             elif stats["rerank"] + stats["fallidos"] >= max_reranks:
                 status = "skipped_limit"
                 stats["tope"] = 1
-            elif not await budget_left(db):
+            elif spent_start + float(cost_mark_of(db) - cost_start) >= settings.AI_DAILY_BUDGET_USD:
                 status = "skipped_budget"
             elif not chunks.get(cid):
                 status = "no_index"
@@ -454,8 +485,9 @@ async def _compute_recommendations(
                          .on_conflict_do_update(constraint="uq_job_recommendations_job_candidate", set_=values))
         stats["guardados"] += 1
 
-    # Los de la Base de Talento que ya no están entre los mejores salen de la lista.
-    stale = [c for c, r in existing.items() if r.source == "talent" and c not in keep]
+    # Los de la Base de Talento que ya no están entre los mejores salen de la lista, salvo los que la
+    # empresa votó: ese 👍/👎 es el set de evaluación y se perdía.
+    stale = [c for c, r in existing.items() if r.source == "talent" and c not in keep and r.feedback is None]
     if stale:
         await db.execute(delete(JobRecommendation).where(JobRecommendation.job_id == job.id,
                                                          JobRecommendation.candidate_id.in_(stale)))

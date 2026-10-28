@@ -532,3 +532,48 @@ async def test_highlights_only_unread_recent_and_of_the_right_type(maker, client
     r = await client.get("/api/v1/me/notifications/highlights")
     assert r.status_code == 200
     assert [x["title"] for x in r.json()] == ["3 candidatos"]
+
+
+async def test_new_fits_skip_rejected_jobs_and_thumbs_down(maker, ai):
+    from app.models.ai import JobRecommendation
+    from app.models.alerts import Notification
+    from app.services.ai import jobs as ai_jobs
+
+    companies, job, people = await _ready_world(maker, ai)
+    await _force_strong(maker, job.id, people["bueno"][1].id)
+    async with maker() as db:
+        rec = (await db.execute(select(JobRecommendation).where(
+            JobRecommendation.job_id == job.id, JobRecommendation.candidate_id == people["bueno"][1].id))).scalar_one()
+        rec.feedback = -1
+        await db.commit()
+        await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc))
+        await db.commit()
+        assert (await db.get(JobRecommendation, rec.id)).notified_at is None
+
+        rec.feedback = None
+        j = await db.get(JobPosting, job.id)
+        j.moderation_status = "rejected"
+        await db.commit()
+        await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc))
+        await db.commit()
+        assert (await db.get(JobRecommendation, rec.id)).notified_at is None
+        assert not (await db.execute(select(Notification).where(
+            Notification.user_id == companies[0].user_id, Notification.type == "recommended_candidates_new"))).first()
+
+
+async def test_index_tick_does_not_pick_up_unchanged_profiles_again(maker, ai):
+    from app.services.ai import pipeline
+
+    _, _, people = await _ready_world(maker, ai)
+    cid = people["bueno"][1].id
+    async with maker() as db:
+        p = await db.get(CandidateProfile, cid)
+        p.last_completion_reminder_at = datetime.now(timezone.utc)   # cambia el perfil, no la ficha
+        await db.commit()
+    async with maker() as db:
+        assert cid in await pipeline.candidates_needing_index(db, 100_000)
+        stats = await pipeline.index_candidates(db, ai, [cid])
+        await db.commit()
+        assert stats["reindexados"] == 0
+    async with maker() as db:
+        assert cid not in await pipeline.candidates_needing_index(db, 100_000)

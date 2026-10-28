@@ -42,18 +42,22 @@ export default function AvisoEmergente() {
   const [aviso, setAviso] = useState<NotificationItemData | null>(null);
   const [saliendo, setSaliendo] = useState(false);
   const mostradosEnSesion = useRef(new Set<string>());
+  const enPantalla = useRef(false);
 
   const buscar = useCallback(async () => {
-    if (document.hidden || isSessionExpired()) return;
+    // Con un cartel abierto no se pregunta: el próximo se busca recién cuando se cierra, así un
+    // aviso que llega mientras tanto no queda marcado como mostrado sin haberse visto.
+    if (enPantalla.current || document.hidden || isSessionExpired()) return;
     try {
       const r = await api.get<NotificationItemData[]>("/me/notifications/highlights");
       const vistos = new Set([...leerMostrados(), ...mostradosEnSesion.current]);
       const nuevo = r.data.find(n => !vistos.has(n.id));
-      if (nuevo) {
+      if (nuevo && !enPantalla.current) {
+        enPantalla.current = true;
         mostradosEnSesion.current.add(nuevo.id);
         recordar(nuevo.id);
         setSaliendo(false);
-        setAviso(prev => prev ?? nuevo);
+        setAviso(nuevo);
       }
     } catch {
       // silencioso: el aviso igual está en la campanita
@@ -69,7 +73,7 @@ export default function AvisoEmergente() {
 
   const cerrar = useCallback(() => {
     setSaliendo(true);
-    setTimeout(() => { setAviso(null); setSaliendo(false); }, 220);
+    setTimeout(() => { setAviso(null); setSaliendo(false); enPantalla.current = false; }, 220);
   }, []);
 
   function ver() {
@@ -79,8 +83,13 @@ export default function AvisoEmergente() {
     cerrar();
   }
 
-  if (!aviso) return null;
-  return <CartelAviso aviso={aviso} saliendo={saliendo} onVer={ver} onCerrar={cerrar} />;
+  return (
+    <>
+      {/* Región siempre montada: si se monta junto con el texto, los lectores de pantalla no lo anuncian. */}
+      <div aria-live="polite" className="sr-only">{aviso ? `${aviso.title}. ${aviso.body}` : ""}</div>
+      {aviso && <CartelAviso aviso={aviso} saliendo={saliendo} onVer={ver} onCerrar={cerrar} />}
+    </>
+  );
 }
 
 /** El cartel en sí, sin lógica: lo usa AvisoEmergente. */
@@ -88,9 +97,8 @@ export function CartelAviso({ aviso, saliendo, onVer, onCerrar }: {
   aviso: NotificationItemData; saliendo: boolean; onVer: () => void; onCerrar: () => void;
 }) {
   return (
-    <div className="fixed z-[60] bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[380px]" aria-live="polite">
+    <div className="fixed z-[60] bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[380px]">
       <div
-        role="status"
         className={`aviso-pausa relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B171D] via-[#12303A] to-[#16404B] text-white shadow-[0_20px_50px_-12px_rgba(11,23,29,0.55),0_0_0_1px_rgba(158,212,223,0.18)] ${saliendo ? "aviso-sale" : "aviso-entra"}`}
       >
         {/* Brillo decorativo */}

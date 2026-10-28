@@ -46,7 +46,8 @@ async def maker():
 
 @pytest.fixture
 async def world(maker):
-    tag = uuid.uuid4().hex[:6]
+    # Empieza con letra: un tag de 6 dígitos parece un monto (\d{5,} en job_writer._SALARY) y el filtro de plata lo tira.
+    tag = "t" + uuid.uuid4().hex[:5]
     async with maker() as db:
         industry = Industry(id=uuid.uuid4(), name=f"Comercio {tag}", slug=f"comercio-{tag}")
         caja = Skill(id=uuid.uuid4(), name=f"Manejo de caja {tag}", slug=f"caja-{tag}", category="technical")

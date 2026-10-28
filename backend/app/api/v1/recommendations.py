@@ -36,7 +36,7 @@ from app.models.ai import (
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile
 from app.models.core import User, UserRole
-from app.models.job import Application, JobPosting
+from app.models.job import Application, JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.payment import TalentCreditPack, TalentPackStatus, TalentUnlock
 from app.models.settings import SettingKey
 from app.services.ai import pipeline
@@ -57,20 +57,37 @@ def provider_or_none():
         return None
 
 
+# Búsquedas que se están recalculando en este proceso. La pantalla de la empresa pregunta cada 5 s
+# mientras dice "calculando": sin esto, cada pregunta lanzaba otro cálculo con IA de la misma búsqueda.
+_INFLIGHT: set[uuid.UUID] = set()
+
+
+def _is_live(job: JobPosting) -> bool:
+    return (job.deleted_at is None and job.status == JobPostingStatus.active
+            and job.moderation_status == JobModerationStatus.approved)
+
+
 async def recompute_job(job_id: uuid.UUID, *, rerank_enabled: bool, reason: str = "empresa") -> None:
-    """Corre en segundo plano con sesión propia (no la del pedido, que ya se cerró)."""
-    async with async_session_maker() as db:
-        job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one_or_none()
-        if job is None:
-            return
-        try:
-            stats = await pipeline.compute_recommendations(db, provider_or_none(), job, rerank_enabled=rerank_enabled,
-                                                           reason=reason)
-            await db.commit()
-            logger.info("recs_recalculados", job_id=str(job_id), **stats)
-        except Exception as exc:
-            await db.rollback()
-            logger.error("recs_error", job_id=str(job_id), error=str(exc)[:300])
+    """Corre en segundo plano con sesión propia (no la del pedido, que ya se cerró). Una a la vez
+    por búsqueda, y la IA de texto sólo para búsquedas activas y aprobadas."""
+    if job_id in _INFLIGHT:
+        return
+    _INFLIGHT.add(job_id)
+    try:
+        async with async_session_maker() as db:
+            job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one_or_none()
+            if job is None:
+                return
+            try:
+                stats = await pipeline.compute_recommendations(
+                    db, provider_or_none(), job, rerank_enabled=rerank_enabled and _is_live(job), reason=reason)
+                await db.commit()
+                logger.info("recs_recalculados", job_id=str(job_id), **stats)
+            except Exception as exc:
+                await db.rollback()
+                logger.error("recs_error", job_id=str(job_id), error=str(exc)[:300])
+    finally:
+        _INFLIGHT.discard(job_id)
 
 
 def candidate_ref(company_id: uuid.UUID, candidate_id: uuid.UUID) -> str:
@@ -165,8 +182,12 @@ async def job_recommendations(
         .where(JobRecommendation.job_id == job.id)
         .order_by(JobRecommendation.final_score.desc(), JobRecommendation.computed_at)
     )).all()
-    if not rows:
-        background.add_task(recompute_job, job.id, rerank_enabled=True)
+    # Sin filas y nunca calculada: se calcula (una vez). Si ya se calculó y no hay nadie (sin
+    # postulantes, o todos se opusieron a la IA) o la búsqueda no está activa, no hay nada que
+    # esperar: se responde vacío en vez de dejar la pantalla en "calculando" para siempre.
+    if not rows and profile is None and _is_live(job):
+        if job.id not in _INFLIGHT:
+            background.add_task(recompute_job, job.id, rerank_enabled=True)
         return RecsResponse(enabled=True, status="calculando", disclaimer=DISCLAIMER)
 
     apps = dict((await db.execute(
@@ -215,7 +236,7 @@ async def job_recommendations(
         requirements=[RequirementOut(id=r["id"], texto=r["texto"], tipo=r["tipo"]) for r in (profile.requirements if profile else [])],
         discarded_requirements=profile.discarded if profile else [],
         applicants=applicants, unscored_applicants=unscored, talent=talent, talent_limit=limit,
-        computed_at=max(r.computed_at for r, _, _ in rows),
+        computed_at=max((r.computed_at for r, _, _ in rows), default=None),
     )
 
 

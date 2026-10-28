@@ -805,7 +805,9 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
             .where(_live_job()))
     jobs_with_recs, recs_total, strong = (await db.execute(
         select(func.count(func.distinct(JobRecommendation.job_id)), func.count(),
-               func.count().filter(JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD))
+               # Mismo criterio que el aviso a la empresa (puntaje y cobertura), así se comparan.
+               func.count().filter(JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD,
+                                   JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE))
         .where(JobRecommendation.id.in_(live))
     )).one()
     # Postulantes que encajan (≥ 80) y que la empresa ya movió de "Nueva": ¿la recomendación se usa?
@@ -822,7 +824,7 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
     )).one()
     up, down = (await db.execute(select(
         func.count().filter(JobRecommendation.feedback == 1), func.count().filter(JobRecommendation.feedback == -1),
-    ))).one()
+    ).where(JobRecommendation.id.in_(live)))).one()
     notices = (await db.execute(select(func.count()).select_from(JobRecommendation)
                                 .where(JobRecommendation.notified_at >= today - timedelta(days=6)))).scalar_one()
 
@@ -853,8 +855,9 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
         ai_configured=_provider() is not None,
         recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
         assistant_on=bool(await get_setting(db, SettingKey.asistente_ia_activo)),
-        budget_left=await pipeline.budget_left(db), daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
-        spent_today_usd=round(float(await pipeline.spent_today(db, now)), 6),
+        # El último día de la serie es hoy (mismo corte de Argentina que spent_today): no se suma dos veces.
+        budget_left=days[-1].spend_usd < settings.AI_DAILY_BUDGET_USD, daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        spent_today_usd=days[-1].spend_usd,
         days=days, features=features,
         jobs_with_recs=jobs_with_recs, recommendations=recs_total, strong_fits=strong,
         applicants_strong=applicants_strong, applicants_strong_advanced=advanced, notices_week=notices,

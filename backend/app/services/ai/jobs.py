@@ -19,8 +19,9 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
+from app.core.config import settings
 from app.db.session import async_session_maker
 from app.integrations import cloudinary_client
 from app.integrations.gemini_client import AIError, AIUnavailable, get_provider
@@ -178,30 +179,61 @@ def recommended_email_vars(titles: list[str], count: int) -> dict:
 
 async def notify_new_fits(db, now: datetime) -> int:
     """Una notificación por empresa por noche con los candidatos nuevos que encajan:
-    puntaje ≥ 80 y cobertura ≥ 50 %, búsqueda activa con 3 días o más, como mucho 3 por
-    búsqueda por semana, y nunca dos veces el mismo candidato para la misma búsqueda."""
+    puntaje ≥ 80 y cobertura ≥ 50 %, búsqueda activa y aprobada con 3 días o más, como mucho 3 por
+    búsqueda por semana, y nunca dos veces el mismo candidato para la misma búsqueda. No se avisa
+    de un perfil que la empresa marcó 👎 ni de uno de la Base de Talento que queda fuera de lo que
+    la empresa ve (su cupo de perfiles por búsqueda)."""
+    from app.models.payment import TalentCreditPack, TalentPackStatus
+
     week_ago = now - timedelta(days=7)
+    # Puesto de cada perfil de la Base dentro de su búsqueda: la pantalla muestra sólo los primeros.
+    ranked = select(
+        JobRecommendation.id.label("rec_id"),
+        func.row_number().over(
+            partition_by=(JobRecommendation.job_id, JobRecommendation.source),
+            order_by=(JobRecommendation.final_score.desc(), JobRecommendation.computed_at),
+        ).label("pos"),
+    ).subquery()
     candidates = (await db.execute(
-        select(JobRecommendation, JobPosting)
+        select(JobRecommendation, JobPosting, CompanyProfile.user_id, ranked.c.pos)
         .join(JobPosting, JobPosting.id == JobRecommendation.job_id)
+        .join(CompanyProfile, CompanyProfile.id == JobPosting.company_id)
+        .join(ranked, ranked.c.rec_id == JobRecommendation.id)
         .where(
             JobRecommendation.notified_at.is_(None),
             JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD,
             JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE,
+            or_(JobRecommendation.feedback.is_(None), JobRecommendation.feedback != -1),
             JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
             JobPosting.published_at.is_not(None),
             JobPosting.published_at <= now - JOB_MIN_AGE,
         )
         .order_by(JobRecommendation.final_score.desc())
     )).all()
+    if not candidates:
+        return 0
+    job_ids = {job.id for _, job, _, _ in candidates}
+    already = dict((await db.execute(
+        select(JobRecommendation.job_id, func.count())
+        .where(JobRecommendation.job_id.in_(job_ids), JobRecommendation.notified_at >= week_ago)
+        .group_by(JobRecommendation.job_id)
+    )).all())
+    with_pack = set((await db.execute(
+        select(TalentCreditPack.company_id).where(
+            TalentCreditPack.company_id.in_({job.company_id for _, job, _, _ in candidates}),
+            TalentCreditPack.status == TalentPackStatus.active.value)
+    )).scalars().all())
+
     by_company: dict = {}
-    for rec, job in candidates:
-        already = (await db.execute(
-            select(func.count()).select_from(JobRecommendation).where(
-                JobRecommendation.job_id == job.id, JobRecommendation.notified_at >= week_ago)
-        )).scalar_one()
-        bucket = by_company.setdefault(job.company_id, {"jobs": {}, "count": 0})
-        per_job = bucket["jobs"].setdefault(job.id, {"title": job.title, "n": already, "new": 0})
+    for rec, job, user_id, pos in candidates:
+        if rec.source == "talent":
+            limit = settings.RECS_TALENT_PACK_COUNT if job.company_id in with_pack else settings.RECS_TALENT_FREE_COUNT
+            if pos > limit:
+                continue
+        bucket = by_company.setdefault(job.company_id, {"jobs": {}, "count": 0, "user_id": user_id})
+        per_job = bucket["jobs"].setdefault(job.id, {"title": job.title, "n": already.get(job.id, 0), "new": 0})
         if per_job["n"] >= NEW_FIT_PER_JOB_PER_WEEK:
             continue
         per_job["n"] += 1
@@ -214,9 +246,7 @@ async def notify_new_fits(db, now: datetime) -> int:
     for company_id, bucket in by_company.items():
         if not bucket["count"]:
             continue
-        user_id = (await db.execute(select(CompanyProfile.user_id).where(CompanyProfile.id == company_id))).scalar_one_or_none()
-        if user_id is None:
-            continue
+        user_id = bucket["user_id"]
         # Sólo las búsquedas que suman perfiles hoy (las que ya llegaron al tope semanal, no).
         jobs_today = [j for j in bucket["jobs"].values() if j["new"]]
         # Poco texto (Gael, 28/10/2026): el panel lo muestra como un cartel emergente.

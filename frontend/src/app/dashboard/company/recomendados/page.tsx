@@ -233,7 +233,13 @@ export default function RecomendadosPage() {
   const [estado, setEstado] = useState<Estado>({ tipo: "cargando" });
   const [aviso, setAviso] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
+  // Al apretar Actualizar: se sigue preguntando hasta que llegue un cálculo nuevo.
+  const [esperando, setEsperando] = useState(false);
+  // "Calculando" por más de un minuto: se avisa en vez de dejar la ruedita para siempre.
+  const [tardando, setTardando] = useState(false);
   const inicio = useRef(0);
+  // La búsqueda elegida ahora: una respuesta que llega tarde de otra búsqueda se descarta.
+  const jobActual = useRef("");
 
   useEffect(() => {
     api.get<Busqueda[]>("/me/company/jobs")
@@ -256,30 +262,61 @@ export default function RecomendadosPage() {
       return status === 404 ? { tipo: "en_desarrollo" } : { tipo: "error", mensaje: detalleError(e) };
     }
   }, []);
-  const cargar = useCallback((id: string) => { pedir(id).then(setEstado); }, [pedir]);
+  const cargar = useCallback((id: string) => {
+    pedir(id).then(e => { if (jobActual.current === id) setEstado(e); });
+  }, [pedir]);
 
   useEffect(() => {
     if (!jobId) return;
+    jobActual.current = jobId;
     inicio.current = Date.now();
-    pedir(jobId).then(setEstado);
-  }, [jobId, pedir]);
+    cargar(jobId);
+  }, [jobId, cargar]);
 
   // "Calculando": reintenta cada 5 s, como mucho un minuto.
   const calculando = estado.tipo === "listo" && estado.datos.status === "calculando";
   useEffect(() => {
     if (!calculando || !jobId) return;
-    if (Date.now() - inicio.current > REINTENTO_MAX_MS) return;
-    const t = setTimeout(() => cargar(jobId), REINTENTO_MS);
+    const t = setTimeout(() => {
+      if (Date.now() - inicio.current > REINTENTO_MAX_MS) setTardando(true);
+      else cargar(jobId);
+    }, REINTENTO_MS);
     return () => clearTimeout(t);
   }, [calculando, estado, jobId, cargar]);
+
+  function elegir(id: string) {
+    setJobId(id);
+    setAbierto(null);
+    setEsperando(false);
+    setTardando(false);
+    setAviso(null);
+  }
 
   async function actualizar() {
     setAviso(null);
     try {
       const r = await api.post<{ queued: boolean; remaining_today: number }>(`/me/company/jobs/${jobId}/recommendations/refresh`);
       setAviso(`Recalculando. Te quedan ${r.data.remaining_today} hoy.`);
-      inicio.current = Date.now();
-      setTimeout(() => cargar(jobId), REINTENTO_MS);
+      // Se compara contra la fecha del cálculo que se estaba viendo (la del servidor), no contra
+      // el reloj de la computadora.
+      const id = jobId;
+      const antes = estado.tipo === "listo" ? estado.datos.computed_at ?? null : null;
+      const desde = Date.now();
+      setEsperando(true);
+      while (Date.now() - desde < REINTENTO_MAX_MS) {
+        await new Promise(ok => setTimeout(ok, REINTENTO_MS));
+        if (jobActual.current !== id) return;
+        const nuevo = await pedir(id);
+        if (jobActual.current !== id) return;
+        setEstado(nuevo);
+        if (nuevo.tipo !== "listo" || (nuevo.datos.status === "ok" && (nuevo.datos.computed_at ?? null) !== antes)) {
+          setEsperando(false);
+          setAviso(nuevo.tipo === "listo" ? "Listo, actualizado." : null);
+          return;
+        }
+      }
+      setEsperando(false);
+      setAviso("Está tardando más de lo normal. Volvé a mirar en un rato.");
     } catch (e) {
       setAviso(detalleError(e, "No se pudo actualizar."));
     }
@@ -323,14 +360,14 @@ export default function RecomendadosPage() {
           <p className="text-[#D6E9EE] text-sm mt-1">Tus postulantes, del que más encaja al que menos. Ves a todos.</p>
 
           <div className="mt-5 flex flex-wrap items-center gap-2.5">
-            <select value={jobId} onChange={e => { setJobId(e.target.value); setAbierto(null); }} disabled={!busquedas?.length}
+            <select value={jobId} onChange={e => elegir(e.target.value)} disabled={!busquedas?.length}
                     aria-label="Búsqueda"
                     className="rounded-xl px-3.5 py-2.5 text-sm font-bold bg-white text-[#1C2230] min-w-[240px] max-w-full">
               {(busquedas ?? []).map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
             </select>
             {estado.tipo === "listo" && estado.datos.enabled && estado.datos.status === "ok" && (
-              <button onClick={actualizar} className="inline-flex items-center gap-1.5 text-sm font-bold bg-white/10 hover:bg-white/20 px-3.5 py-2.5 rounded-xl transition-colors">
-                <ArrowPathIcon className="w-4 h-4" /> Actualizar
+              <button onClick={actualizar} disabled={esperando} className="inline-flex items-center gap-1.5 text-sm font-bold bg-white/10 hover:bg-white/20 px-3.5 py-2.5 rounded-xl transition-colors disabled:opacity-60">
+                <ArrowPathIcon className={`w-4 h-4 ${esperando ? "animate-spin" : ""}`} /> Actualizar
               </button>
             )}
             {estado.tipo === "listo" && estado.datos.computed_at && (
@@ -356,6 +393,9 @@ export default function RecomendadosPage() {
         const d = estado.datos;
         if (!d.enabled) {
           return <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 text-[#1C2230]">Las recomendaciones todavía no están activas.</div>;
+        }
+        if (d.status === "calculando" && tardando) {
+          return <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 text-[#1C2230]">Está tardando más de lo normal. Volvé a mirar en un rato.</div>;
         }
         if (d.status === "calculando") {
           return (

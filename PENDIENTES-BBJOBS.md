@@ -121,3 +121,13 @@ Registro No Llame antes de escribir por WhatsApp a prospectos.
   a Talency `admin_ai_new_fits` (sólo web, uno por noche).
 - Verificado: 628 tests backend, tsc, eslint, `next build` con módulos apagados, capturas en
   1366 y 390 px con datos simulados.
+- **Revisión y optimización (misma noche):** la tarea de 10 min ya no reprocesa perfiles cuya ficha
+  no cambió; "calculando" lanza un solo cálculo por búsqueda (antes uno cada 5 s) y no queda girando
+  si no hay nadie que puntuar; IA de texto sólo en búsquedas activas y aprobadas; el aviso de
+  "encajan" ignora búsquedas rechazadas/borradas, perfiles con 👎 y los de la Base fuera del cupo, sin
+  N+1; el tope de gasto se lee una vez por vuelta; los votos 👍/👎 ya no se borran; carga de fichas
+  O(n); cartel emergente sin avisos perdidos, con pausa por teclado y lector de pantalla; cambiar de
+  búsqueda no muestra la respuesta de otra y "Actualizar" espera el cálculo nuevo. Test intermitente
+  de la redactora arreglado (tag de 6 dígitos = "monto"). 630 tests.
+- **Quedó para después:** sumar los avisos destacados al mismo pedido del contador de la campanita
+  (hoy son dos consultas por minuto por panel abierto) y mandar los umbrales 70/80 desde la API.
