@@ -23,6 +23,8 @@ from app.schemas.documents import SignedDocumentLink
 from app.integrations.cloudinary_client import upload_pdf, upload_image, signed_document_url
 from app.services.profile_completion import compute_profile_completion_for_candidate
 from app.services.history import log_candidate_activity
+from app.core.features import require_new_modules
+from app.services.ai.opt_out import set_opt_out
 import uuid
 import datetime
 
@@ -115,6 +117,67 @@ async def decide_talent_pool(
     await db.commit()
     await db.refresh(profile)
     return await _build_profile_response(profile, db)
+
+
+class PrivacyPreferences(BaseModel):
+    """Lo que se manda es lo que cambia; lo que no viene queda como estaba."""
+    ai_opt_out: bool | None = None
+    other_processes_opt_out: bool | None = None
+
+
+class PrivacyPreferencesResponse(BaseModel):
+    ai_opt_out: bool
+    ai_opt_out_at: datetime.datetime | None = None
+    other_processes_opt_out: bool
+
+
+def _privacy_response(profile: CandidateProfile) -> PrivacyPreferencesResponse:
+    return PrivacyPreferencesResponse(
+        ai_opt_out=profile.ai_opt_out_at is not None, ai_opt_out_at=profile.ai_opt_out_at,
+        other_processes_opt_out=profile.other_processes_opt_out_at is not None,
+    )
+
+
+@router.get("/me/candidate/privacy-preferences", response_model=PrivacyPreferencesResponse,
+            dependencies=[Depends(require_new_modules)])
+async def get_privacy_preferences(
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    return _privacy_response(await _get_candidate_profile(current_user.id, db))
+
+
+@router.post("/me/candidate/privacy-preferences", response_model=PrivacyPreferencesResponse,
+             dependencies=[Depends(require_new_modules)])
+async def set_privacy_preferences(
+    payload: PrivacyPreferences,
+    current_user: User = Depends(require_role([UserRole.candidate])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Oposición a la IA y al aviso de "está en otro proceso" (privacidad 3.0). Como la Base de
+    Talento, va aparte del PATCH de perfil y queda en el historial: es el ejercicio de un derecho."""
+    profile = await _get_candidate_profile(current_user.id, db)
+    if payload.ai_opt_out is not None:
+        await set_opt_out(db, profile, payload.ai_opt_out)
+        await log_candidate_activity(
+            db, candidate_id=profile.id, event_type="ai_opt_out",
+            summary=("Pidió que su perfil no se use en recomendaciones con IA" if payload.ai_opt_out
+                     else "Volvió a permitir que su perfil se use en recomendaciones con IA"),
+        )
+    if payload.other_processes_opt_out is not None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if payload.other_processes_opt_out:
+            profile.other_processes_opt_out_at = profile.other_processes_opt_out_at or now
+        else:
+            profile.other_processes_opt_out_at = None
+        await log_candidate_activity(
+            db, candidate_id=profile.id, event_type="other_processes_opt_out",
+            summary=("Pidió que no se informe a otras empresas que está en un proceso"
+                     if payload.other_processes_opt_out
+                     else "Volvió a permitir que se informe a otras empresas que está en un proceso"),
+        )
+    await db.commit()
+    return _privacy_response(profile)
 
 
 @router.post("/me/candidate/talent-pool/dismiss", response_model=CandidateProfileResponse)

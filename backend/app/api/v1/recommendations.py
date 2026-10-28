@@ -119,6 +119,14 @@ class RecOut(BaseModel):
     feedback: Optional[int] = None
 
 
+class UnscoredOut(BaseModel):
+    """Postulante sin puntaje: pidió que su perfil no se use en recomendaciones, o todavía no se
+    calculó. La empresa lo ve igual (privacidad 3.0, §7: la oposición no lo perjudica)."""
+    candidate_id: uuid.UUID
+    application_id: uuid.UUID
+    name: str
+
+
 class RecsResponse(BaseModel):
     enabled: bool
     status: Literal["ok", "calculando", "apagado"]
@@ -126,6 +134,7 @@ class RecsResponse(BaseModel):
     requirements: list[RequirementOut] = []
     discarded_requirements: list[dict] = []
     applicants: list[RecOut] = []
+    unscored_applicants: list[UnscoredOut] = []
     talent: list[RecOut] = []
     talent_limit: int = 0
     computed_at: Optional[datetime] = None
@@ -189,11 +198,23 @@ async def job_recommendations(
 
     applicants = [out(r, f, l) for r, f, l in rows if r.source == "applicant"]
     talent = [out(r, f, l) for r, f, l in rows if r.source == "talent"][:limit]
+    scored = {r.candidate_id for r, _, _ in rows if r.source == "applicant"}
+    unscored = [
+        UnscoredOut(candidate_id=cid, application_id=aid, name=f"{first} {last}".strip())
+        for cid, aid, first, last in (await db.execute(
+            select(Application.candidate_id, Application.id, CandidateProfile.first_name, CandidateProfile.last_name)
+            .join(CandidateProfile, CandidateProfile.id == Application.candidate_id)
+            .where(Application.job_posting_id == job.id, Application.deleted_at.is_(None),
+                   CandidateProfile.deleted_at.is_(None))
+            .order_by(Application.created_at)
+        )).all()
+        if cid not in scored
+    ]
     return RecsResponse(
         enabled=True, status="ok", disclaimer=DISCLAIMER,
         requirements=[RequirementOut(id=r["id"], texto=r["texto"], tipo=r["tipo"]) for r in (profile.requirements if profile else [])],
         discarded_requirements=profile.discarded if profile else [],
-        applicants=applicants, talent=talent, talent_limit=limit,
+        applicants=applicants, unscored_applicants=unscored, talent=talent, talent_limit=limit,
         computed_at=max(r.computed_at for r, _, _ in rows),
     )
 

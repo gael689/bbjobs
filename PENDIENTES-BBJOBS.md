@@ -68,3 +68,37 @@ Todo vive en `feat/mails-ia`, detrás de `MODULOS_NUEVOS_ACTIVOS` (en producció
 3. Limpieza: borrar los 3 usuarios de prueba de Clerk (es la misma instancia de test que usa
    producción: podrían entrar a bbjobs.com.ar y caer en el alta de perfil) y apagar el Postgres
    local del puerto 5544.
+
+## Actualización 28/10/2026
+
+- Respuestas de Eugenia del 22/10 aplicadas (ver `MEJORAS-Y-MAILS-EMPRESAS-OCTUBRE-PLAN.md` §5).
+- **Gael:** si `TALENCY_WHATSAPP` / `TALENCY_WHATSAPP_DISPLAY` están seteadas en Railway, actualizarlas a
+  `5492915362225` / `291 536-2225` (el default del código ya cambió y una variable de entorno lo pisa).
+- **Gael:** correr `backend/scripts/probar_local_mails.ps1` con tu Postgres (hice la prueba en uno descartable).
+- **Eugenia:** confirmar si el mail E3 (verificación rechazada) también lleva el motivo (P11).
+- **Abogado:** cláusula de "en otro proceso" y texto de observaciones legibles por Talency en `/privacidad`.
+- Actualizar `AVISOS-AUTOMATICOS-EUGENIA.pdf` y el PDF de novedades con estos cambios.
+
+## Actualización 28/10/2026 (tarde) — pruebas, legal y código cerrados
+
+- **Prueba local completa** (equivalente a `probar_local_mails.ps1`, en un Postgres descartable):
+  migraciones hasta head, toda la batería de tests y la migración ida y vuelta. Ver el resultado en el commit.
+- **Legal validado sin abogado** (decisión de Gael): términos y privacidad **3.0**, visibles sólo con la
+  compuerta abierta. Decisiones y riesgos que quedan en `LEGAL-PLAN.md` §11.
+- **Oposición a la IA y al aviso de otro proceso** en Mi cuenta; la IA y ese aviso sólo se aplican a
+  quien aceptó la 3.0.
+- **Revisión de CV sin plazo prometido.** A Eugenia sólo se le pregunta **qué incluye** (va en la
+  pantalla de compra, donde hoy hay una descripción genérica).
+- **Link a Defensa del Consumidor** en el pie (Res. SCI 1033/2021): sale a producción con el próximo deploy.
+
+**Gael, al crear las cuentas:**
+- Resend (avisos): tracking de aperturas y clics **apagado**; en el dominio de novedades, prendido.
+  Aceptar el DPA de Resend y el de Google (Gemini, con facturación activada).
+- Railway: `LEGAL_V3_VIGENTE_DESDE` (AAAA-MM-DD) el día que se abre la compuerta; Vercel:
+  `NEXT_PUBLIC_LEGAL_V3_VIGENTE_DESDE` con la misma fecha en texto ("20 de noviembre de 2026").
+- **Medición de CVs reales** (`scripts/medir_cvs_reales.py --muestra 40`): no la pude correr (lee la base
+  de producción y el permiso me lo bloqueó). Correla vos en PowerShell desde `backend/`; el criterio es
+  cero fugas. Hasta entonces, no prender la IA.
+
+**Talency:** inscribir la base en la AAIP (TAD), pasar razón social, CUIT y domicilio, y consultar el
+Registro No Llame antes de escribir por WhatsApp a prospectos.

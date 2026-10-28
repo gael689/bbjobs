@@ -194,7 +194,9 @@ async def process_payment(db: AsyncSession, payment: Payment, mp_status: str, pr
                 await create_notification(
                     db, user_id=user_id, type="cv_review_paid",
                     title="Recibimos tu pago de la revisión de CV",
-                    body=("Talency te va a contactar en las próximas 48 horas hábiles para revisar tu CV. "
+                    # Sin plazo prometido (Gael, 28/10/2026): los recordatorios de 24/48 h son
+                    # internos, para el admin.
+                    body=("Talency te va a contactar para revisar tu CV. "
                           "La devolución es por WhatsApp o mail, fuera de la plataforma."),
                     link="/dashboard/candidate/revision-cv", ref_id=order.id,
                 )

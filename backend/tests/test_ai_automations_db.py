@@ -43,6 +43,7 @@ if TEST_DB:
     from app.models.core import User
     from app.models.email import CampaignStatus, EmailCampaign, EmailOutbox
     from app.models.job import Application, JobPosting
+    from app.models.legal import LegalAcceptance
     from app.models.settings import SettingKey
     from app.services.ai import automations, moderation, pipeline, skill_suggest
     from app.services.ai.skill_suggest import GeminiSuggestions
@@ -382,6 +383,8 @@ async def _skills_world(maker, *, with_cv_text=True):
         cand = CandidateProfile(id=uuid.uuid4(), user_id=ku.id, first_name="Lucia", last_name=f"Paz{tag}",
                                 phone="2915551234", cv_file_url=f"https://res.cloudinary.com/x/raw/upload/cv-{tag}.pdf")
         db.add(cand)
+        # Aceptó la privacidad 3.0: el índice nocturno sólo toma a quien la aceptó (core/legal.py).
+        db.add(LegalAcceptance(user_id=ku.id, document="privacidad", version="3.0"))
         await db.flush()
         if with_cv_text:
             db.add(CandidateCvText(candidate_id=cand.id, status="ok", text=cv, redaction_stats={}, notes=[],

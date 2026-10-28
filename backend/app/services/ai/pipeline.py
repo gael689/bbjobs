@@ -31,6 +31,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.legal import accepted_ai_terms
 from app.integrations.gemini_client import AIError, AIProvider, AIUsage
 from app.models.ai import (
     AiUsageLog, CandidateAiIndex, CandidateChunk, CandidateCvText, JobAiProfile, JobRecommendation,
@@ -105,7 +106,10 @@ async def load_candidates(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.U
         select(CandidateProfile, User.email, Zone.name)
         .join(User, User.id == CandidateProfile.user_id)
         .outerjoin(Zone, Zone.id == CandidateProfile.location_zone_id)
-        .where(CandidateProfile.id.in_(ids), CandidateProfile.deleted_at.is_(None))
+        # Sólo quien aceptó la privacidad 3.0 (la que informa la IA) y no se opuso: el resto ni se
+        # indexa ni se puntúa (core/legal.py, services/ai/opt_out.py).
+        .where(CandidateProfile.id.in_(ids), CandidateProfile.deleted_at.is_(None),
+               CandidateProfile.ai_opt_out_at.is_(None), accepted_ai_terms(CandidateProfile.user_id))
     )).all()
     skills = (await db.execute(
         select(CandidateSkill.candidate_id, Skill.id, Skill.name)
@@ -262,6 +266,7 @@ async def _universe(db: AsyncSession, job: JobPosting) -> tuple[list[uuid.UUID],
     talent = list((await db.execute(
         select(CandidateProfile.id).where(
             CandidateProfile.visible_in_talent_pool.is_(True), CandidateProfile.deleted_at.is_(None),
+            CandidateProfile.ai_opt_out_at.is_(None), accepted_ai_terms(CandidateProfile.user_id),
             CandidateProfile.id.notin_(applicants) if applicants else true(),
         )
     )).scalars().all())
@@ -365,7 +370,9 @@ async def _compute_recommendations(
 
     # Base de Talento: sólo los mejores por híbrido pasan a recomendados (no se guarda a toda la base).
     talent_ranked = sorted((c for c in rows if rows[c]["source"] == "talent"), key=lambda c: -rows[c]["score"])
-    keep = set(applicants) | set(talent_ranked[:TALENT_POOL_CONSIDERED])
+    # Sólo los postulantes que se cargaron: quien se opuso a la IA (o tiene el perfil borrado) no
+    # tiene fila y queda sin puntaje, no rompe la vuelta.
+    keep = {c for c in applicants if c in rows} | set(talent_ranked[:TALENT_POOL_CONSIDERED])
     rerank_pool = sorted(keep, key=lambda c: -rows[c]["score"])[:RERANK_TOP]
 
     stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0}
@@ -467,6 +474,10 @@ async def refresh_cv_text(db: AsyncSession, candidate: CandidateProfile, email: 
     from app.services.ai.ingest import extract_cv_text
     from app.services.ai.redact import leaks, redact
 
+    if candidate.ai_opt_out_at is not None:
+        # Se opuso a la IA: el CV no se lee, venga de donde venga el pedido.
+        await db.execute(delete(CandidateCvText).where(CandidateCvText.candidate_id == candidate.id))
+        return "oposicion"
     if not candidate.cv_file_url:
         await db.execute(delete(CandidateCvText).where(CandidateCvText.candidate_id == candidate.id))
         return "sin_cv"
@@ -515,7 +526,8 @@ async def candidates_needing_index(db: AsyncSession, limit: int) -> list[uuid.UU
         select(CandidateProfile.id)
         .outerjoin(CandidateAiIndex, CandidateAiIndex.candidate_id == CandidateProfile.id)
         .where(
-            CandidateProfile.deleted_at.is_(None),
+            CandidateProfile.deleted_at.is_(None), CandidateProfile.ai_opt_out_at.is_(None),
+            accepted_ai_terms(CandidateProfile.user_id),
             (CandidateAiIndex.candidate_id.is_(None))
             | (CandidateProfile.updated_at > CandidateAiIndex.indexed_at)
             | (CandidateProfile.cv_uploaded_at > CandidateAiIndex.indexed_at),

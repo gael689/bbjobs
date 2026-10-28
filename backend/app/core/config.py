@@ -1,5 +1,6 @@
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from datetime import date
 from typing import List
 
 class Settings(BaseSettings):
@@ -75,6 +76,9 @@ class Settings(BaseSettings):
     # Apagada por defecto; en producción NO se prende hasta el lanzamiento. En local, `true`
     # para desarrollar y probar.
     MODULOS_NUEVOS_ACTIVOS: bool = False
+    # Desde cuándo rige la versión 3.0 de términos y privacidad (la de los módulos nuevos): el día
+    # que se abre la compuerta en producción. Sin valor, se informa la fecha del día. core/legal.py.
+    LEGAL_V3_VIGENTE_DESDE: date | None = None
 
     # Prospección: secreto compartido con el centro de Gael para firmar los lotes que empuja
     # (HMAC-SHA256). Sin secreto, el endpoint responde 503.

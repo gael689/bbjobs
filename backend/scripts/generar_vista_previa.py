@@ -191,7 +191,7 @@ CAMPANITA: dict[str, tuple[str, str, str | None]] = {
     "candidate_reactivation": ("¿Seguís buscando trabajo?",
         "Hay búsquedas nuevas en BBJobs. Si tu CV cambió, actualizalo para que las empresas vean lo último.", "/empleos"),
     "cv_review_paid": ("Recibimos tu pago de la revisión de CV",
-        "Talency te va a contactar en las próximas 48 horas hábiles para revisar tu CV. La devolución es por WhatsApp o mail, fuera de la plataforma.",
+        "Talency te va a contactar para revisar tu CV. La devolución es por WhatsApp o mail, fuera de la plataforma.",
         "/dashboard/candidate/revision-cv"),
     "cv_review_payment_rejected": ("El pago de la revisión de CV no se acreditó", "Podés volver a intentarlo desde tu panel.", "/dashboard/candidate/revision-cv"),
     "cv_review_in_progress": ("Talency ya está revisando tu CV", "En breve te contactan por el medio que elegiste.", "/dashboard/candidate/revision-cv"),

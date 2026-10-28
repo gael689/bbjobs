@@ -10,9 +10,11 @@ Qué cuenta y qué no:
 - **Nunca** sale el nombre de la empresa, el título de la búsqueda, una fecha ni un id: sólo un
   número. La respuesta completa se revisa en los tests.
 
-Detrás del interruptor `aviso_otros_procesos_activo` (apagado hasta publicar la cláusula en la
-política de privacidad y ofrecer la opción de oponerse; decide el abogado). Es un interruptor de
-producto, no la compuerta de módulos nuevos.
+Detrás del interruptor `aviso_otros_procesos_activo` (apagado por defecto). Es un interruptor de
+producto, no la compuerta de módulos nuevos. Que una persona está avanzada en otro proceso es un
+dato suyo que se le informa a un tercero (Ley 25.326, art. 11): **sólo se cuenta** para quien
+aceptó la privacidad 3.0, que lo informa, y no se opuso desde Mi cuenta
+(`candidate_profiles.other_processes_opt_out_at`).
 """
 from __future__ import annotations
 
@@ -22,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.legal import accepted_ai_terms
+from app.models.candidate import CandidateProfile
 from app.models.job import Application, ApplicationStatus, JobPosting
 from app.models.settings import SettingKey
 from app.services.settings import get_setting
@@ -38,6 +42,14 @@ async def count_other_processes(
     if not await get_setting(db, SettingKey.aviso_otros_procesos_activo):
         return 0
     now = now or datetime.now(timezone.utc)
+    consents = (await db.execute(
+        select(CandidateProfile.id).where(
+            CandidateProfile.id == candidate_id, CandidateProfile.other_processes_opt_out_at.is_(None),
+            accepted_ai_terms(CandidateProfile.user_id),
+        )
+    )).first()
+    if consents is None:
+        return 0
     return (await db.execute(
         select(func.count())
         .select_from(Application)

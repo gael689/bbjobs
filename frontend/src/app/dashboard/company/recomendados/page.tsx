@@ -37,6 +37,9 @@ interface Respuesta {
   requirements: Requisito[];
   discarded_requirements: { texto: string; motivo?: string }[];
   applicants: Recomendado[];
+  // Postulantes sin puntaje: pidieron que su perfil no se use en recomendaciones, o todavía no
+  // se calcularon. Se muestran igual: nadie desaparece de la vista de la empresa.
+  unscored_applicants?: { candidate_id: string; application_id: string; name: string }[];
   talent: Recomendado[];
   talent_limit: number;
   computed_at?: string | null;
@@ -313,6 +316,24 @@ export default function RecomendadosPage() {
                     <p className="p-8 text-center text-[#1C2230]">Esta búsqueda todavía no tiene postulantes.</p>
                   ) : d.applicants.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId} />)}
                 </div>
+
+                {(d.unscored_applicants?.length ?? 0) > 0 && (
+                  <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 mb-8 shadow-sm">
+                    <h3 className="font-display font-bold text-base text-[#1C2230] mb-1">
+                      Postulantes sin puntaje ({d.unscored_applicants!.length})
+                    </h3>
+                    <p className="text-sm text-[#1C2230] mb-3">
+                      No tienen puntaje porque pidieron que su perfil no se use en recomendaciones o porque todavía no se
+                      calculó. Son postulantes como cualquier otro: revisalos en{" "}
+                      <Link href="/dashboard/company/postulaciones" className="font-bold text-[#187B8E] underline">Postulaciones</Link>.
+                    </p>
+                    <ul className="text-sm text-[#1C2230] flex flex-wrap gap-2">
+                      {d.unscored_applicants!.map(u => (
+                        <li key={u.application_id} className="px-3 py-1 rounded-full bg-[#FAFBFD] border border-[#DDE3EC]">{u.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <h2 className="font-display font-bold text-lg text-[#1C2230] mb-1">De la Base de Talento</h2>
                 <p className="text-sm text-[#1C2230] mb-2">

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { DocumentCheckIcon, InformationCircleIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { useModulo, detalleError } from "@/hooks/useModulo";
@@ -125,10 +126,23 @@ function RevisionCv() {
 
       <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-2xl p-4 mb-6 flex gap-3">
         <InformationCircleIcon className="w-5 h-5 text-[#187B8E] shrink-0 mt-0.5" />
-        <p className="text-sm text-[#1C2230]">
-          El contacto y la devolución son <strong>por fuera de la plataforma</strong>, por WhatsApp o mail.
-          La revisión te ayuda a presentar mejor tu experiencia, pero <strong>no garantiza</strong> entrevistas ni empleo.
-        </p>
+        {/* Información previa a la compra (Ley 24.240 art. 4; términos 3.0 §11). Qué incluye en
+            detalle lo define Eugenia: cuando lo pase, va acá. */}
+        <div className="text-sm text-[#1C2230] space-y-2">
+          <p>
+            Una persona del equipo de Talency revisa tu CV pensando en el puesto o rubro que nos indiques y te da una
+            devolución con sugerencias para mejorarlo. No interviene ninguna inteligencia artificial.
+          </p>
+          <p>
+            El contacto y la devolución son <strong>por fuera de la plataforma</strong>, por WhatsApp o mail.
+            La revisión te ayuda a presentar mejor tu experiencia, pero <strong>no garantiza</strong> entrevistas ni empleo.
+          </p>
+          <p>
+            El precio es final. Tenés <strong>10 días corridos</strong> para arrepentirte y te devolvemos el total, desde el{" "}
+            <Link href="/arrepentimiento" className="font-bold text-[#187B8E] underline">botón de arrepentimiento</Link>. Más
+            detalles en los <Link href="/terminos" className="font-bold text-[#187B8E] underline">términos</Link>.
+          </p>
+        </div>
       </div>
 
       {d.can_buy ? (

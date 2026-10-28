@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 
 const inputCls =
   "w-full border border-[#DDE3EC] rounded-xl px-4 py-2.5 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] transition-colors";
 const labelCls = "block text-sm font-bold text-[#1C2230] mb-1.5";
 
-type Compra = "destacado" | "pack" | "otro";
+type Compra = "destacado" | "pack" | "revision_cv" | "otro";
 
 export default function ArrepentimientoForm() {
   const [name, setName] = useState("");
@@ -88,6 +89,7 @@ export default function ArrepentimientoForm() {
           <select value={compra} onChange={e => setCompra(e.target.value as Compra)} className={inputCls}>
             <option value="destacado">Aviso destacado</option>
             <option value="pack">Pack de la Base de Talento</option>
+            {MODULOS_NUEVOS_VISIBLES && <option value="revision_cv">Revisión de CV</option>}
             <option value="otro">Otro</option>
           </select>
         </div>

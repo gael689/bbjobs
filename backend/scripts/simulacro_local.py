@@ -47,6 +47,7 @@ from app.models.company import CompanyProfile  # noqa: E402
 from app.models.core import User  # noqa: E402
 from app.models.email import EmailOutbox  # noqa: E402
 from app.models.job import Application, JobPosting, JobPostingSkill  # noqa: E402
+from app.models.legal import LegalAcceptance  # noqa: E402
 from app.models.settings import SettingKey, SiteSetting  # noqa: E402
 from app.services.ai import pipeline  # noqa: E402
 from app.services.ai.jobs import notify_new_fits  # noqa: E402
@@ -167,6 +168,8 @@ async def armar_mundo(maker, nombres_limpios: bool = False) -> tuple[list, uuid.
                                  visible_in_talent_pool=not aplica, cv_file_url=f"local://{nombre}.pdf",
                                  cv_uploaded_at=lunes - timedelta(days=10), updated_at=lunes - timedelta(days=1))
             db.add(p)
+            # Aceptaron la privacidad 3.0: la IA sólo procesa a quien la aceptó (core/legal.py).
+            db.add(LegalAcceptance(user_id=u.id, document="privacidad", version="3.0"))
             await db.flush()
             db.add(Experience(candidate_id=p.id, company_name=f"Empresa Real {i} SRL", role_title=puesto,
                               start_date=date(2019, 1, 1), end_date=None, description=lineas[0]))

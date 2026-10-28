@@ -35,6 +35,7 @@ if TEST_DB:
     from app.models.company import CompanyProfile
     from app.models.core import User
     from app.models.job import Application, JobPosting, JobPostingSkill
+    from app.models.legal import LegalAcceptance
     from app.models.settings import SettingKey, SiteSetting
     from app.services.account_deletion import delete_account
     from app.services.ai import pipeline
@@ -156,6 +157,8 @@ async def _world(maker):
                                  phone="2915550000", location_zone_id=zone.id, accepts_onsite=True,
                                  visible_in_talent_pool=pool)
             db.add(p)
+            # Aceptó la privacidad 3.0, la que informa la IA: sin eso no se procesa (core/legal.py).
+            db.add(LegalAcceptance(user_id=u.id, document="privacidad", version="3.0"))
             await db.flush()
             db.add(Experience(candidate_id=p.id, company_name="Logística Sur SA", role_title="Operario",
                               start_date=date(2019, 1, 1), end_date=None, description=desc))
@@ -292,3 +295,131 @@ async def test_api_isolation_blind_talent_and_refresh_limit(maker, monkeypatch):
             assert [(await c.post(url)).status_code for _ in range(3)] == [200, 200, 429]
     finally:
         app.dependency_overrides.clear()
+
+
+# ── Oposición a la IA (privacidad 3.0, §7) ──────────────────────────────────────────────
+
+async def _opt_out(maker, profile_id):
+    from app.services.ai.opt_out import set_opt_out
+
+    async with maker() as db:
+        p = (await db.execute(select(CandidateProfile).where(CandidateProfile.id == profile_id))).scalar_one()
+        await set_opt_out(db, p, True)
+        await db.commit()
+
+
+async def _ai_rows(maker, profile_id) -> int:
+    from app.services.ai.opt_out import CANDIDATE_AI_MODELS
+
+    async with maker() as db:
+        return sum([(await db.execute(select(func.count()).select_from(m).where(m.candidate_id == profile_id))).scalar_one()
+                    for m in CANDIDATE_AI_MODELS])
+
+
+async def test_opt_out_purges_and_keeps_the_person_out_of_every_ai_step(maker):
+    companies, job, people = await _world(maker)
+    await _compute(maker, job.id, FakeAI())
+    bueno, talento = people["bueno"][1].id, people["talento"][1].id
+    assert await _ai_rows(maker, bueno) > 0
+    await _opt_out(maker, bueno)
+    await _opt_out(maker, talento)
+    assert await _ai_rows(maker, bueno) == 0 and await _ai_rows(maker, talento) == 0
+
+    await _compute(maker, job.id, FakeAI())          # la noche siguiente no los vuelve a procesar
+    recs = await _recs(maker, job.id)
+    assert "bueno" not in recs and "talento" not in recs and {"flojo", "tramposo"} <= set(recs)
+    assert await _ai_rows(maker, bueno) == 0
+    async with maker() as db:
+        assert bueno not in await pipeline.candidates_needing_index(db, 100)
+        p = (await db.execute(select(CandidateProfile).where(CandidateProfile.id == bueno))).scalar_one()
+        p.cv_file_url = "https://res.cloudinary.com/demo/raw/private/cv.pdf"
+
+        async def never(url):
+            raise AssertionError("no se descarga el CV de quien se opuso")
+
+        assert await pipeline.refresh_cv_text(db, p, "x@mail.com", never) == "oposicion"
+
+
+async def test_turning_the_opt_out_off_lets_the_profile_back_in(maker):
+    from app.services.ai.opt_out import set_opt_out
+
+    companies, job, people = await _world(maker)
+    bueno = people["bueno"][1].id
+    await _opt_out(maker, bueno)
+    async with maker() as db:
+        p = (await db.execute(select(CandidateProfile).where(CandidateProfile.id == bueno))).scalar_one()
+        await set_opt_out(db, p, False)
+        await db.commit()
+        assert p.ai_opt_out_at is None
+    await _compute(maker, job.id, FakeAI())
+    assert "bueno" in await _recs(maker, job.id)
+
+
+async def test_opt_out_api_and_the_company_still_sees_the_applicant(maker, monkeypatch):
+    from app.api.deps import get_current_user
+    from app.main import app
+    from app.models.history import CandidateActivityLog
+
+    companies, job, people = await _world(maker)
+    await _compute(maker, job.id, FakeAI())
+    user, profile = people["bueno"]
+
+    async def _db():
+        async with maker() as db:
+            yield db
+
+    async def noop(*a, **k):
+        return None
+
+    monkeypatch.setattr(rec_api, "recompute_job", noop)
+    app.dependency_overrides[get_db] = _db
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            app.dependency_overrides[get_current_user] = lambda: user
+            url = "/api/v1/me/candidate/privacy-preferences"
+            assert (await c.get(url)).json()["ai_opt_out"] is False
+            r = await c.post(url, json={"ai_opt_out": True})
+            assert r.status_code == 200 and r.json()["ai_opt_out"] is True and r.json()["ai_opt_out_at"]
+            assert r.json()["other_processes_opt_out"] is False      # lo que no se manda no cambia
+
+            app.dependency_overrides[require_verified_company] = lambda: companies[0]
+            data = (await c.get(f"/api/v1/me/company/jobs/{job.id}/recommendations")).json()
+            assert "Bueno Test" not in [a["name"] for a in data["applicants"]]
+            assert [u["name"] for u in data["unscored_applicants"]] == ["Bueno Test"]   # no desaparece
+
+            # Una empresa no puede tocar la preferencia de un postulante.
+            company_user = (await _company_user(maker, companies[0]))
+            app.dependency_overrides[get_current_user] = lambda: company_user
+            assert (await c.post(url, json={"ai_opt_out": False})).status_code == 403
+
+            # Con la compuerta cerrada, el endpoint no existe.
+            monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
+            app.dependency_overrides[get_current_user] = lambda: user
+            assert (await c.get(url)).status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+    assert await _ai_rows(maker, profile.id) == 0
+    async with maker() as db:
+        events = (await db.execute(select(CandidateActivityLog.event_type).where(
+            CandidateActivityLog.candidate_id == profile.id))).scalars().all()
+    assert "ai_opt_out" in events
+
+
+async def _company_user(maker, company):
+    async with maker() as db:
+        return (await db.execute(select(User).where(User.id == company.user_id))).scalar_one()
+
+
+async def test_without_accepting_the_v3_privacy_the_ai_does_not_touch_the_profile(maker):
+    companies, job, people = await _world(maker)
+    user, profile = people["bueno"]
+    async with maker() as db:
+        await db.execute(text("DELETE FROM legal_acceptances WHERE user_id = :u"), {"u": user.id})
+        await db.execute(text("INSERT INTO legal_acceptances (id, user_id, document, version) "
+                              "VALUES (gen_random_uuid(), :u, 'privacidad', '2.0')"), {"u": user.id})
+        await db.commit()
+    await _compute(maker, job.id, FakeAI())
+    assert "bueno" not in await _recs(maker, job.id)
+    assert await _ai_rows(maker, profile.id) == 0
+    async with maker() as db:
+        assert profile.id not in await pipeline.candidates_needing_index(db, 100)

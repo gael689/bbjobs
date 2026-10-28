@@ -73,7 +73,7 @@ class ArrepentimientoCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     phone: Optional[str] = Field(default=None, max_length=50)
-    compra: Literal["destacado", "pack", "otro"]
+    compra: Literal["destacado", "pack", "revision_cv", "otro"]
     detalle: str = Field(min_length=3, max_length=500)
     comentario: Optional[str] = Field(default=None, max_length=1000)
 

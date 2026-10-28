@@ -45,9 +45,7 @@ from app.models.company import CompanyProfile, CompanyVerificationDocument, Veri
 from app.models.core import User, UserRole
 from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
-from app.models.ai import (
-    AiActivityLog, CandidateAiIndex, CandidateChunk, CandidateCvText, CandidateSummary, JobRecommendation,
-)
+from app.models.ai import AiActivityLog
 from app.models.email import EmailOutbox, EmailStatus
 from app.models.legal import LegalAcceptance
 from app.models.payment import (
@@ -56,6 +54,7 @@ from app.models.payment import (
 )
 from app.models.tests import TestSubmission
 from app.services.job_features import end_active_feature_for_job
+from app.services.ai.opt_out import purge_candidate_ai
 
 logger = structlog.get_logger("app.services.account_deletion")
 
@@ -201,8 +200,7 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
             ).values(body=None, tags=[]))
         # IA: fragmentos, texto del CV, índice y recomendaciones. En la lápida la fila del
         # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
-        for model in (CandidateChunk, CandidateCvText, CandidateAiIndex, JobRecommendation, CandidateSummary):
-            await db.execute(delete(model).where(model.candidate_id == p.id))
+        await purge_candidate_ai(db, p.id)
         # Registro de actividad de la IA (Centro de IA): sólo conteos, pero apuntaba a la persona.
         # Queda como estadística sin dueño (en el borrado total lo hace la FK con SET NULL).
         await db.execute(

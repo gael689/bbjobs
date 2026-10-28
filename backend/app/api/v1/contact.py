@@ -61,7 +61,8 @@ async def submit_contact_message(
     return {"status": "ok"}
 
 
-COMPRAS = {"destacado": "Aviso destacado", "pack": "Pack de la Base de Talento", "otro": "Otro"}
+COMPRAS = {"destacado": "Aviso destacado", "pack": "Pack de la Base de Talento", "revision_cv": "Revisión de CV",
+           "otro": "Otro"}
 # Sin 0/O ni 1/I: el código se dicta por teléfono o se copia a mano.
 _ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 

@@ -180,7 +180,8 @@ async def notify_skill_suggestions(db: AsyncSession, provider: AIProvider | None
         # Se recarga cada vez: `suggest` commitea y un rollback anterior deja todo expirado.
         row = (await db.execute(
             select(CandidateProfile, User.email).join(User, User.id == CandidateProfile.user_id)
-            .where(CandidateProfile.id == candidate_id, CandidateProfile.deleted_at.is_(None))
+            .where(CandidateProfile.id == candidate_id, CandidateProfile.deleted_at.is_(None),
+                   CandidateProfile.ai_opt_out_at.is_(None))
         )).first()
         if row is None:
             continue

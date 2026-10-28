@@ -23,6 +23,7 @@ pytestmark = pytest.mark.skipif(not TEST_DB, reason="TEST_DATABASE_URL no defini
 if TEST_DB:
     from sqlalchemy import text
 
+    from app.models.legal import LegalAcceptance
     from app.models.settings import SettingKey, SiteSetting
 
 
@@ -41,6 +42,19 @@ async def _switch(maker, on: bool):
         await db.commit()
 
 
+async def _accept(maker, w, version="3.0"):
+    """La persona aceptó la privacidad que informa el aviso (3.0): sin eso no se cuenta."""
+    async with maker() as db:
+        db.add(LegalAcceptance(user_id=w["cand_user"].id, document="privacidad", version=version))
+        await db.commit()
+
+
+async def _world_ok(maker):
+    w = await _world(maker)
+    await _accept(maker, w)
+    return w
+
+
 def _url(app_id):
     return f"/api/v1/me/company/applications/{app_id}/other-processes"
 
@@ -57,7 +71,7 @@ async def test_switch_off_by_default_returns_zero(client, maker):
     ("in_process", 1), ("selected", 1), ("new", 0), ("seen", 0), ("discarded", 0),
 ])
 async def test_counts_only_in_process_and_selected_in_other_companies(client, maker, status, esperado):
-    w = await _world(maker)
+    w = await _world_ok(maker)
     await _switch(maker, True)
     await _set(maker, w["b"]["app"].id, status)
     client.as_user(w["a"]["user"])
@@ -65,7 +79,7 @@ async def test_counts_only_in_process_and_selected_in_other_companies(client, ma
 
 
 async def test_own_company_processes_do_not_count(client, maker):
-    w = await _world(maker)
+    w = await _world_ok(maker)
     await _switch(maker, True)
     await _set(maker, w["a"]["app"].id, "in_process")
     client.as_user(w["a"]["user"])
@@ -73,7 +87,7 @@ async def test_own_company_processes_do_not_count(client, maker):
 
 
 async def test_ninety_day_window(client, maker):
-    w = await _world(maker)
+    w = await _world_ok(maker)
     await _switch(maker, True)
     client.as_user(w["a"]["user"])
     await _set(maker, w["b"]["app"].id, "selected", days_ago=89)
@@ -83,7 +97,7 @@ async def test_ninety_day_window(client, maker):
 
 
 async def test_response_never_names_the_other_company_or_search(client, maker):
-    w = await _world(maker)
+    w = await _world_ok(maker)
     await _switch(maker, True)
     await _set(maker, w["b"]["app"].id, "in_process")
     client.as_user(w["a"]["user"])
@@ -107,3 +121,29 @@ async def test_the_switch_can_be_turned_on_from_the_admin_panel(client, maker):
     assert (await client.get("/api/v1/admin/settings")).json()["aviso_otros_procesos_activo"] is False
     resp = await client.patch("/api/v1/admin/settings", json={"aviso_otros_procesos_activo": True})
     assert resp.status_code == 200 and resp.json()["aviso_otros_procesos_activo"] is True
+
+
+async def test_not_counted_without_the_v3_acceptance(client, maker):
+    w = await _world(maker)
+    await _accept(maker, w, version="2.0")
+    await _switch(maker, True)
+    await _set(maker, w["b"]["app"].id, "in_process")
+    client.as_user(w["a"]["user"])
+    assert (await client.get(_url(w["a"]["app"].id))).json() == {"en_proceso": 0}
+
+
+async def test_not_counted_if_the_person_opted_out(client, maker):
+    w = await _world_ok(maker)
+    await _switch(maker, True)
+    await _set(maker, w["b"]["app"].id, "in_process")
+    client.as_user(w["cand_user"])
+    url = "/api/v1/me/candidate/privacy-preferences"
+    resp = await client.post(url, json={"other_processes_opt_out": True})
+    assert resp.status_code == 200 and resp.json()["other_processes_opt_out"] is True
+    assert resp.json()["ai_opt_out"] is False
+    client.as_user(w["a"]["user"])
+    assert (await client.get(_url(w["a"]["app"].id))).json() == {"en_proceso": 0}
+    client.as_user(w["cand_user"])
+    await client.post(url, json={"other_processes_opt_out": False})
+    client.as_user(w["a"]["user"])
+    assert (await client.get(_url(w["a"]["app"].id))).json() == {"en_proceso": 1}
