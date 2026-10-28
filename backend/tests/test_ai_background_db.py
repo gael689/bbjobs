@@ -51,6 +51,8 @@ if TEST_DB:
     from app.services.email.policy import AR_TZ
     from app.services.settings import set_setting
     from tests.test_ai_pipeline_db import FakeAI, _vec, _world
+else:
+    FakeAI = object  # sin base los tests se saltean; esto sólo deja importar el módulo
 
 MONDAY_9 = datetime(2030, 3, 4, 9, 0, tzinfo=AR_TZ).astimezone(timezone.utc) if TEST_DB else None
 

@@ -72,20 +72,25 @@ export default function Header() {
             </>
           ) : (
             <>
+              {/* /login y /register sin prefetch: son rutas dinámicas y el Header está en todas
+                  las páginas públicas (ver lib/rutas-sesion.ts, 19/10/2026). */}
               <Link
                 href="/login"
+                prefetch={false}
                 className="text-sm font-semibold text-[#1C2230] hover:text-[#1E8EA3] transition-colors px-3 py-2 rounded-lg"
               >
                 Iniciar sesión
               </Link>
               <Link
                 href="/register?type=candidate"
+                prefetch={false}
                 className="text-sm font-bold text-[#1E8EA3] border-2 border-[#1E8EA3] rounded-lg px-4 py-2 hover:bg-[#E6F4F7] transition-colors"
               >
                 Cargar mi cv
               </Link>
               <Link
                 href="/register?type=company"
+                prefetch={false}
                 className="text-sm font-bold text-white bg-[#1E8EA3] hover:bg-[#187B8E] rounded-lg px-4 py-2 transition-colors shadow-sm"
               >
                 Publicar un empleo
@@ -136,9 +141,9 @@ export default function Header() {
               </>
             ) : (
               <>
-                <Link href="/login" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
-                <Link href="/register?type=candidate" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Cargar mi cv</Link>
-                <Link href="/register?type=company" onClick={() => setMobileOpen(false)} className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar un empleo</Link>
+                <Link prefetch={false} href="/login" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Iniciar sesión</Link>
+                <Link prefetch={false} href="/register?type=candidate" onClick={() => setMobileOpen(false)} className="text-center font-bold border-2 border-[#1E8EA3] text-[#1E8EA3] rounded-lg py-2.5 hover:bg-[#E6F4F7]">Cargar mi cv</Link>
+                <Link prefetch={false} href="/register?type=company" onClick={() => setMobileOpen(false)} className="text-center font-bold bg-[#1E8EA3] text-white rounded-lg py-2.5 hover:bg-[#187B8E]">Publicar un empleo</Link>
               </>
             )}
           </div>

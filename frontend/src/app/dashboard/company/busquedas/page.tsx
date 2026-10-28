@@ -130,6 +130,7 @@ export default function CompanyBusquedasPage() {
     setViewProfile(null);
     setPerfilAppId(appId);
     try {
+      // `application_id`: abrir la ficha marca esa postulación como vista.
       const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: appId } });
       setViewProfile(r.data);
     } catch {
@@ -437,13 +438,23 @@ export default function CompanyBusquedasPage() {
                 {/* Postulantes */}
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-bold text-sm text-[#1C2230]">Postulantes</h3>
+                  {/* Con la búsqueda en el link: antes caía en la primera búsqueda de la lista,
+                      no en esta. */}
                   {postulantes.total > 0 && (
-                    <Link
-                      href="/dashboard/company/postulaciones"
-                      className="text-xs font-bold text-[#1E8EA3] hover:underline"
-                    >
-                      Ver los {postulantes.total} en Postulaciones →
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/dashboard/company/postulaciones?busqueda=${selectedJob.id}&starred=true`}
+                        className="text-xs font-bold text-[#64748B] hover:text-[#1C2230] hover:underline"
+                      >
+                        ★ Con estrella
+                      </Link>
+                      <Link
+                        href={`/dashboard/company/postulaciones?busqueda=${selectedJob.id}`}
+                        className="text-xs font-bold text-[#1E8EA3] hover:underline"
+                      >
+                        Ver los {postulantes.total} en Postulaciones →
+                      </Link>
+                    </div>
                   )}
                 </div>
                 {postulantes.cargando ? (

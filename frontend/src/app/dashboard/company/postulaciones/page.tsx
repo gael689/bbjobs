@@ -1,59 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   UsersIcon, UserCircleIcon, CheckCircleIcon,
-  BriefcaseIcon, FunnelIcon, ChartBarIcon,
+  BriefcaseIcon, ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import { CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
+import BuscadorPostulantes from "@/components/dashboard/postulantes/BuscadorPostulantes";
+import BotonEstrella from "@/components/dashboard/postulantes/BotonEstrella";
+import {
+  FILTROS_VACIOS, aParametros, desdeUrl, hayFiltros, type FiltrosPostulantes,
+} from "@/components/dashboard/postulantes/filtros";
+import { usePostulantes } from "@/components/dashboard/postulantes/usePostulantes";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import Paginacion from "@/components/ui/Paginacion";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
-import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
 import {
   APP_STATUS_LABEL, opcionesDeEstado, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
-  EMPTY_APPLICANT_FILTERS,
-  type Application, type ApplicantFilters, type ApplicantStats, type CandidateFullProfile,
+  type Application, type ApplicantStats, type CandidateFullProfile,
   type CompanyProfile, type JobPosting,
 } from "../types";
 
-function buildFilterParams(f: ApplicantFilters): Record<string, ValorFiltro> {
-  return {
-    age_min: f.age_min || undefined,
-    age_max: f.age_max || undefined,
-    gender: f.gender || undefined,
-    has_own_transport: f.has_own_transport ? f.has_own_transport === "true" : undefined,
-    availability: f.availability || undefined,
-    immediate_availability: f.immediate_availability || undefined,
-    position: f.position?.trim() || undefined,
-    experience_min: f.experience_min || undefined,
-    experience_max: f.experience_max || undefined,
-    zone_id: f.zone_id || undefined,
-  };
+// `useSearchParams` necesita un <Suspense> alrededor (Next 16): sin él, la página entera deja
+// de prerenderizarse.
+export default function CompanyPostulacionesPage() {
+  return (
+    <Suspense fallback={null}>
+      <Postulaciones />
+    </Suspense>
+  );
 }
 
-export default function CompanyPostulacionesPage() {
+function Postulaciones() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [zonas, setZonas] = useState<{ id: string; name: string }[]>([]);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
-  const [seleccionManual, setSeleccionManual] = useState<string>("");
-  // `filters` es el formulario; `aplicados` es lo que se está pidiendo. La pantalla filtra al
-  // apretar "Filtrar", no al tipear.
-  const [filters, setFilters] = useState<ApplicantFilters>(EMPTY_APPLICANT_FILTERS);
-  const [aplicados, setAplicados] = useState<ApplicantFilters>(EMPTY_APPLICANT_FILTERS);
+  // La búsqueda y los filtros arrancan de la URL y se escriben en ella: volver atrás desde otra
+  // pantalla, recargar o compartir el link deja todo como estaba. Era el "tengo que volver a
+  // buscar el CV" del pedido de Eugenia (22/10/2026).
+  const [seleccionManual, setSeleccionManual] = useState<string>(() => searchParams.get("busqueda") ?? "");
+  const [filtros, setFiltros] = useState<FiltrosPostulantes>(() => desdeUrl(new URLSearchParams(searchParams.toString())));
   const [stats, setStats] = useState<Record<string, ApplicantStats | null>>({});
   const [showStats, setShowStats] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [candidateProfile, setCandidateProfile] = useState<CandidateFullProfile | null>(null);
+  const [abiertaDesde, setAbiertaDesde] = useState<string | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
-  // La postulación desde la que se abrió la ficha: el backend la usa para "Vieron tu CV" y la
-  // ficha muestra sus notas.
-  const [perfilAppId, setPerfilAppId] = useState<string | null>(null);
   // Cambio de estado esperando confirmación (con nota opcional). Sólo con los módulos nuevos.
-  const [cambioPendiente, setCambioPendiente] = useState<{ appId: string; status: string } | null>(null);
+  const [cambioPendiente, setCambioPendiente] = useState<{ app: Application; status: string } | null>(null);
 
   const isVerified = profile?.verification_status === "verified";
   // La búsqueda elegida se deriva: si la de la lista desapareció (se cerró, se dio de baja),
@@ -68,15 +68,32 @@ export default function CompanyPostulacionesPage() {
   // Ver postulantes sigue exigiendo empresa verificada (a diferencia de publicar, ver A2 del
   // plan del 14/08): con `null` el hook no pide nada y así no se dispara un request que
   // siempre daría 403.
-  const postulaciones = useListaPaginada<Application>(
-    selectedJobId && isVerified ? `/me/company/jobs/${selectedJobId}/applications` : null,
-    buildFilterParams(aplicados),
+  const postulaciones = usePostulantes<Application>(
+    "empresa", selectedJobId && isVerified ? selectedJobId : null, filtros,
   );
+
+  function escribirUrl(jobId: string, f: FiltrosPostulantes) {
+    const params = new URLSearchParams();
+    if (jobId) params.set("busqueda", jobId);
+    for (const [clave, valor] of Object.entries(aParametros(f))) params.set(clave, String(valor));
+    const qs = params.toString();
+    // History API nativa y no `router.replace`: el router de Next vuelve a pedirle la página al
+    // servidor con cada cambio (una invocación en Vercel por tecla). `replaceState` sólo
+    // cambia la URL y Next la sincroniza igual con `useSearchParams`.
+    window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
+  }
+
+  function cambiarFiltros(f: FiltrosPostulantes) {
+    setFiltros(f);
+    escribirUrl(selectedJobId, f);
+  }
 
   function selectJob(jobId: string) {
     setSeleccionManual(jobId);
-    setFilters(EMPTY_APPLICANT_FILTERS);
-    setAplicados(EMPTY_APPLICANT_FILTERS);
+    // Al cambiar de búsqueda se va el texto y los chips (son de esa búsqueda); el orden queda.
+    const f = { ...FILTROS_VACIOS, orden: filtros.orden };
+    setFiltros(f);
+    escribirUrl(jobId, f);
   }
 
   useEffect(() => {
@@ -99,56 +116,57 @@ export default function CompanyPostulacionesPage() {
       .catch(() => setStats(prev => ({ ...prev, [selectedJobId]: null })));
   }, [selectedJobId, isVerified, stats]);
 
-  function applyFilters(e: React.FormEvent) {
-    e.preventDefault();
-    setAplicados(filters);
+  function handleAppStatus(app: Application, status: string) {
+    // Con los módulos nuevos, el cambio pasa por un cuadro que deja sumar una nota en el mismo
+    // paso. Sin ellos, se guarda al momento, como siempre.
+    if (MODULOS_NUEVOS_VISIBLES) {
+      setCambioPendiente({ app, status });
+      return;
+    }
+    guardarEstado(app, status);
   }
 
-  function clearFilters() {
-    setFilters(EMPTY_APPLICANT_FILTERS);
-    setAplicados(EMPTY_APPLICANT_FILTERS);
-  }
-
-  const hasActiveFilters = !!(
-    filters.age_min || filters.age_max || filters.gender ||
-    filters.has_own_transport || filters.availability || filters.immediate_availability ||
-    filters.position?.trim() || filters.experience_min || filters.experience_max ||
-    filters.zone_id
-  );
-
-  async function guardarEstado(appId: string, status: string, note?: string, noteVisible?: boolean) {
+  async function guardarEstado(app: Application, status: string, note?: string, noteVisible?: boolean) {
     try {
-      await api.patch(`/me/company/applications/${appId}/status`, {
+      await api.patch(`/me/company/applications/${app.id}/status`, {
         status,
         ...(note ? { note, note_visible: !!noteVisible } : {}),
       });
-      postulaciones.actualizarItems(prev => prev.map(a => (a.id === appId ? { ...a, status } : a)));
       if (note) toast(noteVisible ? "Estado y nota guardados. El postulante va a ver la nota." : "Estado y nota privada guardados.");
+      const vistaAhora = !app.seen_at && status !== "new";
+      postulaciones.actualizarItems(prev => prev.map(a => (
+        a.id === app.id ? { ...a, status, seen_at: vistaAhora ? new Date().toISOString() : a.seen_at } : a
+      )));
+      postulaciones.retocarConteos(c => ({
+        ...c,
+        by_status: {
+          ...c.by_status,
+          [app.status]: Math.max(0, (c.by_status[app.status] ?? 0) - 1),
+          [status]: (c.by_status[status] ?? 0) + 1,
+        },
+        unseen: vistaAhora ? Math.max(0, c.unseen - 1) : c.unseen,
+      }));
     } catch {
       toast("Error al actualizar estado");
     }
   }
 
-  function handleAppStatus(appId: string, status: string) {
-    // Con los módulos nuevos, el cambio pasa por un cuadro que deja sumar una nota en el mismo
-    // paso. Sin ellos, se guarda al momento, como siempre.
-    if (MODULOS_NUEVOS_VISIBLES) {
-      setCambioPendiente({ appId, status });
-      return;
-    }
-    guardarEstado(appId, status);
+  async function alternarEstrella(app: Application) {
+    if (!(await postulaciones.alternarEstrella(app))) toast("No se pudo guardar la estrella");
   }
 
-  async function openCandidateProfile(candidateId: string, appId: string) {
+  async function openCandidateProfile(app: Application) {
     setLoadingCandidate(true);
     setCandidateProfile(null);
-    setPerfilAppId(appId);
+    setAbiertaDesde(app.id);
     try {
-      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: appId } });
+      // `application_id`: abrir la ficha marca esta postulación como vista (sin aviso).
+      const r = await api.get(`/me/company/candidates/${app.candidate_id}`, { params: { application_id: app.id } });
       setCandidateProfile(r.data);
-      // Abrir la ficha la pasa sola a "Perfil revisado" la primera vez (módulos nuevos).
+      postulaciones.marcarVista(app.id);
+      // Con los módulos nuevos, abrir la ficha la pasa sola a "Perfil revisado" la primera vez.
       if (MODULOS_NUEVOS_VISIBLES) {
-        postulaciones.actualizarItems(prev => prev.map(a => (a.id === appId && a.status === "new" ? { ...a, status: "seen" } : a)));
+        postulaciones.actualizarItems(prev => prev.map(a => (a.id === app.id && a.status === "new" ? { ...a, status: "seen" } : a)));
       }
     } catch {
       toast("Error al cargar el perfil del candidato");
@@ -156,6 +174,8 @@ export default function CompanyPostulacionesPage() {
       setLoadingCandidate(false);
     }
   }
+
+  const jobTitle = jobs.find(j => j.id === selectedJobId)?.title ?? "nuestra búsqueda";
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-7xl">
@@ -212,105 +232,17 @@ export default function CompanyPostulacionesPage() {
           </div>
 
           <div className="mb-5">
-            <form onSubmit={applyFilters} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 h-fit">
-              <div className="flex items-center gap-2 mb-3">
-                <FunnelIcon className="w-4 h-4 text-[#1E8EA3]" />
-                <span className="text-sm font-bold text-[#1C2230]">Filtrar postulantes</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <input
-                  type="text" placeholder="Posición (ej: comercial)"
-                  value={filters.position}
-                  onChange={e => setFilters(f => ({ ...f, position: e.target.value }))}
-                  className="col-span-2 border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
-                />
-                <input
-                  type="number" min={0} step={0.5} placeholder="Exp. mín. (años)"
-                  value={filters.experience_min}
-                  onChange={e => setFilters(f => ({ ...f, experience_min: e.target.value }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
-                />
-                <input
-                  type="number" min={0} step={0.5} placeholder="Exp. máx. (años)"
-                  value={filters.experience_max}
-                  onChange={e => setFilters(f => ({ ...f, experience_max: e.target.value }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
-                />
-                <select
-                  value={filters.zone_id}
-                  onChange={e => setFilters(f => ({ ...f, zone_id: e.target.value }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
-                >
-                  <option value="">Zona (todas)</option>
-                  {zonas.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-                <input
-                  type="number" min={0} placeholder="Edad mín."
-                  value={filters.age_min}
-                  onChange={e => setFilters(f => ({ ...f, age_min: e.target.value }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
-                />
-                <input
-                  type="number" min={0} placeholder="Edad máx."
-                  value={filters.age_max}
-                  onChange={e => setFilters(f => ({ ...f, age_max: e.target.value }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
-                />
-                <select
-                  value={filters.gender}
-                  onChange={e => setFilters(f => ({ ...f, gender: e.target.value as ApplicantFilters["gender"] }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
-                >
-                  <option value="">Sexo (todos)</option>
-                  {Object.entries(CANDIDATE_GENDER_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-                <select
-                  value={filters.has_own_transport}
-                  onChange={e => setFilters(f => ({ ...f, has_own_transport: e.target.value as ApplicantFilters["has_own_transport"] }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
-                >
-                  <option value="">Movilidad (todas)</option>
-                  <option value="true">Con movilidad</option>
-                  <option value="false">Sin movilidad</option>
-                </select>
-                <select
-                  value={filters.availability}
-                  onChange={e => setFilters(f => ({ ...f, availability: e.target.value as ApplicantFilters["availability"] }))}
-                  className="border border-[#DDE3EC] rounded-lg px-2.5 py-1.5 text-xs text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
-                >
-                  <option value="">Disponibilidad (todas)</option>
-                  {Object.entries(CANDIDATE_AVAILABILITY_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-                <label className="flex items-center gap-1.5 text-xs text-[#64748B] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!filters.immediate_availability}
-                    onChange={e => setFilters(f => ({ ...f, immediate_availability: e.target.checked }))}
-                    className="w-3.5 h-3.5 accent-[#1E8EA3]"
-                  />
-                  Disp. inmediata
-                </label>
-              </div>
-              <div className="flex items-center gap-3 mt-3">
-                <button type="submit" className="text-xs font-bold bg-[#1E8EA3] text-white rounded-lg px-3 py-1.5 hover:bg-[#187B8E] transition-colors">
-                  Filtrar
-                </button>
-                {hasActiveFilters && (
-                  <button type="button" onClick={clearFilters} className="text-xs font-bold text-[#64748B] border border-[#DDE3EC] rounded-lg px-3 py-1.5 hover:bg-[#FAFBFD] transition-colors">
-                    Limpiar
-                  </button>
-                )}
-                {/* Sin esto, filtrar y no ver ningún cambio visible es indistinguible de que el
-                    filtro no hizo nada (ver B4 del plan del 14/08). */}
-                {!postulaciones.cargando && (
-                  <span className="text-xs text-[#64748B]">
-                    {`${postulaciones.total} postulante${postulaciones.total === 1 ? "" : "s"}`}
-                    {hasActiveFilters && " con estos filtros"}
-                  </span>
-                )}
-              </div>
-            </form>
-
+            <BuscadorPostulantes
+              key={selectedJobId}
+              filtros={filtros}
+              onCambiar={cambiarFiltros}
+              conteos={postulaciones.conteos}
+              resultado={postulaciones.cargando ? null : postulaciones.total}
+              estados={APP_STATUS_LABEL}
+              zonas={zonas}
+              generos={CANDIDATE_GENDER_LABEL}
+              disponibilidades={CANDIDATE_AVAILABILITY_LABEL}
+            />
           </div>
 
           {showStats && stats[selectedJobId] && (
@@ -327,13 +259,18 @@ export default function CompanyPostulacionesPage() {
             ) : postulaciones.items.length === 0 ? (
               <div className="py-12 text-center text-sm text-[#64748B]">
                 <UsersIcon className="w-10 h-10 mx-auto mb-3 text-[#DDE3EC]" />
-                Sin postulaciones aún para esta búsqueda.
+                {hayFiltros(filtros) ? "Ningún postulante coincide con estos filtros." : "Sin postulaciones aún para esta búsqueda."}
               </div>
             ) : (
               <div className="divide-y divide-[#DDE3EC]">
                 {postulaciones.items.map(app => (
-                  <div key={app.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                  <div key={app.id} className="px-4 sm:px-6 py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
+                      <BotonEstrella
+                        marcada={!!app.starred_at}
+                        onClick={() => alternarEstrella(app)}
+                        quienLaVe="Sólo la ve tu empresa."
+                      />
                       {/* Sin anillo de % de perfil: la empresa lo leía como "% de ajuste al
                           puesto" cuando en realidad mide cuánto cargó el candidato de su propio
                           perfil (pedido de Eugenia, agosto/2026). Sigue visible en el panel de
@@ -354,10 +291,14 @@ export default function CompanyPostulacionesPage() {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#1C2230]">
+                        <p className="text-sm font-bold text-[#1C2230] flex items-center gap-1.5">
                           {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                          {!app.seen_at && (
+                            <span className="text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] px-1.5 py-0.5 rounded-full">Sin ver</span>
+                          )}
                         </p>
-                        <p className="text-xs text-[#64748B]">{new Date(app.created_at).toLocaleDateString("es-AR")}</p>
+                        <p className="text-xs text-[#64748B]">Postuló el {new Date(app.created_at).toLocaleDateString("es-AR")}</p>
+                        {app.match && <p className="text-xs text-[#1C2230] mt-0.5 truncate max-w-md">{app.match}</p>}
                         {app.candidate && (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {app.candidate.age != null && (
@@ -386,12 +327,12 @@ export default function CompanyPostulacionesPage() {
                         <WhatsAppButton
                           size="xs"
                           phone={app.candidate.phone}
-                          message={`Hola ${app.candidate.first_name}, te escribo por tu postulación a "${jobs.find(j => j.id === selectedJobId)?.title ?? "nuestra búsqueda"}" en BBJobs.`}
+                          message={`Hola ${app.candidate.first_name}, te escribo por tu postulación a "${jobTitle}" en BBJobs.`}
                         />
                       )}
                       {app.candidate && (
                         <button
-                          onClick={() => openCandidateProfile(app.candidate!.id, app.id)}
+                          onClick={() => openCandidateProfile(app)}
                           className="text-xs font-bold text-[#1E8EA3] hover:text-[#187B8E] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#E6F4F7] transition-colors"
                         >
                           <UserCircleIcon className="w-3.5 h-3.5" />
@@ -400,7 +341,8 @@ export default function CompanyPostulacionesPage() {
                       )}
                       <select
                         value={app.status}
-                        onChange={e => handleAppStatus(app.id, e.target.value)}
+                        onChange={e => handleAppStatus(app, e.target.value)}
+                        aria-label="Estado de la postulación"
                         className="text-xs border border-[#DDE3EC] rounded-lg px-2 py-1 bg-white text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
                       >
                         {opcionesDeEstado(app.status).map(value => (
@@ -430,23 +372,23 @@ export default function CompanyPostulacionesPage() {
       <CandidateProfileModal
         profile={candidateProfile}
         loading={loadingCandidate}
-        onClose={() => { setCandidateProfile(null); setPerfilAppId(null); }}
+        onClose={() => { setCandidateProfile(null); setAbiertaDesde(null); }}
         cvLinkEndpoint={candidateProfile
-          ? `/me/company/candidates/${candidateProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
+          ? `/me/company/candidates/${candidateProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
           : undefined}
-        footer={MODULOS_NUEVOS_VISIBLES && perfilAppId
-          ? <NotasPostulacion key={perfilAppId} applicationId={perfilAppId} />
+        footer={MODULOS_NUEVOS_VISIBLES && abiertaDesde
+          ? <NotasPostulacion key={abiertaDesde} applicationId={abiertaDesde} />
           : undefined}
       />
 
       {cambioPendiente && (
         <CambioEstadoConNota
-          appId={cambioPendiente.appId}
+          appId={cambioPendiente.app.id}
           status={cambioPendiente.status}
           estadoLabel={APP_STATUS_LABEL[cambioPendiente.status]?.label ?? cambioPendiente.status}
           onCancelar={() => setCambioPendiente(null)}
           onConfirmar={async (nota, visible) => {
-            await guardarEstado(cambioPendiente.appId, cambioPendiente.status, nota, visible);
+            await guardarEstado(cambioPendiente.app, cambioPendiente.status, nota, visible);
             setCambioPendiente(null);
           }}
         />

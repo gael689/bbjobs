@@ -52,6 +52,8 @@ if TEST_DB:
     from app.services.settings import set_setting
     from tests.test_ai_background_db import SummaryAI
     from tests.test_ai_pipeline_db import FakeAI, _vec, _world
+else:
+    FakeAI = object  # sin base los tests se saltean; esto sólo deja importar el módulo
 
 SWITCHES = ("ia_recomendaciones_activas", "asistente_ia_activo", "emails_automaticos_activos")
 

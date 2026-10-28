@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
+import { prefetchDe } from "@/lib/rutas-sesion";
 
 /**
  * El CTA de una tarjeta de /planes.
@@ -28,8 +29,10 @@ export default function CtaPlan({
   const { isLoaded, isSignedIn } = useAuth();
   const destino = hrefLogueado && isLoaded && isSignedIn ? hrefLogueado : href;
 
+  // Los dos destinos (/register y /dashboard/...) son rutas dinámicas: sin prefetch (19/10/2026,
+  // ver lib/rutas-sesion.ts).
   return (
-    <Link href={destino} className={className}>
+    <Link href={destino} prefetch={prefetchDe(destino)} className={className}>
       {children}
     </Link>
   );

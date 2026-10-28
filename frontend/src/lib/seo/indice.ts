@@ -35,10 +35,11 @@ export const RUBROS_INDICE: readonly EntradaIndice[] = [
 ];
 
 // Sectores con página propia de selección de personal (/seleccion-de-personal/<slug>), con texto
-// escrito para cada uno en lib/seo/seleccion.ts. Los demás sectores no tienen página: enlazan al
+// escrito para cada uno en lib/seo/seleccion.ts. Hoy los 11 sectores del catálogo tienen la suya; si se suma uno sin texto, enlaza al
 // hub /seleccion-de-personal. Ver SEO-EMPRESAS-TALENCY-PLAN.md.
 export const SELECCION_INDICE: readonly string[] = [
   "industria", "logistica", "comercio", "gastronomia", "construccion", "administracion",
+  "tecnologia", "salud", "educacion", "marketing", "recursos-humanos",
 ];
 
 /** Link de selección de personal para un sector: su página si la tiene, si no el hub. */
