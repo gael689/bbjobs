@@ -102,3 +102,22 @@ Todo vive en `feat/mails-ia`, detrás de `MODULOS_NUEVOS_ACTIVOS` (en producció
 
 **Talency:** inscribir la base en la AAIP (TAD), pasar razón social, CUIT y domicilio, y consultar el
 Registro No Llame antes de escribir por WhatsApp a prospectos.
+
+## Actualización 28/10/2026 (noche) — IA: cómo se ve y cómo avisa
+
+- **Recomendados (empresa)** rediseñado: cabecera, "Para mirar primero" (3 tarjetas), anillo de
+  puntaje con nivel ("Encaja muy bien / Encaja / Encaja poco"), barra de requisitos ("Cumple 4 de 5")
+  y un solo botón "Por qué" que abre el resumen de 3 líneas y requisito por requisito.
+  Piezas compartidas en `components/recomendados/Visual.tsx` (también en el Centro de IA).
+- **Centro de IA → Panorama** (pestaña nueva, la primera): estado (Gemini, interruptores, gasto de
+  hoy vs. tope), 4 indicadores (búsquedas con recomendados, encajan muy bien, % que les sirvió,
+  % que la empresa ya miró), gasto de 14 días, uso por función (30 días) y las mejores
+  coincidencias. Endpoint `GET /admin/ai/overview` (no llama a Gemini).
+- **Cartel emergente** (`AvisoEmergente.tsx`, en los tres paneles, sólo con `NEXT_PUBLIC_MODULOS_NUEVOS`):
+  muestra `recommended_candidates_new`, `admin_ai_new_fits` y `skill_suggestions_ready` no leídos
+  de los últimos 3 días (`GET /me/notifications/highlights`). Se cierra solo a los 10 s, pausa con
+  el mouse; cerrarlo no lo marca leído.
+- Aviso a la empresa con poco texto ("3 candidatos que encajan" / "Para Operario/a…") y aviso nuevo
+  a Talency `admin_ai_new_fits` (sólo web, uno por noche).
+- Verificado: 628 tests backend, tsc, eslint, `next build` con módulos apagados, capturas en
+  1366 y 390 px con datos simulados.

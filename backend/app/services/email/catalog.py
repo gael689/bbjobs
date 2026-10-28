@@ -186,6 +186,7 @@ RULES: dict[str, Rule] = {
     # Borrador semanal "Búsquedas de la semana": sólo en la web (y se recuerda en el resumen
     # diario del equipo mientras siga en borrador). Un mail por semana sería ruido.
     "admin_campaign_weekly_ready": Rule(C.admin, mode="none"),
+    "admin_ai_new_fits": Rule(C.admin, mode="none"),
 
     # ── Resúmenes (T3): los arma services/email/digests.py y van directo a la cola ──
     "digest_alertas": Rule(C.alertas, mode="digest", exempt_daily_cap=True),

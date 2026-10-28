@@ -965,8 +965,8 @@
    "cuando": "De noche, cuando el sistema encuentra perfiles nuevos que encajan con sus búsquedas.",
    "frecuencia": "Como mucho uno por noche por empresa, y como mucho 3 perfiles por búsqueda por semana.",
    "campanita": {
-    "titulo": "Hay candidatos nuevos que encajan con tus búsquedas",
-    "cuerpo": "Encontramos 3 perfiles que encajan con 'Operario/a de depósito con autoelevador'. Miralos en Recomendados."
+    "titulo": "3 candidatos que encajan",
+    "cuerpo": "Para Operario/a de depósito con autoelevador."
    },
    "asunto": "Tenés nuevos perfiles recomendados para tu búsqueda",
    "html": "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>BBJobs</title></head><body style=\"margin:0;padding:0;background:#FAFBFD;font-family:'DM Sans', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\"><table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#FAFBFD;\"><tr><td align=\"center\" style=\"padding:24px 12px;\"><table role=\"presentation\" width=\"560\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:560px;background:#ffffff;border:1px solid #DDE3EC;border-radius:12px;overflow:hidden;\"><tr><td style=\"padding:20px 32px 16px;border-bottom:4px solid #D4B7A2;\"><table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\"><tr><td style=\"padding-right:8px;vertical-align:middle;\"><img src=\"https://www.bbjobs.com.ar/logo.png\" alt=\"\" width=\"26\" height=\"32\" style=\"display:block;width:26px;height:32px;\"></td><td style=\"font-size:24px;font-weight:800;font-style:italic;letter-spacing:-0.5px;color:#1C2230;\"><span style=\"color:#1E8EA3;\">BB</span>JOBS</td></tr></table></td></tr><tr><td style=\"padding:24px 32px 8px;\"><p style=\"margin:0 0 8px;font-size:16px;line-height:1.5;color:#1C2230;\">Hola, Rocío:</p><p style=\"margin:0 0 16px;font-size:16px;line-height:1.6;color:#1C2230;\">Identificamos 3 nuevos perfiles que podrían ajustarse a los requisitos de tu búsqueda de <strong>Operario/a de depósito con autoelevador</strong>.</p><p style=\"margin:0 0 16px;font-size:16px;line-height:1.6;color:#1C2230;\">Podés revisarlos en la sección Recomendados de tu cuenta y evaluar si se ajustan a lo que necesita tu empresa.</p><table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:8px 0 8px;\"><tr><td style=\"background:#187B8E;border-radius:8px;\"><a href=\"https://www.bbjobs.com.ar/dashboard/company/recomendados\" style=\"display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;\">Ver perfiles recomendados</a></td></tr></table><p style=\"margin:0 0 16px;font-size:16px;line-height:1.6;color:#1C2230;\">Si tenés alguna consulta, escribinos por WhatsApp al <a href=\"https://wa.me/5492915362225\" style=\"color:#187B8E;font-weight:600;\">291 536-2225</a>.</p><p style=\"margin:16px 0 8px;font-size:16px;line-height:1.6;color:#1C2230;\">Saludos,<br><strong>Equipo de BBJobs</strong><br>Una iniciativa de Talency</p></td></tr><tr><td style=\"padding:16px 32px 24px;background:#F7EFE9;font-size:12px;line-height:1.6;color:#1C2230;\"><a href=\"https://www.bbjobs.com.ar/dashboard/company/perfil#mails\" style=\"color:#1C2230;\">Administrar notificaciones</a> · <a href=\"https://www.bbjobs.com.ar/baja?t=MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxOnBvc3R1bGFjaW9uZXM.SfALrkrwz7bVvmJsFaJt98GEHa_5BRjYqC1tMZ94LpI\" style=\"color:#1C2230;\">Dejar de recibir estos mails</a></td></tr></table></td></tr></table></body></html>",
@@ -1612,6 +1612,19 @@
    "grupo": "admin",
    "cuando": "Se arma el borrador semanal de búsquedas",
    "nota": "Sólo en la campanita de la web",
+   "categoria": "admin",
+   "modo": "none",
+   "demora_horas": 0,
+   "critico": false,
+   "uno_por_dia": false,
+   "con_baja": true
+  },
+  {
+   "tipo": "admin_ai_new_fits",
+   "destinatario": "admin",
+   "grupo": "admin",
+   "cuando": "De noche, la IA encuentra candidatos que encajan",
+   "nota": "Cartel en pantalla y campanita de la web",
    "categoria": "admin",
    "modo": "none",
    "demora_horas": 0,

@@ -32,7 +32,7 @@ from app.models.job import JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.settings import SettingKey
 from app.services.ai import pipeline, scoring
 from app.services.ai.ingest import MAX_PDF_BYTES
-from app.services.notifications import create_notification
+from app.services.notifications import create_notification, notify_all_admins
 from app.services.settings import get_setting
 
 logger = structlog.get_logger("app.services.ai.jobs")
@@ -210,6 +210,7 @@ async def notify_new_fits(db, now: datetime) -> int:
         bucket["count"] += 1
 
     sent = 0
+    total_fits = total_jobs = 0
     for company_id, bucket in by_company.items():
         if not bucket["count"]:
             continue
@@ -218,14 +219,30 @@ async def notify_new_fits(db, now: datetime) -> int:
             continue
         # Sólo las búsquedas que suman perfiles hoy (las que ya llegaron al tope semanal, no).
         jobs_today = [j for j in bucket["jobs"].values() if j["new"]]
-        titles = ", ".join(f"'{j['title']}'" for j in jobs_today)
+        # Poco texto (Gael, 28/10/2026): el panel lo muestra como un cartel emergente.
         await create_notification(
             db, user_id=user_id, type="recommended_candidates_new",
-            title="Hay candidatos nuevos que encajan con tus búsquedas",
-            body=(f"Encontramos {'1 perfil que encaja' if bucket['count'] == 1 else str(bucket['count']) + ' perfiles que encajan'}"
-                  f" con {titles}. Miralos en Recomendados."),
+            title=fits_title(bucket["count"]), body=f"Para {_join_titles([j['title'] for j in jobs_today])}.",
             link="/dashboard/company/recomendados",
             email_vars=recommended_email_vars([j["title"] for j in jobs_today], bucket["count"]),
         )
         sent += 1
+        total_fits += bucket["count"]
+        total_jobs += len(jobs_today)
+    if sent:
+        # Talency ve lo mismo que las empresas, en un solo aviso por noche (sólo en la web).
+        await notify_all_admins(
+            db, type="admin_ai_new_fits", title=f"La IA encontró {fits_title(total_fits).lower()}",
+            body=(f"En {total_jobs} {'búsqueda' if total_jobs == 1 else 'búsquedas'} de "
+                  f"{sent} {'empresa' if sent == 1 else 'empresas'}."),
+            link="/dashboard/admin/ia",
+        )
     return sent
+
+
+def fits_title(count: int) -> str:
+    return "1 candidato que encaja" if count == 1 else f"{count} candidatos que encajan"
+
+
+def _join_titles(titles: list[str]) -> str:
+    return titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " y " + titles[-1]

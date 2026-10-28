@@ -45,7 +45,7 @@ from app.models.ai import (
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile
 from app.models.core import User, UserRole
-from app.models.job import Application, JobModerationStatus, JobPosting, JobPostingStatus
+from app.models.job import Application, ApplicationStatus, JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.payment import TalentCreditPack, TalentPackStatus, TalentUnlock
 from app.models.settings import SettingKey
 from app.schemas.common import PageQuery, PageSizeQuery, Paginated
@@ -722,4 +722,141 @@ async def admin_ai_activity_summary(_: User = Depends(admin_only), db: AsyncSess
         daily_budget_usd=settings.AI_DAILY_BUDGET_USD, budget_left=await pipeline.budget_left(db),
         recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
         ai_configured=_provider() is not None,
+    )
+
+
+# ── 4. Panorama (la primera pantalla del Centro de IA) ──────────────────────────────────
+
+OVERVIEW_DAYS = 14
+OVERVIEW_FEATURE_DAYS = 30
+OVERVIEW_TOP = 5
+
+
+class OverviewDay(BaseModel):
+    day: date
+    spend_usd: float
+    calls: int
+
+
+class OverviewFeature(BaseModel):
+    feature: str
+    calls: int
+    spend_usd: float
+
+
+class OverviewMatch(BaseModel):
+    job_id: uuid.UUID
+    job_title: str
+    company_name: str
+    candidate_ref: str
+    name: Optional[str] = None      # sólo postulantes de esa búsqueda (mismas reglas que el detalle)
+    source: Literal["applicant", "talent"]
+    score: int
+    computed_at: datetime
+
+
+class OverviewResponse(BaseModel):
+    ai_configured: bool
+    recs_switch_on: bool
+    assistant_on: bool
+    budget_left: bool
+    daily_budget_usd: float
+    spent_today_usd: float
+    days: list[OverviewDay]
+    features: list[OverviewFeature]
+    jobs_with_recs: int
+    recommendations: int
+    strong_fits: int
+    applicants_strong_advanced: int
+    applicants_strong: int
+    notices_week: int
+    feedback_up: int
+    feedback_down: int
+    top_matches: list[OverviewMatch]
+
+
+@router.get("/admin/ai/overview", response_model=OverviewResponse)
+async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+    """Todo de un vistazo, sin llamar a Gemini: estado, gasto de 14 días, uso por función (30 días),
+    cómo rinden las recomendaciones y las mejores coincidencias de las búsquedas activas."""
+    now = datetime.now(timezone.utc)
+    today = local_day_start(now)
+    first_day = today - timedelta(days=OVERVIEW_DAYS - 1)
+
+    lday = func.date(func.timezone(AR_ZONE, AiUsageLog.created_at))
+    by_day = {d: (float(s or 0), c) for d, s, c in (await db.execute(
+        select(lday, func.sum(AiUsageLog.cost_usd), func.count())
+        .where(AiUsageLog.created_at >= first_day).group_by(lday)
+    )).all()}
+    first_local = first_day.astimezone(AR_TZ).date()
+    days = []
+    for k in range(OVERVIEW_DAYS):
+        d = first_local + timedelta(days=k)
+        spend, calls = by_day.get(d, (0.0, 0))
+        days.append(OverviewDay(day=d, spend_usd=round(spend, 6), calls=calls))
+
+    features = [OverviewFeature(feature=f, calls=c, spend_usd=round(float(s or 0), 6)) for f, c, s in (await db.execute(
+        select(AiUsageLog.feature, func.count(), func.sum(AiUsageLog.cost_usd))
+        .where(AiUsageLog.created_at >= today - timedelta(days=OVERVIEW_FEATURE_DAYS - 1))
+        .group_by(AiUsageLog.feature).order_by(func.count().desc())
+    )).all()]
+
+    live = (select(JobRecommendation.id).join(JobPosting, JobPosting.id == JobRecommendation.job_id)
+            .where(_live_job()))
+    jobs_with_recs, recs_total, strong = (await db.execute(
+        select(func.count(func.distinct(JobRecommendation.job_id)), func.count(),
+               func.count().filter(JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD))
+        .where(JobRecommendation.id.in_(live))
+    )).one()
+    # Postulantes que encajan (≥ 80) y que la empresa ya movió de "Nueva": ¿la recomendación se usa?
+    strong_apps = (
+        select(Application.status)
+        .join(JobRecommendation, (JobRecommendation.job_id == Application.job_posting_id)
+              & (JobRecommendation.candidate_id == Application.candidate_id))
+        .where(JobRecommendation.id.in_(live), JobRecommendation.source == "applicant",
+               JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD, Application.deleted_at.is_(None))
+        .subquery()
+    )
+    applicants_strong, advanced = (await db.execute(
+        select(func.count(), func.count().filter(strong_apps.c.status != ApplicationStatus.new.value))
+    )).one()
+    up, down = (await db.execute(select(
+        func.count().filter(JobRecommendation.feedback == 1), func.count().filter(JobRecommendation.feedback == -1),
+    ))).one()
+    notices = (await db.execute(select(func.count()).select_from(JobRecommendation)
+                                .where(JobRecommendation.notified_at >= today - timedelta(days=6)))).scalar_one()
+
+    top_rows = (await db.execute(
+        select(JobRecommendation, JobPosting.title, JobPosting.company_id,
+               func.coalesce(CompanyProfile.legal_name, JobPosting.company_legal_name_snapshot, ""),
+               CandidateProfile.first_name, CandidateProfile.last_name, Application.id)
+        .join(JobPosting, JobPosting.id == JobRecommendation.job_id)
+        .outerjoin(CompanyProfile, CompanyProfile.id == JobPosting.company_id)
+        .join(CandidateProfile, CandidateProfile.id == JobRecommendation.candidate_id)
+        .outerjoin(Application, (Application.job_posting_id == JobRecommendation.job_id)
+                   & (Application.candidate_id == JobRecommendation.candidate_id) & Application.deleted_at.is_(None))
+        .where(_live_job(), JobRecommendation.final_score >= scoring.RECOMMENDED_THRESHOLD)
+        .order_by(JobRecommendation.final_score.desc(), JobRecommendation.computed_at.desc())
+        .limit(OVERVIEW_TOP)
+    )).all()
+    top = []
+    for rec, title, company_id, company_name, first, last, app_id in top_rows:
+        visible = rec.source == "applicant" and app_id is not None
+        top.append(OverviewMatch(
+            job_id=rec.job_id, job_title=title, company_name=company_name or "",
+            candidate_ref=candidate_ref(company_id, rec.candidate_id),
+            name=f"{first} {last}".strip() if visible else None,
+            source=rec.source, score=rec.final_score, computed_at=rec.computed_at,
+        ))
+
+    return OverviewResponse(
+        ai_configured=_provider() is not None,
+        recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
+        assistant_on=bool(await get_setting(db, SettingKey.asistente_ia_activo)),
+        budget_left=await pipeline.budget_left(db), daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        spent_today_usd=round(float(await pipeline.spent_today(db, now)), 6),
+        days=days, features=features,
+        jobs_with_recs=jobs_with_recs, recommendations=recs_total, strong_fits=strong,
+        applicants_strong=applicants_strong, applicants_strong_advanced=advanced, notices_week=notices,
+        feedback_up=up, feedback_down=down, top_matches=top,
     )

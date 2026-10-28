@@ -122,6 +122,7 @@ ENDPOINTS = [
     ("get", "/api/v1/admin/ai/jobs"),
     ("get", "/api/v1/admin/ai/activity"),
     ("get", "/api/v1/admin/ai/activity/summary"),
+    ("get", "/api/v1/admin/ai/overview"),
     ("get", "/api/v1/admin/ai/actions/status"),
     ("post", "/api/v1/admin/ai/actions/recompute-all"),
     ("post", "/api/v1/admin/ai/actions/review-pending"),
@@ -456,3 +457,78 @@ async def test_account_deletion_unlinks_activity_from_the_person(maker, client, 
         still = (await db.execute(select(func.count()).select_from(AiActivityLog).where(
             AiActivityLog.job_id == job.id, AiActivityLog.kind == activity.KIND_SUMMARY))).scalar_one()
     assert still >= 1                                              # queda la estadística, sin dueño
+
+
+# ── Panorama, avisos de "candidatos que encajan" y carteles emergentes ──────────────────
+
+async def _force_strong(maker, job_id, candidate_id, score=91):
+    from app.models.ai import JobRecommendation
+
+    async with maker() as db:
+        rec = (await db.execute(select(JobRecommendation).where(
+            JobRecommendation.job_id == job_id, JobRecommendation.candidate_id == candidate_id))).scalar_one()
+        rec.final_score, rec.coverage, rec.notified_at = score, 0.9, None
+        await db.commit()
+
+
+async def test_overview_shows_usage_quality_and_top_matches(maker, client, ai):
+    companies, job, people = await _ready_world(maker, ai)
+    await _force_strong(maker, job.id, people["bueno"][1].id, 99)
+    await _force_strong(maker, job.id, people["talento"][1].id, 98)
+    async with maker() as db:
+        db.add(AiUsageLog(id=uuid.uuid4(), feature="rerank", model="m", cost_usd=Decimal("0.002"), job_id=job.id))
+        await db.commit()
+
+    r = await client.get("/api/v1/admin/ai/overview")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert len(d["days"]) == 14 and d["days"][-1]["spend_usd"] >= 0.002
+    assert any(f["feature"] == "rerank" and f["calls"] >= 1 for f in d["features"])
+    assert d["recommendations"] >= 2 and d["strong_fits"] >= 2 and d["applicants_strong"] >= 1
+    mine = {m["candidate_ref"]: m for m in d["top_matches"] if m["job_id"] == str(job.id)}
+    bueno = mine[_ref(companies[0].id, people["bueno"][1].id)]
+    assert bueno["name"] == "Bueno Test" and bueno["score"] == 99
+    # El perfil de la Base de Talento sigue ciego, como en el detalle.
+    assert mine[_ref(companies[0].id, people["talento"][1].id)]["name"] is None
+
+    client.as_user(people["bueno"][0])
+    assert (await client.get("/api/v1/admin/ai/overview")).status_code == 403
+
+
+async def test_new_fits_notice_is_short_and_talency_sees_it(maker, ai):
+    from app.models.alerts import Notification
+    from app.services.ai import jobs as ai_jobs
+
+    companies, job, people = await _ready_world(maker, ai)
+    await _force_strong(maker, job.id, people["bueno"][1].id)
+    async with maker() as db:
+        admin_ids = list((await db.execute(select(User.id).where(User.role == "admin"))).scalars().all())
+        await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc))
+        await db.commit()
+        n = (await db.execute(select(Notification).where(
+            Notification.user_id == companies[0].user_id, Notification.type == "recommended_candidates_new"))).scalar_one()
+        assert n.title.endswith("que encaja") or n.title.endswith("que encajan")
+        assert "Operario de depósito" in n.body and len(n.body) < 120
+        assert n.link == "/dashboard/company/recomendados"
+        team = (await db.execute(select(Notification).where(
+            Notification.type == "admin_ai_new_fits", Notification.user_id.in_(admin_ids)))).scalars().all()
+        assert team and all(t.link == "/dashboard/admin/ia" for t in team)
+
+
+async def test_highlights_only_unread_recent_and_of_the_right_type(maker, client, admin):
+    from app.models.alerts import Notification
+
+    now = datetime.now(timezone.utc)
+    async with maker() as db:
+        ok = Notification(user_id=admin.id, type="admin_ai_new_fits", title="3 candidatos", body="x")
+        db.add_all([
+            ok,
+            Notification(user_id=admin.id, type="admin_ai_new_fits", title="leida", body="x", is_read=True),
+            Notification(user_id=admin.id, type="job_pending_review", title="otro tipo", body="x"),
+            Notification(user_id=admin.id, type="admin_ai_new_fits", title="vieja", body="x",
+                          created_at=now - timedelta(days=5)),
+        ])
+        await db.commit()
+    r = await client.get("/api/v1/me/notifications/highlights")
+    assert r.status_code == 200
+    assert [x["title"] for x in r.json()] == ["3 candidatos"]

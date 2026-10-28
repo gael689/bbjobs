@@ -3,17 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  SparklesIcon, ArrowPathIcon, HandThumbUpIcon, HandThumbDownIcon, LockClosedIcon, InformationCircleIcon,
+  SparklesIcon, ArrowPathIcon, HandThumbUpIcon, HandThumbDownIcon, LockClosedIcon, ChevronDownIcon, ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { detalleError } from "@/hooks/useModulo";
 import EnDesarrollo from "@/components/dashboard/EnDesarrollo";
+import { NivelChip, PuntajeAnillo, RequisitosBarra, VEREDICTO_DETALLE, type Veredicto } from "@/components/recomendados/Visual";
 
 interface Busqueda { id: string; title: string; status: string }
 
 interface Requisito { id: string; texto: string; tipo: string }
 
-interface Evaluacion { req_id: string; verdict: "si" | "parcial" | "no" | "sin_datos"; evidence?: string | null }
+interface Evaluacion { req_id: string; verdict: Veredicto; evidence?: string | null }
 
 interface Recomendado {
   candidate_ref: string;
@@ -45,15 +46,9 @@ interface Respuesta {
   computed_at?: string | null;
 }
 
-const VEREDICTO: Record<Evaluacion["verdict"], { simbolo: string; label: string; cls: string }> = {
-  si: { simbolo: "✓", label: "Cumple", cls: "text-green-700" },
-  parcial: { simbolo: "~", label: "En parte", cls: "text-yellow-800" },
-  no: { simbolo: "✗", label: "No cumple", cls: "text-red-700" },
-  sin_datos: { simbolo: "—", label: "Sin datos", cls: "text-[#1C2230]" },
-};
-
 const REINTENTO_MS = 5000;
 const REINTENTO_MAX_MS = 60_000;
+const DESTACADOS = 3;
 
 type Estado =
   | { tipo: "cargando" }
@@ -63,105 +58,171 @@ type Estado =
 
 interface Resumen { lines: { text: string; evidence?: string | null }[]; generated_with_ai: boolean; disclaimer: string }
 
-function Fila({ r, requisitos, onFeedback, jobId }: { r: Recomendado; requisitos: Requisito[]; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; jobId: string }) {
-  const [abierto, setAbierto] = useState(false);
-  // Resumen en 3 líneas: se pide recién al abrirlo (cuesta una llamada a la IA, después queda en caché).
-  const [resumen, setResumen] = useState<Resumen | "cargando" | "error" | null>(null);
-  const [verResumen, setVerResumen] = useState(false);
-  function toggleResumen() {
-    setVerResumen(v => !v);
-    if (resumen === null || resumen === "error") {
-      setResumen("cargando");
-      api.get<Resumen>(`/me/company/jobs/${jobId}/recommendations/${encodeURIComponent(r.candidate_ref)}/summary`)
-        .then(x => setResumen(x.data))
-        .catch(() => setResumen("error"));
-    }
+function hace(iso?: string | null): string {
+  if (!iso) return "";
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 2) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `hace ${h} h` : new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+}
+
+function nombre(r: Recomendado) {
+  return r.name ?? `Perfil ${r.candidate_ref}`;
+}
+
+/** El resumen de 3 líneas: se pide recién al abrir el detalle (después queda en caché). */
+function ResumenIA({ r, jobId }: { r: Recomendado; jobId: string }) {
+  const [resumen, setResumen] = useState<Resumen | "cargando" | "error">("cargando");
+  useEffect(() => {
+    let vigente = true;
+    api.get<Resumen>(`/me/company/jobs/${jobId}/recommendations/${encodeURIComponent(r.candidate_ref)}/summary`)
+      .then(x => { if (vigente) setResumen(x.data); })
+      .catch(() => { if (vigente) setResumen("error"); });
+    return () => { vigente = false; };
+  }, [jobId, r.candidate_ref]);
+
+  if (resumen === "cargando") {
+    return (
+      <div className="space-y-2" aria-label="Armando el resumen">
+        {[90, 75, 60].map(w => <div key={w} className="h-3 rounded-full bg-[#E6F4F7] animate-pulse" style={{ width: `${w}%` }} />)}
+      </div>
+    );
   }
+  if (resumen === "error") return <p className="text-sm text-[#1C2230]">No se pudo armar el resumen. Probá de nuevo en un rato.</p>;
+  if (resumen.lines.length === 0) return <p className="text-sm text-[#1C2230]">Todavía no hay datos suficientes para resumirlo.</p>;
+  return (
+    <ul className="space-y-2">
+      {resumen.lines.map((l, i) => (
+        <li key={i} className="flex gap-2 text-sm text-[#1C2230]">
+          <SparklesIcon className="w-4 h-4 text-[#1E8EA3] shrink-0 mt-0.5" />
+          <span>
+            {l.text}
+            {l.evidence ? <span className="block text-xs mt-0.5 italic">“{l.evidence}”</span>
+              : r.locked ? <span className="block text-xs mt-0.5 italic">La cita se ve al desbloquear el perfil.</span> : null}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Detalle({ r, requisitos, jobId }: { r: Recomendado; requisitos: Requisito[]; jobId: string }) {
   const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
   return (
-    <div className="px-5 py-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] text-[#187B8E] flex flex-col items-center justify-center shrink-0">
-          <span className="text-lg font-display font-extrabold leading-none">{r.score}</span>
-        </div>
-        <div className="flex-1 min-w-[180px]">
-          <p className="font-bold text-[#1C2230] flex items-center gap-2">
-            {r.locked && <LockClosedIcon className="w-4 h-4 text-[#7A5A44]" />}
-            {r.name ?? `Perfil ${r.candidate_ref}`}
-            {r.recommended && (
-              <span className="text-[10.5px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#E6F4F7] text-[#187B8E]">Recomendado</span>
-            )}
-          </p>
-          <p className="text-xs text-[#1C2230]">Perfil {Math.round(r.coverage * 100)} % completo</p>
-        </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => onFeedback(r, r.feedback === 1 ? 0 : 1)} title="Buena recomendación"
-                  className={`p-2 rounded-lg border ${r.feedback === 1 ? "border-[#187B8E] bg-[#E6F4F7] text-[#187B8E]" : "border-[#DDE3EC] text-[#1C2230]"}`}>
-            <HandThumbUpIcon className="w-4 h-4" />
-          </button>
-          <button onClick={() => onFeedback(r, r.feedback === -1 ? 0 : -1)} title="Mala recomendación"
-                  className={`p-2 rounded-lg border ${r.feedback === -1 ? "border-red-300 bg-red-50 text-red-700" : "border-[#DDE3EC] text-[#1C2230]"}`}>
-            <HandThumbDownIcon className="w-4 h-4" />
-          </button>
-          <button onClick={toggleResumen} className="ml-1 text-sm font-bold text-[#187B8E] px-3 py-2">
-            {verResumen ? "Ocultar resumen" : "Resumen"}
-          </button>
-          <button onClick={() => setAbierto(a => !a)} className="ml-1 text-sm font-bold text-[#187B8E] px-3 py-2">
-            {abierto ? "Cerrar" : "Ver detalle"}
-          </button>
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="rounded-xl bg-gradient-to-br from-[#E6F4F7] to-white border border-[#9ED4DF] p-4">
+        <p className="text-xs font-extrabold uppercase tracking-wide text-[#187B8E] mb-2">En 3 líneas</p>
+        <ResumenIA r={r} jobId={jobId} />
+      </div>
+      <div className="rounded-xl border border-[#DDE3EC] p-4">
+        <p className="text-xs font-extrabold uppercase tracking-wide text-[#187B8E] mb-2">Requisito por requisito</p>
+        {r.evaluations.length === 0 ? (
+          <p className="text-sm text-[#1C2230]">El orden sale de los datos del perfil.</p>
+        ) : (
+          <ul className="space-y-2">
+            {r.evaluations.map(e => {
+              const v = VEREDICTO_DETALLE[e.verdict] ?? VEREDICTO_DETALLE.sin_datos;
+              return (
+                <li key={e.req_id} className="text-sm text-[#1C2230]">
+                  <span className="font-extrabold mr-1.5" style={{ color: v.color }}>{v.simbolo}</span>
+                  {texto(e.req_id)}
+                  {e.verdict !== "sin_datos" && (r.locked
+                    ? <span className="block text-xs italic ml-5">Se ve al desbloquear el perfil.</span>
+                    : e.evidence ? <span className="block text-xs italic ml-5">“{e.evidence}”</span> : null)}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Pulgares({ r, onFeedback }: { r: Recomendado; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button onClick={() => onFeedback(r, r.feedback === 1 ? 0 : 1)} title="Buena recomendación" aria-pressed={r.feedback === 1}
+              className={`p-2 rounded-lg border transition-colors ${r.feedback === 1 ? "border-[#187B8E] bg-[#E6F4F7] text-[#187B8E]" : "border-[#DDE3EC] text-[#1C2230] hover:border-[#9ED4DF]"}`}>
+        <HandThumbUpIcon className="w-4 h-4" />
+      </button>
+      <button onClick={() => onFeedback(r, r.feedback === -1 ? 0 : -1)} title="Mala recomendación" aria-pressed={r.feedback === -1}
+              className={`p-2 rounded-lg border transition-colors ${r.feedback === -1 ? "border-red-300 bg-red-50 text-red-700" : "border-[#DDE3EC] text-[#1C2230] hover:border-red-200"}`}>
+        <HandThumbDownIcon className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Tarjeta grande para los mejores postulantes: se entiende sin abrir nada. */
+function Destacado({ r, puesto, requisitos, onFeedback, onAbrir }: {
+  r: Recomendado; puesto: number; requisitos: Requisito[];
+  onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; onAbrir: (ref: string) => void;
+}) {
+  const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
+  return (
+    <div className="relative bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm hover:shadow-[0_12px_30px_-12px_rgba(30,142,163,0.35)] hover:-translate-y-0.5 transition-all flex flex-col">
+      <span className="absolute top-4 right-4 text-xs font-extrabold text-[#187B8E] bg-[#E6F4F7] rounded-full w-7 h-7 flex items-center justify-center">
+        {puesto}
+      </span>
+      <div className="flex items-center gap-3 mb-3 pr-8">
+        <PuntajeAnillo score={r.score} size={72} />
+        <div className="min-w-0">
+          <p className="font-display font-bold text-[#1C2230] text-lg leading-tight truncate">{nombre(r)}</p>
+          <div className="mt-1"><NivelChip score={r.score} /></div>
         </div>
       </div>
       {r.reasons.length > 0 && (
-        <ul className="mt-2 ml-15 list-disc pl-5 text-sm text-[#1C2230] space-y-0.5">
-          {r.reasons.map((m, i) => <li key={i}>{m}</li>)}
+        <ul className="space-y-1 mb-3 text-sm text-[#1C2230]">
+          {r.reasons.slice(0, 2).map((m, i) => (
+            <li key={i} className="flex gap-1.5"><span className="text-[#1E8EA3] font-extrabold">✓</span><span className="line-clamp-2">{m}</span></li>
+          ))}
         </ul>
       )}
-      {verResumen && (
-        <div className="mt-3 border border-[#9ED4DF] bg-[#E6F4F7]/40 rounded-xl p-3 text-sm text-[#1C2230]">
-          {resumen === "cargando" || resumen === null ? (
-            <p>Armando el resumen…</p>
-          ) : resumen === "error" ? (
-            <p>No se pudo armar el resumen. Probá de nuevo en un rato.</p>
-          ) : resumen.lines.length === 0 ? (
-            <p>Todavía no hay datos suficientes en el perfil para resumirlo.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {resumen.lines.map((l, i) => (
-                <li key={i}>
-                  {l.text}
-                  {l.evidence ? <span className="block text-xs mt-0.5">Según el perfil: <q>{l.evidence}</q></span>
-                    : r.locked ? <em className="block text-xs mt-0.5">La cita se ve al desbloquear el perfil.</em> : null}
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="text-xs font-bold mt-2">Orientativo, decide la empresa.</p>
+      <div className="mt-auto space-y-3">
+        <RequisitosBarra evaluaciones={r.evaluations} texto={texto} />
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={() => onAbrir(r.candidate_ref)} className="text-sm font-bold text-[#187B8E] hover:underline">
+            Ver por qué
+          </button>
+          <Pulgares r={r} onFeedback={onFeedback} />
         </div>
-      )}
-      {abierto && (
-        <div className="mt-3 border border-[#DDE3EC] rounded-xl overflow-hidden">
-          {r.evaluations.length === 0 ? (
-            <p className="p-3 text-sm text-[#1C2230]">Todavía no se evaluó requisito por requisito: el orden sale de los datos del perfil.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <tbody className="divide-y divide-[#DDE3EC]/60">
-                {r.evaluations.map(e => {
-                  const v = VEREDICTO[e.verdict] ?? VEREDICTO.sin_datos;
-                  return (
-                    <tr key={e.req_id}>
-                      <td className="p-3 text-[#1C2230] w-1/3">{texto(e.req_id)}</td>
-                      <td className={`p-3 font-bold whitespace-nowrap ${v.cls}`}>{v.simbolo} {v.label}</td>
-                      <td className="p-3 text-[#1C2230]">
-                        {e.verdict === "sin_datos" ? "" : r.locked ? <em>Se ve al desbloquear el perfil.</em> : e.evidence ? <q>{e.evidence}</q> : ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+      </div>
+    </div>
+  );
+}
+
+function Fila({ r, requisitos, onFeedback, jobId, abierto, onToggle }: {
+  r: Recomendado; requisitos: Requisito[]; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; jobId: string;
+  abierto: boolean; onToggle: () => void;
+}) {
+  const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
+  return (
+    <div id={`rec-${r.candidate_ref}`} className={`px-4 sm:px-5 py-4 transition-colors ${abierto ? "bg-[#FAFBFD]" : ""}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <PuntajeAnillo score={r.score} size={48} />
+        <div className="flex-1 min-w-[180px]">
+          <p className="font-bold text-[#1C2230] flex flex-wrap items-center gap-2">
+            {r.locked && <LockClosedIcon className="w-4 h-4 text-[#5C3B22]" aria-label="Perfil ciego" />}
+            {nombre(r)}
+            <NivelChip score={r.score} />
+          </p>
+          {r.reasons[0] && <p className="text-sm text-[#1C2230] mt-0.5 line-clamp-1">{r.reasons[0]}</p>}
         </div>
-      )}
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <RequisitosBarra evaluaciones={r.evaluations} texto={texto} />
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Pulgares r={r} onFeedback={onFeedback} />
+          <button onClick={onToggle} aria-expanded={abierto}
+                  className="inline-flex items-center gap-1 text-sm font-bold text-[#187B8E] px-3 py-2 rounded-lg hover:bg-[#E6F4F7]">
+            {abierto ? "Cerrar" : "Por qué"}
+            <ChevronDownIcon className={`w-4 h-4 transition-transform ${abierto ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+      {abierto && <Detalle r={r} requisitos={requisitos} jobId={jobId} />}
     </div>
   );
 }
@@ -171,6 +232,7 @@ export default function RecomendadosPage() {
   const [jobId, setJobId] = useState<string>("");
   const [estado, setEstado] = useState<Estado>({ tipo: "cargando" });
   const [aviso, setAviso] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<string | null>(null);
   const inicio = useRef(0);
 
   useEffect(() => {
@@ -215,7 +277,7 @@ export default function RecomendadosPage() {
     setAviso(null);
     try {
       const r = await api.post<{ queued: boolean; remaining_today: number }>(`/me/company/jobs/${jobId}/recommendations/refresh`);
-      setAviso(`Lo estamos recalculando. Te quedan ${r.data.remaining_today} actualizaciones hoy.`);
+      setAviso(`Recalculando. Te quedan ${r.data.remaining_today} hoy.`);
       inicio.current = Date.now();
       setTimeout(() => cargar(jobId), REINTENTO_MS);
     } catch (e) {
@@ -239,32 +301,52 @@ export default function RecomendadosPage() {
     }
   }
 
+  function abrirDesdeDestacado(ref: string) {
+    setAbierto(ref);
+    requestAnimationFrame(() => document.getElementById(`rec-${ref}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
   if (estado.tipo === "en_desarrollo") {
     return <EnDesarrollo titulo="Candidatos recomendados" descripcion="Muy pronto vas a ver a tus postulantes ordenados por qué tan bien encajan con cada búsqueda." />;
   }
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-5xl">
-      <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1 flex items-center gap-2">
-        <SparklesIcon className="w-6 h-6 text-[#187B8E]" /> Candidatos recomendados
-      </h1>
-      <p className="text-[#1C2230] text-sm mb-5">Tus postulantes ordenados por cuánto encajan con la búsqueda. Ves a todos: ordenar no es descartar.</p>
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B171D] via-[#12303A] to-[#16404B] text-white p-6 sm:p-7 mb-6">
+        <div aria-hidden className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-[#1E8EA3]/30 blur-3xl" />
+        <div aria-hidden className="absolute -bottom-24 left-10 w-56 h-56 rounded-full bg-[#D4B7A2]/15 blur-3xl" />
+        <div className="relative">
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider bg-white/10 rounded-full px-2.5 py-1 mb-3">
+            <SparklesIcon className="w-3.5 h-3.5" /> Recomendados
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-display font-extrabold leading-tight">¿Quién encaja mejor?</h1>
+          <p className="text-[#D6E9EE] text-sm mt-1">Tus postulantes, del que más encaja al que menos. Ves a todos.</p>
 
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <select value={jobId} onChange={e => setJobId(e.target.value)} disabled={!busquedas?.length}
-                className="border border-[#DDE3EC] rounded-xl px-3 py-2.5 text-sm bg-white text-[#1C2230] min-w-[240px]">
-          {(busquedas ?? []).map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
-        </select>
-        {estado.tipo === "listo" && estado.datos.enabled && estado.datos.status === "ok" && (
-          <button onClick={actualizar} className="flex items-center gap-1.5 text-sm font-bold border border-[#9ED4DF] bg-[#E6F4F7] text-[#187B8E] px-4 py-2.5 rounded-xl hover:bg-[#D5EBF1]">
-            <ArrowPathIcon className="w-4 h-4" /> Actualizar
-          </button>
-        )}
-        {aviso && <p className="text-sm text-[#1C2230]">{aviso}</p>}
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <select value={jobId} onChange={e => { setJobId(e.target.value); setAbierto(null); }} disabled={!busquedas?.length}
+                    aria-label="Búsqueda"
+                    className="rounded-xl px-3.5 py-2.5 text-sm font-bold bg-white text-[#1C2230] min-w-[240px] max-w-full">
+              {(busquedas ?? []).map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+            </select>
+            {estado.tipo === "listo" && estado.datos.enabled && estado.datos.status === "ok" && (
+              <button onClick={actualizar} className="inline-flex items-center gap-1.5 text-sm font-bold bg-white/10 hover:bg-white/20 px-3.5 py-2.5 rounded-xl transition-colors">
+                <ArrowPathIcon className="w-4 h-4" /> Actualizar
+              </button>
+            )}
+            {estado.tipo === "listo" && estado.datos.computed_at && (
+              <span className="text-xs text-[#D6E9EE]">Calculado {hace(estado.datos.computed_at)}</span>
+            )}
+          </div>
+          {aviso && <p className="text-sm mt-3 font-semibold">{aviso}</p>}
+        </div>
       </div>
 
-      {estado.tipo === "cargando" && <div className="text-[#1C2230]">Cargando…</div>}
-      {estado.tipo === "error" && <div className="text-red-600">{estado.mensaje}</div>}
+      {estado.tipo === "cargando" && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map(i => <div key={i} className="h-48 rounded-2xl bg-white border border-[#DDE3EC] animate-pulse" />)}
+        </div>
+      )}
+      {estado.tipo === "error" && <div className="text-red-700 font-semibold">{estado.mensaje}</div>}
 
       {estado.tipo === "listo" && busquedas && busquedas.length === 0 && (
         <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 text-[#1C2230]">Todavía no publicaste búsquedas.</div>
@@ -275,78 +357,119 @@ export default function RecomendadosPage() {
         if (!d.enabled) {
           return <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 text-[#1C2230]">Las recomendaciones todavía no están activas.</div>;
         }
+        if (d.status === "calculando") {
+          return (
+            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 flex items-center gap-4 text-[#1C2230]">
+              <div className="relative w-10 h-10">
+                <div className="absolute inset-0 rounded-full border-4 border-[#E6F4F7]" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#1E8EA3] border-t-transparent animate-spin" />
+              </div>
+              <div>
+                <p className="font-bold">Estamos leyendo los perfiles…</p>
+                <p className="text-sm">En un momento aparecen ordenados.</p>
+              </div>
+            </div>
+          );
+        }
+        const destacados = d.applicants.filter(a => a.recommended).slice(0, DESTACADOS);
+        const muyBien = d.applicants.filter(a => a.score >= 80).length;
         return (
           <>
-            {d.disclaimer && (
-              <div className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-2xl p-4 mb-5 flex gap-3">
-                <InformationCircleIcon className="w-5 h-5 text-[#187B8E] shrink-0 mt-0.5" />
-                <p className="text-sm text-[#1C2230]">{d.disclaimer}</p>
+            {d.applicants.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-5">
+                <span className="text-sm font-bold text-[#0F5E6C] bg-[#E6F4F7] rounded-full px-3 py-1.5">
+                  {muyBien} {muyBien === 1 ? "encaja" : "encajan"} muy bien
+                </span>
+                <span className="text-sm font-bold text-[#1C2230] bg-white border border-[#DDE3EC] rounded-full px-3 py-1.5">
+                  {d.applicants.length + (d.unscored_applicants?.length ?? 0)} postulantes
+                </span>
+                {d.talent.length > 0 && (
+                  <span className="text-sm font-bold text-[#5C3B22] bg-[#F7EFE9] rounded-full px-3 py-1.5">
+                    +{d.talent.length} de la Base de Talento
+                  </span>
+                )}
               </div>
             )}
 
-            {d.status === "calculando" ? (
-              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-8 flex items-center gap-3 text-[#1C2230]">
-                <div className="w-5 h-5 border-2 border-[#187B8E] border-t-transparent rounded-full animate-spin" />
-                Estamos calculando las recomendaciones de esta búsqueda…
-              </div>
-            ) : (
-              <>
-                {(d.requirements.length > 0 || d.discarded_requirements.length > 0) && (
-                  <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 mb-5">
-                    <p className="font-bold text-[#1C2230] mb-2">Requisitos que se tienen en cuenta</p>
-                    <ul className="flex flex-wrap gap-2 mb-1">
-                      {d.requirements.map(q => (
-                        <li key={q.id} className={`text-xs font-bold px-2.5 py-1 rounded-full border ${q.tipo === "excluyente" ? "border-[#187B8E] text-[#187B8E]" : "border-[#DDE3EC] text-[#1C2230]"}`}>
-                          {q.texto}{q.tipo === "excluyente" ? " · excluyente" : ""}
-                        </li>
-                      ))}
-                    </ul>
-                    {d.discarded_requirements.length > 0 && (
-                      <p className="text-sm text-[#1C2230] mt-3">
-                        <strong>No se usan para ordenar</strong> (son datos protegidos):{" "}
-                        {d.discarded_requirements.map(x => x.texto).join(" · ")}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <h2 className="font-display font-bold text-lg text-[#1C2230] mb-2">Postulantes ({d.applicants.length})</h2>
-                <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden mb-8 shadow-sm">
-                  {d.applicants.length === 0 ? (
-                    <p className="p-8 text-center text-[#1C2230]">Esta búsqueda todavía no tiene postulantes.</p>
-                  ) : d.applicants.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId} />)}
+            {destacados.length > 0 && (
+              <section className="mb-8">
+                <h2 className="font-display font-bold text-lg text-[#1C2230] mb-3">Para mirar primero</h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {destacados.map((r, i) => (
+                    <Destacado key={r.candidate_ref} r={r} puesto={i + 1} requisitos={d.requirements}
+                               onFeedback={feedback} onAbrir={abrirDesdeDestacado} />
+                  ))}
                 </div>
-
-                {(d.unscored_applicants?.length ?? 0) > 0 && (
-                  <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 mb-8 shadow-sm">
-                    <h3 className="font-display font-bold text-base text-[#1C2230] mb-1">
-                      Postulantes sin puntaje ({d.unscored_applicants!.length})
-                    </h3>
-                    <p className="text-sm text-[#1C2230] mb-3">
-                      No tienen puntaje porque pidieron que su perfil no se use en recomendaciones o porque todavía no se
-                      calculó. Son postulantes como cualquier otro: revisalos en{" "}
-                      <Link href="/dashboard/company/postulaciones" className="font-bold text-[#187B8E] underline">Postulaciones</Link>.
-                    </p>
-                    <ul className="text-sm text-[#1C2230] flex flex-wrap gap-2">
-                      {d.unscored_applicants!.map(u => (
-                        <li key={u.application_id} className="px-3 py-1 rounded-full bg-[#FAFBFD] border border-[#DDE3EC]">{u.name}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <h2 className="font-display font-bold text-lg text-[#1C2230] mb-1">De la Base de Talento</h2>
-                <p className="text-sm text-[#1C2230] mb-2">
-                  Perfiles que no se postularon pero encajan (hasta {d.talent_limit}). Los datos se ven al desbloquearlos en la{" "}
-                  <Link href="/dashboard/company/talento" className="font-bold text-[#187B8E] underline">Base de Talento</Link>.
-                </p>
-                <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden shadow-sm">
-                  {d.talent.length === 0 ? (
-                    <p className="p-8 text-center text-[#1C2230]">Por ahora no hay perfiles de la Base de Talento para esta búsqueda.</p>
-                  ) : d.talent.map(r => <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId} />)}
-                </div>
-              </>
+              </section>
             )}
+
+            <section className="mb-8">
+              <div className="flex flex-wrap items-end justify-between gap-2 mb-2">
+                <h2 className="font-display font-bold text-lg text-[#1C2230]">Todos los postulantes</h2>
+                <Link href="/dashboard/company/postulaciones" className="inline-flex items-center gap-1 text-sm font-bold text-[#187B8E] hover:underline">
+                  Ir a Postulaciones <ArrowRightIcon className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+              <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden shadow-sm">
+                {d.applicants.length === 0 ? (
+                  <p className="p-8 text-center text-[#1C2230]">Esta búsqueda todavía no tiene postulantes.</p>
+                ) : d.applicants.map(r => (
+                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId}
+                        abierto={abierto === r.candidate_ref} onToggle={() => setAbierto(a => a === r.candidate_ref ? null : r.candidate_ref)} />
+                ))}
+              </div>
+
+              {(d.unscored_applicants?.length ?? 0) > 0 && (
+                <div className="mt-3 bg-white border border-[#DDE3EC] rounded-2xl p-4">
+                  <p className="text-sm text-[#1C2230] mb-2">
+                    <strong>Sin puntaje ({d.unscored_applicants!.length}):</strong> pidieron no usar su perfil o todavía no se calculó. Revisalos igual en Postulaciones.
+                  </p>
+                  <ul className="flex flex-wrap gap-2 text-sm text-[#1C2230]">
+                    {d.unscored_applicants!.map(u => (
+                      <li key={u.application_id} className="px-3 py-1 rounded-full bg-[#FAFBFD] border border-[#DDE3EC]">{u.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            <section className="mb-8">
+              <h2 className="font-display font-bold text-lg text-[#1C2230]">De la Base de Talento</h2>
+              <p className="text-sm text-[#1C2230] mb-2">
+                No se postularon pero encajan. Desbloquealos en la{" "}
+                <Link href="/dashboard/company/talento" className="font-bold text-[#187B8E] underline">Base de Talento</Link>.
+              </p>
+              <div className="bg-white border border-[#DDE3EC] rounded-2xl divide-y divide-[#DDE3EC]/60 overflow-hidden shadow-sm">
+                {d.talent.length === 0 ? (
+                  <p className="p-8 text-center text-[#1C2230]">Por ahora no hay perfiles para esta búsqueda.</p>
+                ) : d.talent.map(r => (
+                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId}
+                        abierto={abierto === r.candidate_ref} onToggle={() => setAbierto(a => a === r.candidate_ref ? null : r.candidate_ref)} />
+                ))}
+              </div>
+            </section>
+
+            {(d.requirements.length > 0 || d.discarded_requirements.length > 0) && (
+              <details className="bg-white border border-[#DDE3EC] rounded-2xl p-4 mb-4 group">
+                <summary className="cursor-pointer font-bold text-[#1C2230] text-sm list-none flex items-center justify-between">
+                  Qué se tiene en cuenta ({d.requirements.length} requisitos)
+                  <ChevronDownIcon className="w-4 h-4 group-open:rotate-180 transition-transform" />
+                </summary>
+                <ul className="flex flex-wrap gap-2 mt-3">
+                  {d.requirements.map(q => (
+                    <li key={q.id} className={`text-xs font-bold px-2.5 py-1 rounded-full border ${q.tipo === "excluyente" ? "border-[#187B8E] text-[#187B8E]" : "border-[#DDE3EC] text-[#1C2230]"}`}>
+                      {q.texto}{q.tipo === "excluyente" ? " · excluyente" : ""}
+                    </li>
+                  ))}
+                </ul>
+                {d.discarded_requirements.length > 0 && (
+                  <p className="text-sm text-[#1C2230] mt-3">
+                    <strong>No se usan</strong> (datos protegidos): {d.discarded_requirements.map(x => x.texto).join(" · ")}
+                  </p>
+                )}
+              </details>
+            )}
+            {d.disclaimer && <p className="text-xs text-[#1C2230]">{d.disclaimer}</p>}
           </>
         );
       })()}

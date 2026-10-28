@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc, func
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import uuid
 from pydantic import BaseModel
 from typing import Optional
@@ -55,6 +55,33 @@ async def count_unread_notifications(
         )
     )
     return {"count": result.scalar() or 0}
+
+
+# Avisos que el panel muestra además como cartel emergente (Gael, 28/10/2026: "que cuando te
+# llegue sea un mensaje saliendo en pantalla"). Sólo los no leídos y recientes: uno viejo ya no
+# es noticia. Qué cartel ya se mostró lo recuerda el navegador; leerlo lo saca de acá.
+HIGHLIGHT_TYPES = ("recommended_candidates_new", "admin_ai_new_fits", "skill_suggestions_ready")
+HIGHLIGHT_MAX_AGE = timedelta(days=3)
+HIGHLIGHT_LIMIT = 3
+
+
+@router.get("/me/notifications/highlights", response_model=List[NotificationResponse])
+async def list_my_highlights(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Notification)
+        .where(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False,
+            Notification.type.in_(HIGHLIGHT_TYPES),
+            Notification.created_at >= datetime.now(timezone.utc) - HIGHLIGHT_MAX_AGE,
+        )
+        .order_by(desc(Notification.created_at))
+        .limit(HIGHLIGHT_LIMIT)
+    )
+    return result.scalars().all()
 
 
 @router.patch("/me/notifications/{notification_id}/read", response_model=NotificationResponse)

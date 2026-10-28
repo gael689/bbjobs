@@ -7,18 +7,21 @@ import EnDesarrollo from "@/components/dashboard/EnDesarrollo";
 import Recomendados from "@/components/admin-ia/Recomendados";
 import Actividad from "@/components/admin-ia/Actividad";
 import Acciones from "@/components/admin-ia/Acciones";
+import Panorama from "@/components/admin-ia/Panorama";
 import { Aviso, Spinner, type ResumenActividad } from "@/components/admin-ia/comun";
 
 /**
- * Centro de IA (pedido de Gael: "Talency debe ver todo"). Tres pestañas:
+ * Centro de IA (pedido de Gael: "Talency debe ver todo"). Cuatro pestañas:
+ * - Panorama: estado, rendimiento, uso y gasto, y las mejores coincidencias (28/10/2026).
  * - Recomendados: los de cualquier búsqueda, con lo que Talency necesita para gestionar.
  * - Actividad: qué hizo la IA (lecturas de CV, recálculos, resúmenes, moderación…), con alertas.
  * - Acciones: lanzar a mano lo que la IA hace sola, con confirmación y dentro del tope de gasto.
  * Módulo en desarrollo: con la compuerta cerrada el backend responde 404 y se ve el cartel.
  */
-type Pestana = "recomendados" | "actividad" | "acciones";
+type Pestana = "panorama" | "recomendados" | "actividad" | "acciones";
 
 const PESTANAS: { clave: Pestana; label: string }[] = [
+  { clave: "panorama", label: "Panorama" },
   { clave: "recomendados", label: "Recomendados" },
   { clave: "actividad", label: "Actividad" },
   { clave: "acciones", label: "Acciones" },
@@ -26,7 +29,7 @@ const PESTANAS: { clave: Pestana; label: string }[] = [
 
 export default function CentroIaPage() {
   const resumen = useModulo<ResumenActividad>("/admin/ai/activity/summary");
-  const [pestana, setPestana] = useState<Pestana>("recomendados");
+  const [pestana, setPestana] = useState<Pestana>("panorama");
   const [jobAbierto, setJobAbierto] = useState<string | null>(null);
 
   if (resumen.estado === "en_desarrollo") {
@@ -70,6 +73,8 @@ export default function CentroIaPage() {
         <div className="py-12 flex justify-center"><Spinner /></div>
       ) : resumen.estado === "error" ? (
         <Aviso tono="error">{resumen.mensaje}</Aviso>
+      ) : pestana === "panorama" ? (
+        <Panorama onVerBusqueda={id => { setJobAbierto(id); setPestana("recomendados"); }} />
       ) : pestana === "recomendados" ? (
         <Recomendados jobInicial={jobAbierto} onJobAbierto={setJobAbierto} />
       ) : pestana === "actividad" ? (

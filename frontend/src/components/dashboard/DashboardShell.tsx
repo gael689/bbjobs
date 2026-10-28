@@ -9,6 +9,8 @@ import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon } from "
 import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NovedadesVersion, { MarcaVersion } from "@/components/dashboard/NovedadesVersion";
+import AvisoEmergente from "@/components/notifications/AvisoEmergente";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 const NAV_BADGE_POLL_MS = 45_000;
 
@@ -235,6 +237,8 @@ export default function DashboardShell({
 
       {/* Contenido */}
       <main className="flex-1 min-w-0">{children}</main>
+      {/* Los avisos que salen en pantalla son de los módulos nuevos (IA): con la compuerta cerrada, ni se consultan. */}
+      {MODULOS_NUEVOS_VISIBLES && <AvisoEmergente />}
       {role !== "candidate" && <NovedadesVersion rol={role} />}
     </div>
   );

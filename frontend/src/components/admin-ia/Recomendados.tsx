@@ -13,6 +13,7 @@ import {
   Aviso, Confirmar, MOTIVOS, Spinner, fecha, usd, useFichaCandidato,
   type BusquedaIA, type DetalleBusqueda, type RecomendadoAdmin, type Requisito, type Veredicto,
 } from "./comun";
+import { NivelChip, PuntajeAnillo, RequisitosBarra } from "@/components/recomendados/Visual";
 
 const VEREDICTO: Record<Veredicto, { simbolo: string; label: string; cls: string }> = {
   si: { simbolo: "✓", label: "Cumple", cls: "text-green-800" },
@@ -55,9 +56,7 @@ function FilaRecomendado({ r, requisitos, jobId, onFicha, onReleerCv }: {
   return (
     <div className="px-4 sm:px-5 py-4">
       <div className="flex flex-wrap items-start gap-3">
-        <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] text-[#187B8E] flex items-center justify-center shrink-0">
-          <span className="text-lg font-display font-extrabold leading-none">{r.score}</span>
-        </div>
+        <PuntajeAnillo score={r.score} size={52} />
         <div className="flex-1 min-w-[200px]">
           <p className="font-bold text-[#1C2230] flex flex-wrap items-center gap-2">
             {r.locked && <LockClosedIcon className="w-4 h-4 text-[#5C3B22]" aria-label="Perfil ciego" />}
@@ -65,7 +64,7 @@ function FilaRecomendado({ r, requisitos, jobId, onFicha, onReleerCv }: {
             {r.name && <span className="text-xs font-semibold">{r.candidate_ref}</span>}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-1">
-            {r.recommended && <Chip tono="teal">Recomendado</Chip>}
+            <NivelChip score={r.score} />
             {r.source === "talent" && <Chip tono="naranja">Base de Talento</Chip>}
             {r.unlocked && <Chip tono="teal">Desbloqueado por la empresa</Chip>}
             {r.source === "talent" && !r.shown_to_company && <Chip>La empresa no lo ve (fuera de su cupo)</Chip>}
@@ -86,6 +85,7 @@ function FilaRecomendado({ r, requisitos, jobId, onFicha, onReleerCv }: {
               )}
             </div>
           )}
+          {r.evaluations.length > 0 && <div className="mt-2"><RequisitosBarra evaluaciones={r.evaluations} texto={texto} /></div>}
           <p className="text-xs text-[#1C2230] mt-1.5">
             Perfil {Math.round(r.coverage * 100)} % completo · datos cargados {Math.round(r.hybrid_fit * 100)} %
             {r.semantic_pct != null && <> · parecido con los requisitos {Math.round(r.semantic_pct * 100)} %</>}

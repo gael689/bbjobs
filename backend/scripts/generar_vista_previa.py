@@ -231,8 +231,7 @@ CAMPANITA: dict[str, tuple[str, str, str | None]] = {
     "talent_pack_rejected": ("El pago no se acreditó",
         "Tu pago del pack de la Base de Talento fue rechazado o cancelado. Podés volver a intentarlo desde tu panel.", "/dashboard/company/talento"),
     "talent_pack_low": ("Te quedan pocos contactos", "Te quedan 2 contactos de la Base de Talento.", "/dashboard/company/talento"),
-    "recommended_candidates_new": ("Hay candidatos nuevos que encajan con tus búsquedas",
-        f"Encontramos 3 perfiles que encajan con '{JOB}'. Miralos en Recomendados.", "/dashboard/company/recomendados"),
+    "recommended_candidates_new": ("3 candidatos que encajan", f"Para {JOB}.", "/dashboard/company/recomendados"),
     "admin_payment_received": ("Nuevo pago recibido", f"Se acreditaron $15000 ARS por destacar '{JOB}'.", "/dashboard/admin/pagos"),
     "admin_payment_refunded": ("Pago devuelto o desconocido",
         "Mercado Pago informa que se devolvió un pago de $15000 ARS por un destacado.", "/dashboard/admin/pagos"),
@@ -284,6 +283,7 @@ SIN_MAIL = {
     "job_pending_review": ("admin", "Una empresa publica una búsqueda", "Va en el resumen del equipo"),
     "contact_message_received": ("admin", "Llega un mensaje de Contacto", "Va en el resumen del equipo"),
     "admin_campaign_weekly_ready": ("admin", "Se arma el borrador semanal de búsquedas", "Sólo en la campanita de la web"),
+    "admin_ai_new_fits": ("admin", "De noche, la IA encuentra candidatos que encajan", "Cartel en pantalla y campanita de la web"),
 }
 
 # Datos inventados para las variables de cada mail.

@@ -8,6 +8,7 @@ import {
   BellIcon,
   UserCircleIcon,
   ClockIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import type { ComponentType, SVGProps } from "react";
 
@@ -91,9 +92,12 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   // Perfil del candidato
   profile_incomplete: { ...TEAL, icon: UserCircleIcon },
   // Habilidades que muestra su CV (IA, sólo en la web)
-  skill_suggestions_ready: { ...TEAL, icon: UserCircleIcon },
+  skill_suggestions_ready: { ...TEAL, icon: SparklesIcon },
   // Borrador semanal de campaña (sólo en la web; nunca sale sin aprobación)
   admin_campaign_weekly_ready: { ...TEAL, icon: BellAlertIcon },
+  // Recomendaciones de la IA (también salen como cartel emergente, ver AvisoEmergente.tsx)
+  recommended_candidates_new: { ...TEAL, icon: SparklesIcon },
+  admin_ai_new_fits: { ...TEAL, icon: SparklesIcon },
 };
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationTypeConfig = {
