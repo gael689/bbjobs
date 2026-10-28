@@ -59,9 +59,11 @@ def test_empty_variable_paragraph_is_dropped():
     assert "**Motivo:** Falta el CUIT" in con.body
 
 
-def test_visible_company_message_goes_inside_the_mail():
+def test_company_message_never_goes_inside_the_candidate_mail():
+    """Las observaciones de las empresas son privadas (Eugenia, 22/10/2026): aunque alguien le
+    pase `mensaje_empresa` al render, el mail del postulante no lo muestra."""
     _, r = _build("application_discarded", nombre="Ana", puesto="X", mensaje_empresa="Gracias por postularte")
-    assert "Mensaje de la empresa:" in r.html and "Gracias por postularte" in r.html
+    assert "Mensaje de la empresa" not in r.html and "Gracias por postularte" not in r.html
 
 
 def test_signature_and_manage_link():

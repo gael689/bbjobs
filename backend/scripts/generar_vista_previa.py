@@ -68,14 +68,11 @@ META: list[tuple[str, str | None, str, str, str, str]] = [
     ("application_selected", "C5", "Fuiste seleccionado/a", "c_postulacion",
      "Cuando la empresa pasa la postulación a «Seleccionado».", "Una vez por cambio de estado."),
     ("application_discarded", "C6", "No avanza – revisión de perfil", "c_postulacion",
-     "Cuando la empresa elige «No avanza – revisión de perfil». Si dejó un mensaje visible, va adentro (en este ejemplo, sí).",
+     "Cuando la empresa elige «No avanza – revisión de perfil». Las observaciones de la empresa son privadas: nunca van en el mail.",
      "Sale 24 horas después, y sólo si la empresa no cambió de idea."),
     ("application_discarded_interview", "C7", "No avanza – después de entrevistas", "c_postulacion",
      "Cuando la empresa elige «No avanza – después de entrevistas».",
      "Sale 24 horas después, y sólo si la empresa no cambió de idea."),
-    ("application_note", None, "Mensaje de la empresa", "c_postulacion",
-     "Cuando la empresa le deja un mensaje visible sin cambiar el estado. Las notas privadas no avisan nada.",
-     "Como mucho uno por día."),
     ("talent_profile_unlocked", "C8", "Una empresa vio tu perfil", "c_perfil",
      "Cuando una empresa abre su perfil completo en la base de candidatos.", "Como mucho uno por día."),
     ("profile_incomplete", "C9", "Perfil incompleto", "c_perfil",
@@ -186,7 +183,6 @@ CAMPANITA: dict[str, tuple[str, str, str | None]] = {
         f"Tu postulación a '{JOB}' no avanzó en esta oportunidad. ¡Seguí participando en otras búsquedas!",
         "/dashboard/candidate/postulaciones"),
     "application_seen": ("Una empresa vio tu CV", f"Logística Sur revisó tu perfil para la búsqueda '{JOB}'.", "/dashboard/candidate/postulaciones"),
-    "application_note": ("La empresa te dejó un mensaje", f"Logística Sur te dejó un mensaje sobre tu postulación a '{JOB}'.", "/dashboard/candidate/postulaciones"),
     "profile_incomplete": ("Tu perfil está incompleto",
         "Tu perfil está 60% completo. Las empresas ven que te falta cargar datos — completalo para destacar frente a otros candidatos.",
         "/dashboard/candidate/perfil"),
@@ -292,8 +288,6 @@ SIN_MAIL = {
 
 # Datos inventados para las variables de cada mail.
 VARS: dict[str, dict] = {
-    "application_discarded": {"mensaje_empresa": "Buscamos a alguien con carnet de autoelevador vigente. ¡Gracias por postularte!"},
-    "application_note": {"mensaje_empresa": "Gracias por postularte. La semana que viene llamamos a entrevistas."},
     "profile_incomplete": {"porcentaje": 60},
     "company_rejected": {"detalle": "No pudimos validar el CUIT con el nombre de la empresa."},
     "job_rejected": {"detalle": "El aviso pide una edad determinada: no se puede publicar así."},

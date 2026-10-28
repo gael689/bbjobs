@@ -68,15 +68,13 @@ export interface Application {
   created_at: string;
 }
 
-/** Línea de tiempo de una postulación: cambios de estado y, con los módulos nuevos, los
- *  mensajes que la empresa marcó para que los vea el postulante (`kind: "note"`). Las notas
- *  privadas de la empresa nunca llegan acá. */
+/** Línea de tiempo de una postulación: cambios de estado. Las observaciones de la empresa son
+ *  privadas y nunca llegan acá. */
 export interface ApplicationHistoryItem {
   id: string;
-  kind?: "status" | "note";
+  kind?: "status";
   from_status?: string | null;
   to_status?: string | null;
-  note?: string | null;
   created_at: string;
 }
 

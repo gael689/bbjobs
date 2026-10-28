@@ -126,13 +126,13 @@ function Postulaciones() {
     guardarEstado(app, status);
   }
 
-  async function guardarEstado(app: Application, status: string, note?: string, noteVisible?: boolean) {
+  async function guardarEstado(app: Application, status: string, note?: string, noteTags?: string[]) {
     try {
       await api.patch(`/me/company/applications/${app.id}/status`, {
         status,
-        ...(note ? { note, note_visible: !!noteVisible } : {}),
+        ...(note ? { note, note_tags: noteTags ?? [] } : {}),
       });
-      if (note) toast(noteVisible ? "Estado y nota guardados. El postulante va a ver la nota." : "Estado y nota privada guardados.");
+      if (note) toast("Estado y observación guardados. La observación es privada.");
       const vistaAhora = !app.seen_at && status !== "new";
       postulaciones.actualizarItems(prev => prev.map(a => (
         a.id === app.id ? { ...a, status, seen_at: vistaAhora ? new Date().toISOString() : a.seen_at } : a
@@ -376,8 +376,8 @@ function Postulaciones() {
         cvLinkEndpoint={candidateProfile
           ? `/me/company/candidates/${candidateProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
           : undefined}
-        footer={MODULOS_NUEVOS_VISIBLES && abiertaDesde
-          ? <NotasPostulacion key={abiertaDesde} applicationId={abiertaDesde} />
+        footer={MODULOS_NUEVOS_VISIBLES && candidateProfile
+          ? <NotasPostulacion key={candidateProfile.id} candidateId={candidateProfile.id} applicationId={abiertaDesde} />
           : undefined}
       />
 
@@ -387,8 +387,8 @@ function Postulaciones() {
           status={cambioPendiente.status}
           estadoLabel={APP_STATUS_LABEL[cambioPendiente.status]?.label ?? cambioPendiente.status}
           onCancelar={() => setCambioPendiente(null)}
-          onConfirmar={async (nota, visible) => {
-            await guardarEstado(cambioPendiente.app, cambioPendiente.status, nota, visible);
+          onConfirmar={async (nota, tags) => {
+            await guardarEstado(cambioPendiente.app, cambioPendiente.status, nota, tags);
             setCambioPendiente(null);
           }}
         />

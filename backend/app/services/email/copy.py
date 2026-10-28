@@ -8,10 +8,13 @@ misma voz y esperan su visto bueno. `confirmar` lista las preguntas abiertas par
 (MEJORAS-Y-MAILS-EMPRESAS-OCTUBRE-PLAN.md §3, P8–P13) que afectan a ese texto: la vista previa
 las muestra como "A confirmar".
 
+Los textos `eugenia` incluyen los que ella aprobó tal como estaban propuestos (22/10/2026: P8,
+P9, P10, P12 y P13). Quedan abiertas sólo las preguntas que siguen en `confirmar`.
+
 Dos voces (`voice`):
 - `candidato`: "¡Hola, X!", una línea en negrita y la firma "BBJobs. El talento de Bahía, más
   cerca." al pie.
-- `empresa` (E3 en adelante): "Hola, X:", sin línea en negrita, el renglón de WhatsApp de
+- `empresa` (E1 en adelante; E1 y E2 pasaron a esta voz el 22/10/2026): "Hola, X:", sin línea en negrita, el renglón de WhatsApp de
   Talency (`help_whatsapp`) y "Saludos, / Equipo de BBJobs / Una iniciativa de Talency".
   En `help_whatsapp`, `{whatsapp}` lo reemplaza el render con el número y el link de
   `settings.TALENCY_WHATSAPP`: nunca sale de texto de un usuario.
@@ -50,7 +53,6 @@ COMPANY_PROFILE = "/dashboard/company/perfil"
 COMPANY_TALENT = "/dashboard/company/talento"
 COMPANY_RECOMMENDED = "/dashboard/company/recomendados"
 
-COMPANY_MESSAGE_LABEL = "Mensaje de la empresa:"
 WHATSAPP_TOKEN = "{whatsapp}"
 
 
@@ -126,8 +128,6 @@ def fill_copy(copy: MailCopy, variables: dict[str, object], default_link: str | 
         fill(p, values).strip() for p in copy.paragraphs
         if not (names := _VAR.findall(p)) or any(values.get(n) for n in names)
     ]
-    if values.get("mensaje_empresa"):
-        paragraphs.append(f"**{COMPANY_MESSAGE_LABEL}** {values['mensaje_empresa']}")
     return FilledCopy(
         subject=fill(copy.subject, values).strip(),
         heading=fill(copy.heading, values).strip(),
@@ -239,11 +239,6 @@ COPY: dict[str, MailCopy] = {
         "Ver oportunidades", JOBS, E),
 
     # ══ Postulante — propuestos con la misma voz ═══════════════════════════════════════
-    "application_note": MailCopy(
-        "Tenés un mensaje sobre tu postulación a {puesto}",
-        "Tenés un mensaje sobre tu postulación",
-        ("El equipo responsable de la búsqueda de **{puesto}** te dejó un mensaje.",),
-        "Ver mi postulación", CANDIDATE_APPS),
     # Estados que ya no se eligen (Eugenia los sacó el 08/10) pero existen en postulaciones viejas.
     "application_contacted": MailCopy(
         "Novedades sobre tu postulación a {puesto}",
@@ -258,26 +253,29 @@ COPY: dict[str, MailCopy] = {
          "Prestá atención a tu correo y teléfono: podrán contactarte para los próximos pasos."),
         "Ver mi postulación", CANDIDATE_APPS),
 
-    # ══ Empresa — textos de Eugenia (E1 y E2, 08/10/2026: con el estilo de los candidatos) ══
+    # ══ Empresa — textos de Eugenia (E1 y E2, 08/10/2026; con el estilo de empresa desde el 22/10) ══
     "welcome_company": MailCopy(
         "Recibimos el registro de {empresa} en BBJobs",
-        "¡Gracias por registrar tu empresa en BBJobs!",
+        "",
         ("Recibimos los datos de **{empresa}**.",
          "El equipo de Talency los revisará para validar el registro y habilitar la publicación de "
          "búsquedas.",
          "Te avisaremos por correo cuando tu empresa esté habilitada.",
          "Si necesitamos algún dato adicional, nos pondremos en contacto con vos. Por ahora, no "
          "necesitás realizar ninguna acción."),
-        None, None, E, button=False, confirmar=("P12",)),
+        None, None, E, EMP,
+        "Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}.",
+        button=False),
     "company_verified": MailCopy(
         "{empresa} ya puede publicar búsquedas en BBJobs",
-        "¡Tu empresa ya está habilitada!",
+        "",
         ("Verificamos el registro de **{empresa}**. Ya podés publicar búsquedas laborales y recibir "
          "postulaciones en BBJobs.",
          "Para empezar, cargá el puesto que necesitás cubrir, sus tareas y requisitos. Una "
          "descripción clara ayuda a los candidatos a entender la propuesta y decidir si postularse.",
          "Desde tu cuenta vas a poder revisar los perfiles recibidos y gestionar cada postulación."),
-        "Publicar una búsqueda", COMPANY_PUBLISH, E, confirmar=("P12",)),
+        "Publicar una búsqueda", COMPANY_PUBLISH, E, EMP,
+        "Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}."),
 
     # ══ Empresa — textos de Eugenia (E3–E21, 19/10/2026: "Hola, X:", WhatsApp y "Saludos") ══
     # Los asuntos que no estaban en el PDF salen del título de cada aviso (P12).
@@ -291,7 +289,7 @@ COPY: dict[str, MailCopy] = {
         "Revisar datos de mi empresa", COMPANY_PROFILE, E, EMP,
         "Si necesitás ayuda con la verificación, escribinos por WhatsApp al {whatsapp} y te "
         "orientamos para completar el proceso.",
-        confirmar=("P11",), subject_proposed=True),
+        confirmar=("P11",)),
     # E4. Su texto no tiene saludo ni botón; el saludo lo sumamos (P12).
     "company_suspended": MailCopy(
         "Tu empresa fue suspendida", "",
@@ -301,7 +299,7 @@ COPY: dict[str, MailCopy] = {
         None, None, E, EMP,
         "Para conocer el motivo y recibir orientación sobre los pasos a seguir, escribinos por "
         "WhatsApp al {whatsapp}.",
-        button=False, confirmar=("P12",), subject_proposed=True),
+        button=False),
     # E5
     "company_reactivated": MailCopy(
         "Tu empresa ya puede volver a operar en BBJobs", "",
@@ -319,8 +317,7 @@ COPY: dict[str, MailCopy] = {
          "trabajo. Una vez aprobada la publicación, estará disponible para quienes buscan empleo en "
          "Bahía Blanca y la zona."),
         "Publicar una búsqueda", COMPANY_PUBLISH, E, EMP,
-        "Si necesitás ayuda para crear tu primer aviso, escribinos por WhatsApp al {whatsapp}.",
-        confirmar=("P12",), subject_proposed=True),
+        "Si necesitás ayuda para crear tu primer aviso, escribinos por WhatsApp al {whatsapp}."),
     # E7. "Ver mi publicación" lleva a la ficha pública (`{enlace}`, ver admin.py).
     "job_approved": MailCopy(
         "Tu publicación fue aprobada", "",
@@ -329,19 +326,18 @@ COPY: dict[str, MailCopy] = {
          "Desde tu cuenta podés consultar las postulaciones recibidas, revisar los perfiles y "
          "gestionar el avance de los candidatos."),
         "Ver mi publicación", None, E, EMP,
-        "Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
-    # E8. Sin "Motivo" en el mail: se consulta en la cuenta (P11).
+        "Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}."),
+    # E8. El motivo sí va en el mail (22/10/2026); sin motivo cargado, ese párrafo se omite.
     "job_rejected": MailCopy(
         "Revisá tu publicación para continuar", "",
         ("Revisamos tu publicación para el puesto de **{puesto}** y necesitamos que realices algunos "
          "ajustes antes de aprobarla.",
-         "Ingresá a tu cuenta para consultar el motivo, modificar la información indicada y enviar "
-         "nuevamente el aviso para su revisión."),
+         "**Motivo:** {detalle}",
+         "Ingresá a tu cuenta para modificar la información indicada y enviar nuevamente el aviso "
+         "para su revisión."),
         "Revisar mi publicación", COMPANY_MY_JOBS, E, EMP,
         "Si tenés alguna consulta o necesitás ayuda con los cambios, escribinos por WhatsApp al "
-        "{whatsapp}.",
-        confirmar=("P11",)),
+        "{whatsapp}."),
     # E9. La ficha pública ya no existe: "Ver mi publicación" lleva a Mis búsquedas.
     "job_takedown": MailCopy(
         "Tu publicación fue dada de baja", "",
@@ -350,8 +346,7 @@ COPY: dict[str, MailCopy] = {
          "postulaciones.",),
         "Ver mi publicación", COMPANY_MY_JOBS, E, EMP,
         "Para conocer el motivo de la baja y recibir orientación sobre los pasos a seguir, "
-        "escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
+        "escribinos por WhatsApp al {whatsapp}."),
     # E10
     "job_reopened": MailCopy(
         "Tu publicación volvió a estar activa", "",
@@ -359,8 +354,7 @@ COPY: dict[str, MailCopy] = {
          "vuelve a estar visible en BBJobs y puede recibir nuevas postulaciones.",
          "Ingresá a tu cuenta para consultar los perfiles y continuar gestionando tu búsqueda."),
         "Ver mi publicación", None, E, EMP,
-        "Si necesitás ayuda o tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
+        "Si necesitás ayuda o tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
     # E11. En su texto el WhatsApp va antes del botón; acá va después, como en todos.
     "job_deleted": MailCopy(
         "Tu publicación fue eliminada", "",
@@ -368,8 +362,7 @@ COPY: dict[str, MailCopy] = {
          "equipo de BBJobs. El aviso ya no está disponible en la plataforma y no recibe nuevas "
          "postulaciones.",),
         "Ir a mi cuenta", COMPANY_HOME, E, EMP,
-        "Para conocer el motivo o realizar una consulta, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
+        "Para conocer el motivo o realizar una consulta, escribinos por WhatsApp al {whatsapp}."),
     # E12. "{dias}" en lugar de "3 días" fijo: si la búsqueda dura menos, el aviso llega antes (P8).
     "job_expiring_soon": MailCopy(
         "Tu publicación está por vencer", "",
@@ -381,8 +374,7 @@ COPY: dict[str, MailCopy] = {
          "candidatos."),
         "Gestionar mi búsqueda", COMPANY_APPS, E, EMP,
         "Si todavía necesitás cubrir el puesto, escribinos por WhatsApp al {whatsapp} para que "
-        "podamos orientarte sobre cómo continuar.",
-        confirmar=("P8",), subject_proposed=True),
+        "podamos orientarte sobre cómo continuar."),
     # E13. Su texto decía "30 días (o los días que dijimos)": va la duración real de la búsqueda,
     # que es de 20 días como máximo (schemas/job.py) y la empresa puede acortar (P8).
     "job_expired": MailCopy(
@@ -393,8 +385,7 @@ COPY: dict[str, MailCopy] = {
          "candidatos."),
         "Gestionar mi búsqueda", COMPANY_APPS, E, EMP,
         "Si todavía necesitás cubrir el puesto, escribinos por WhatsApp al {whatsapp} para que "
-        "podamos orientarte sobre cómo continuar.",
-        confirmar=("P8",)),
+        "podamos orientarte sobre cómo continuar."),
     # E14
     "job_no_applications": MailCopy(
         "Tu publicación todavía no recibió postulaciones", "",
@@ -417,7 +408,6 @@ COPY: dict[str, MailCopy] = {
          "contratado, para darle mayor visibilidad a tu propuesta."),
         "Ver mi publicación", None, E, EMP,
         "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True,
         variants={"sin_aprobar": MailCopy(
             "Recibimos el pago para destacar tu publicación", "",
             ("Se acreditó el pago del servicio de aviso destacado que contrataste para el puesto de "
@@ -434,8 +424,7 @@ COPY: dict[str, MailCopy] = {
          "cancelado, por lo que el servicio de aviso destacado no se activó.",
          "Podés ingresar a tu cuenta y volver a intentar el pago para completar la contratación."),
         "Reintentar el pago", COMPANY_MY_JOBS, E, EMP,
-        "Si necesitás ayuda o tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
+        "Si necesitás ayuda o tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
     # E17. Sale cuando termina el destacado o cuando Talency lo saca a mano.
     "job_feature_expired": MailCopy(
         "El destacado de tu publicación fue desactivado", "",
@@ -445,8 +434,7 @@ COPY: dict[str, MailCopy] = {
          "búsqueda."),
         "Ir a mi cuenta", COMPANY_HOME, E, EMP,
         "Si tenés alguna consulta sobre el servicio contratado, escribinos por WhatsApp al "
-        "{whatsapp}.",
-        subject_proposed=True),
+        "{whatsapp}."),
     # E18. Sólo cuando la empresa pagó. Si Talency lo regala sale `talent_pack_granted`.
     "talent_pack_active": MailCopy(
         "Ya tenés acceso a la base de candidatos de BBJobs", "",
@@ -476,7 +464,6 @@ COPY: dict[str, MailCopy] = {
          "necesita tu empresa."),
         "Ver perfiles recomendados", COMPANY_RECOMMENDED, E, EMP,
         "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        confirmar=("P10",),
         variants={
             "uno": MailCopy(
                 "Tenés un nuevo perfil recomendado para tu búsqueda", "",
@@ -484,16 +471,16 @@ COPY: dict[str, MailCopy] = {
                  "de **{puesto}**.",
                  "Podés revisarlo en la sección Recomendados de tu cuenta y evaluar si se ajusta a "
                  "lo que necesita tu empresa."),
-                "Ver perfiles recomendados", COMPANY_RECOMMENDED, "propuesto", EMP,
-                "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.", confirmar=("P10",)),
+                "Ver perfiles recomendados", COMPANY_RECOMMENDED, E, EMP,
+                "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
             "varias": MailCopy(
                 "Tenés nuevos perfiles recomendados para tus búsquedas", "",
                 ("Identificamos {cantidad} nuevos perfiles que podrían ajustarse a los requisitos de "
                  "tus búsquedas: **{puestos}**.",
                  "Podés revisarlos en la sección Recomendados de tu cuenta y evaluar si se ajustan a "
                  "lo que necesita tu empresa."),
-                "Ver perfiles recomendados", COMPANY_RECOMMENDED, "propuesto", EMP,
-                "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.", confirmar=("P10",)),
+                "Ver perfiles recomendados", COMPANY_RECOMMENDED, E, EMP,
+                "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
         }),
 
     # ══ Empresa — propuestos (P9 y P13) ════════════════════════════════════════════════
@@ -504,26 +491,23 @@ COPY: dict[str, MailCopy] = {
          "tu empresa.",
          "Tu publicación contará con una ubicación destacada en el portal mientras esté vigente, "
          "para darle mayor visibilidad a tu propuesta."),
-        "Ver mi publicación", None, "propuesto", EMP,
-        "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        confirmar=("P9",)),
+        "Ver mi publicación", None, E, EMP,
+        "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
     "talent_pack_granted": MailCopy(
         "Ya tenés acceso a la base de candidatos de BBJobs", "",
         ("El equipo de BBJobs te habilitó el acceso a la base completa de candidatos de BBJobs para "
          "explorar perfiles e identificar personas que se ajusten a las necesidades de tu empresa.",
          "Tenés {cantidad_contactos} contactos disponibles, que podés utilizar para acceder a los "
          "datos de contacto de los candidatos que te interesen."),
-        "Explorar la base de candidatos", COMPANY_TALENT, "propuesto", EMP,
+        "Explorar la base de candidatos", COMPANY_TALENT, E, EMP,
         "Si necesitás ayuda para comenzar o tenés alguna consulta, escribinos por WhatsApp al "
-        "{whatsapp}.",
-        confirmar=("P9",)),
+        "{whatsapp}."),
     "talent_pack_low": MailCopy(
         "Te quedan pocos contactos en la base de candidatos", "",
         ("{mensaje}",
          "Cuando se terminen, podés sumar un pack nuevo desde tu cuenta."),
-        "Ir a la base de candidatos", COMPANY_TALENT, "propuesto", EMP,
-        "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}.",
-        confirmar=("P13",)),
+        "Ir a la base de candidatos", COMPANY_TALENT, E, EMP,
+        "Si tenés alguna consulta, escribinos por WhatsApp al {whatsapp}."),
 }
 
 
@@ -555,7 +539,7 @@ DIGESTS: dict[str, DigestCopy] = {
         "Hay búsquedas nuevas que coinciden con tu alerta",
         "Se publicaron en BBJobs y coinciden con lo que estás buscando. Revisá los requisitos y "
         "postulate a las que te interesen.",
-        "Ver todas las oportunidades", "Ver búsqueda", confirmar=("P13",)),
+        "Ver todas las oportunidades", "Ver búsqueda", E),
     # E21
     "digest_empresa": DigestCopy(
         "Tu resumen de postulaciones", "",
@@ -564,8 +548,7 @@ DIGESTS: dict[str, DigestCopy] = {
         outro=("Ingresá a tu cuenta para conocer los perfiles y actualizar el estado de cada "
                "candidato. Así, quienes se postularon también podrán recibir novedades sobre su "
                "participación en el proceso."),
-        help_whatsapp="Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}.",
-        subject_proposed=True),
+        help_whatsapp="Si necesitás ayuda, escribinos por WhatsApp al {whatsapp}."),
 }
 
 

@@ -15,6 +15,7 @@ from app.models.company import CompanyProfile
 from app.models.job import JobPosting, Application, ApplicationStatus, JobModerationStatus
 from app.models.catalogs import Skill
 from app.models.history import ApplicationStatusHistory
+from app.models.payment import TalentUnlock
 from app.schemas.application import (
     ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate,
     ApplicationNoteCreate, ApplicationNoteResponse,
@@ -228,13 +229,7 @@ async def my_application_history(
         )
         for h in result.scalars().all()
     ]
-    # Las notas de la empresa: sólo las visibles (visible_notes nunca devuelve una privada).
-    if new_modules_enabled():
-        items += [
-            CandidateApplicationHistoryItem(id=n.id, kind="note", note=n.body, created_at=n.created_at)
-            for n in await application_events.visible_notes(db, application_id)
-        ]
-        items.sort(key=lambda i: i.created_at)
+    # Las observaciones de la empresa son privadas: no salen por ningún endpoint de candidato.
     return items
 
 
@@ -671,12 +666,12 @@ async def update_application_status(
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    # Estado, historial, aviso al postulante y la nota opcional: todo en el servicio. La nota
-    # se ignora con la compuerta de módulos nuevos cerrada.
+    # Estado, historial, aviso al postulante y la observación opcional (privada): todo en el
+    # servicio. La observación se ignora con la compuerta de módulos nuevos cerrada.
     try:
         await application_events.change_status(
             db, company=company, app=app, new_status=payload.status,
-            note=payload.note, note_visible=payload.note_visible,
+            note=payload.note, note_tags=payload.note_tags,
         )
     except application_events.NoteError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
@@ -702,70 +697,93 @@ async def preview_application_status_email(
         raise HTTPException(status_code=404, detail="Postulación no encontrada")
     return await application_events.status_email_preview(
         db, company=company, app=app, new_status=payload.status,
-        note=payload.note, note_visible=payload.note_visible,
     )
 
 
-# ── Notas de la empresa (módulo nuevo, detrás de la compuerta) ────────────────────────
-# Toda consulta filtra por company_id; una postulación o nota de otra empresa da 404 (no 403,
-# para no confirmar que existe). No hay endpoints de admin para leerlas.
+# ── Observaciones de la empresa sobre una persona (módulo nuevo, detrás de la compuerta) ──
+# Siempre privadas: no le llegan al postulante. Toda consulta filtra por company_id; una persona
+# o una observación de otra empresa da 404 (no 403, para no confirmar que existe). Talency las lee
+# en sólo lectura por `GET /admin/candidates/{id}/notes`, con registro de cada lectura.
+
+async def _assert_candidate_accessible(db: AsyncSession, candidate_id: uuid.UUID, company: CompanyProfile) -> None:
+    """La empresa puede anotar sobre una persona que se postuló a una búsqueda suya o que
+    desbloqueó en la Base de Talento. Si no, 404."""
+    postulo = (await db.execute(
+        select(Application.id)
+        .join(JobPosting, Application.job_posting_id == JobPosting.id)
+        .where(Application.candidate_id == candidate_id, JobPosting.company_id == company.id)
+        .limit(1)
+    )).first()
+    desbloqueo = (await db.execute(
+        select(TalentUnlock.id)
+        .where(TalentUnlock.company_id == company.id, TalentUnlock.candidate_id == candidate_id)
+        .limit(1)
+    )).first()
+    if not postulo and not desbloqueo:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+
 
 @router.get(
-    "/me/company/applications/{app_id}/notes",
+    "/me/company/candidates/{candidate_id}/notes",
     response_model=List[ApplicationNoteResponse],
     dependencies=[Depends(require_new_modules)],
 )
-async def list_application_notes(
-    app_id: uuid.UUID,
+async def list_candidate_notes(
+    candidate_id: uuid.UUID,
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
-    app = await application_events.company_application(db, company, app_id)
-    if not app:
-        raise HTTPException(status_code=404, detail="Postulación no encontrada")
-    return await application_events.list_notes(db, company=company, app=app)
+    await _assert_candidate_accessible(db, candidate_id, company)
+    return await application_events.list_candidate_notes(db, company=company, candidate_id=candidate_id)
 
 
 @router.post(
-    "/me/company/applications/{app_id}/notes",
+    "/me/company/candidates/{candidate_id}/notes",
     response_model=ApplicationNoteResponse,
     status_code=201,
     dependencies=[Depends(require_new_modules)],
 )
-async def create_application_note(
-    app_id: uuid.UUID,
+async def create_candidate_note(
+    candidate_id: uuid.UUID,
     payload: ApplicationNoteCreate,
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
-    app = await application_events.company_application(db, company, app_id)
-    if not app:
-        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    await _assert_candidate_accessible(db, candidate_id, company)
+    app = None
+    if payload.application_id is not None:
+        app = await application_events.company_application(db, company, payload.application_id)
+        if not app:
+            raise HTTPException(status_code=404, detail="Postulación no encontrada")
     try:
         nota = await application_events.add_note(
-            db, company=company, app=app, body=payload.body, visible=payload.visible_to_candidate,
+            db, company=company, candidate_id=candidate_id, body=payload.body,
+            application=app, tags=payload.tags,
         )
     except application_events.NoteError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     await db.commit()
     await db.refresh(nota)
+    nota.job_title = None
+    if app is not None:
+        nota.job_title = (await db.execute(
+            select(JobPosting.title).where(JobPosting.id == app.job_posting_id)
+        )).scalar_one_or_none()
     return nota
 
 
 @router.delete(
-    "/me/company/applications/{app_id}/notes/{note_id}",
+    "/me/company/notes/{note_id}",
     status_code=204,
     dependencies=[Depends(require_new_modules)],
 )
-async def delete_application_note(
-    app_id: uuid.UUID,
+async def delete_candidate_note(
     note_id: uuid.UUID,
     company: CompanyProfile = Depends(require_verified_company),
     db: AsyncSession = Depends(get_db),
 ):
-    app = await application_events.company_application(db, company, app_id)
-    if not app or not await application_events.delete_note(db, company=company, app=app, note_id=note_id):
-        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    if not await application_events.delete_note(db, company=company, note_id=note_id):
+        raise HTTPException(status_code=404, detail="Observación no encontrada")
     await db.commit()
 
 

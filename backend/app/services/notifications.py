@@ -28,7 +28,7 @@ async def create_notification(
     SAVEPOINT: si algo del mail falla, se pierde el mail y nunca la acción que lo originó.
 
     `email_vars` completa el texto del mail (`services/email/copy.py`): `puesto`, `empresa`,
-    `porcentaje`, `detalle`, `mensaje_empresa`. El nombre de quien recibe lo pone la cola."""
+    `porcentaje`, `detalle`. El nombre de quien recibe lo pone la cola."""
     notification = Notification(
         user_id=user_id,
         type=type,

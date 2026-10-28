@@ -17,6 +17,8 @@ from app.models.contact import ContactMessage
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
+from app.services import application_events
+from app.schemas.application import AdminCandidateNoteResponse
 from app.services.account_deletion import AccountDeletionError, delete_account, preview_deletion
 from app.services.profile_completion import compute_profile_completion_bulk
 from app.services.applicant_stats import (
@@ -28,7 +30,7 @@ from app.core.urls import job_public_path
 from app.services.job_status import can_admin_reopen
 from app.services.settings import get_all_settings, get_setting, set_setting
 from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
-from app.core.features import new_modules_enabled
+from app.core.features import new_modules_enabled, require_new_modules
 from app.integrations.clerk_client import create_clerk_user
 from app.integrations.cloudinary_client import signed_document_url
 from app.schemas.candidate import calculate_age, CandidateFullProfile
@@ -890,6 +892,36 @@ async def get_candidate_cv_link_admin(
     if not url:
         raise HTTPException(status_code=502, detail="No se pudo generar el link al CV")
     return SignedDocumentLink(url=url)
+
+
+@router.get(
+    "/admin/candidates/{candidate_id}/notes",
+    response_model=List[AdminCandidateNoteResponse],
+    dependencies=[Depends(require_new_modules)],
+)
+async def admin_candidate_notes(
+    candidate_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Observaciones privadas de las empresas sobre una persona. Sólo lectura (no hay POST,
+    PATCH ni DELETE de admin) y **cada lectura queda en el registro de auditoría**. Eugenia, el
+    22/10/2026: "solo yo o alguien con usuario de Talency"."""
+    existe = (await db.execute(
+        select(CandidateProfile.id).where(CandidateProfile.id == candidate_id)
+    )).scalar_one_or_none()
+    if existe is None:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    filas = await application_events.admin_candidate_notes(db, admin_user_id=admin.id, candidate_id=candidate_id)
+    await db.commit()
+    return [
+        AdminCandidateNoteResponse(
+            id=n.id, candidate_id=n.candidate_id, application_id=n.application_id, job_title=n.job_title,
+            body=n.body, tags=n.tags or [], status_at_time=n.status_at_time, created_at=n.created_at,
+            company_id=n.company_id, company_name=empresa,
+        )
+        for n, empresa in filas
+    ]
 
 
 @router.get("/admin/candidates/{candidate_id}/activity", response_model=List[CandidateActivityLogResponse])

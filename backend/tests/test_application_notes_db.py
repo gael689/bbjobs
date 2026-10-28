@@ -1,10 +1,11 @@
-""""Vieron tu CV" y notas de la empresa contra un Postgres real (base descartable).
+""""Vieron tu CV" y observaciones de la empresa contra un Postgres real (base descartable).
 
 Necesitan `TEST_DATABASE_URL` (ver `scripts/probar_local_mails.ps1`); sin la variable se
-saltean. Cubren AVISOS-POR-ACCION-Y-NOTAS-PLAN.md §5.6: primera vista avisa y la segunda no;
-admin no dispara; una nota privada nunca llega al candidato (endpoint, notificación y mail) ni
-la lee Talency; la visible viaja con "No avanza" y se cancela si cambia el estado; cruce entre
-empresas (404); borrado de cuenta.
+saltean. Cubren AVISOS-POR-ACCION-Y-NOTAS-PLAN.md §5.6 con lo que decidió Eugenia el 22/10/2026:
+primera vista avisa y la segunda no; admin no dispara; las observaciones son **siempre privadas**
+y nunca llegan al candidato (endpoint, notificación ni mail); van con la persona dentro de la
+empresa; Talency las lee en sólo lectura y cada lectura queda registrada; cruce entre empresas
+(404); borrado de cuenta.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ if TEST_DB:
     from app.api.deps import get_current_user, get_db
     from app.api.v1 import applications as applications_api
     from app.core.config import settings
-    from app.models.alerts import Notification
+    from app.models.alerts import AuditLog, Notification
     from app.models.candidate import CandidateProfile
     from app.models.catalogs import ContractType, Industry, Zone
     from app.models.company import CompanyProfile
@@ -209,11 +210,14 @@ async def test_nothing_happens_with_the_gate_closed(client, maker, monkeypatch):
     assert (await _app(maker, w["a"]["app"].id)).status == "new"
     assert await _notifs(maker, w["cand_user"].id) == []
     # Las rutas nuevas no existen y el PATCH ignora la nota.
-    notes_url = f"/api/v1/me/company/applications/{w['a']['app'].id}/notes"
+    notes_url = f"/api/v1/me/company/candidates/{w['cand'].id}/notes"
     assert (await client.get(notes_url)).status_code == 404
     assert (await client.post(notes_url, json={"body": "hola"})).status_code == 404
+    client.as_user(w["admin"])
+    assert (await client.get(f"/api/v1/admin/candidates/{w['cand'].id}/notes")).status_code == 404
+    client.as_user(w["a"]["user"])
     resp = await client.patch(f"/api/v1/me/company/applications/{w['a']['app'].id}/status",
-                              json={"status": "discarded", "note": VISIBLE, "note_visible": True})
+                              json={"status": "discarded", "note": VISIBLE})
     assert resp.status_code == 200
     async with maker() as db:
         assert (await db.execute(select(func.count()).select_from(ApplicationNote))).scalar_one() == 0
@@ -242,7 +246,11 @@ async def test_a_company_cannot_mark_another_companys_application_as_seen(client
     assert (await _app(maker, w["b"]["app"].id)).status == "new"
 
 
-# ── Notas: privadas ─────────────────────────────────────────────────────────────────────
+# ── Observaciones: siempre privadas ─────────────────────────────────────────────────────
+
+def _notes_url(w, key="a"):
+    return f"/api/v1/me/company/candidates/{w['cand'].id}/notes"
+
 
 async def _candidate_history(client, w, app_id):
     client.as_user(w["cand_user"])
@@ -251,20 +259,21 @@ async def _candidate_history(client, w, app_id):
     return resp.json()
 
 
-async def test_private_note_never_reaches_the_candidate(client, maker):
+async def test_note_never_reaches_the_candidate(client, maker):
     w = await _world(maker)
     app_id = w["a"]["app"].id
     client.as_user(w["a"]["user"])
     resp = await client.patch(f"/api/v1/me/company/applications/{app_id}/status",
                               json={"status": "discarded", "note": PRIVADA})
     assert resp.status_code == 200
-    resp = await client.post(f"/api/v1/me/company/applications/{app_id}/notes", json={"body": PRIVADA + " (2)"})
-    assert resp.status_code == 201 and resp.json()["visible_to_candidate"] is False
+    resp = await client.post(_notes_url(w), json={"body": PRIVADA + " (2)", "application_id": str(app_id)})
+    assert resp.status_code == 201 and "visible_to_candidate" not in resp.json()
+    assert resp.json()["job_title"] == "Operario/a de depósito a"
 
-    # La empresa las ve.
-    notas = (await client.get(f"/api/v1/me/company/applications/{app_id}/notes")).json()
-    assert [n["visible_to_candidate"] for n in notas] == [False, False]
-    assert notas[0]["status_at_time"] == "discarded"
+    # La empresa las ve, de la más nueva a la más vieja.
+    notas = (await client.get(_notes_url(w))).json()
+    assert [n["body"] for n in notas] == [PRIVADA + " (2)", PRIVADA]
+    assert notas[1]["status_at_time"] == "discarded"
 
     # El postulante, por ningún camino.
     history = await _candidate_history(client, w, app_id)
@@ -275,20 +284,119 @@ async def test_private_note_never_reaches_the_candidate(client, maker):
     assert all(PRIVADA not in n.body for n in notifs)
     mails = await _mails(maker, w["cand_user"].id)
     assert mails and all(PRIVADA not in (m.html + (m.text or "") + m.subject) for m in mails)
+    assert all("mensaje de la empresa" not in (m.html + (m.text or "")).lower() for m in mails)
+
+
+async def test_a_visible_flag_from_an_old_client_is_ignored(client, maker):
+    """Eugenia, 22/10/2026: no hay notas para el postulante. Un cliente viejo que mande la
+    casilla no consigue nada: la nota queda privada y no avisa."""
+    w = await _world(maker)
+    app_id = w["a"]["app"].id
+    client.as_user(w["a"]["user"])
+    resp = await client.post(_notes_url(w), json={"body": VISIBLE, "visible_to_candidate": True})
+    assert resp.status_code == 201
+    resp = await client.patch(f"/api/v1/me/company/applications/{app_id}/status",
+                              json={"status": "discarded", "note": VISIBLE, "note_visible": True})
+    assert resp.status_code == 200
+    [notif] = await _notifs(maker, w["cand_user"].id)
+    assert notif.type == "application_discarded" and VISIBLE not in notif.body
+    [mail] = await _mails(maker, w["cand_user"].id)
+    assert VISIBLE not in mail.text and VISIBLE not in mail.html
+    assert await _notifs(maker, w["cand_user"].id, "application_note") == []
+
+
+async def test_note_belongs_to_the_person_inside_the_company(client, maker):
+    """La observación se ve en cualquier búsqueda futura de la misma empresa: va con la persona,
+    no con la postulación. Una escrita sin postulación (Base de Talento) aparece igual."""
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    await client.post(_notes_url(w), json={"body": "Ya lo entrevistamos y no se presentó",
+                                           "application_id": str(w["a"]["app"].id),
+                                           "tags": ["no_se_presento", "ya_entrevistado"]})
+    await client.post(_notes_url(w), json={"body": "Desde la base de talento"})
+    notas = (await client.get(_notes_url(w))).json()
+    assert [n["job_title"] for n in notas] == [None, "Operario/a de depósito a"]
+    assert notas[1]["tags"] == ["no_se_presento", "ya_entrevistado"]
+
+    # Una búsqueda nueva de la misma empresa: la persona se postula y las notas siguen ahí.
     async with maker() as db:
-        assert all(n.notified_at is None for n in (await db.execute(select(ApplicationNote))).scalars())
+        job2 = JobPosting(id=uuid.uuid4(), company_id=w["a"]["company"].id, company_legal_name_snapshot="Logística Sur",
+                          title="Chofer", description="x", industry_id=w["a"]["job"].industry_id,
+                          zone_id=w["a"]["job"].zone_id, contract_type_id=w["a"]["job"].contract_type_id,
+                          modality="presencial", status="active", moderation_status="approved",
+                          published_at=datetime.now(timezone.utc))
+        db.add(job2)
+        await db.flush()
+        db.add(Application(id=uuid.uuid4(), candidate_id=w["cand"].id, job_posting_id=job2.id, status="new"))
+        await db.commit()
+    assert len((await client.get(_notes_url(w))).json()) == 2
 
 
-async def test_talency_cannot_read_private_notes(client, maker):
+async def test_note_tags_are_a_closed_list(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    assert (await client.post(_notes_url(w), json={"body": "x", "tags": ["inventada"]})).status_code == 422
+    resp = await client.patch(f"/api/v1/me/company/applications/{w['a']['app'].id}/status",
+                              json={"status": "discarded", "note": "x", "note_tags": ["inventada"]})
+    assert resp.status_code == 422
+    resp = await client.patch(f"/api/v1/me/company/applications/{w['a']['app'].id}/status",
+                              json={"status": "discarded", "note": "Referencias dudosas",
+                                    "note_tags": ["referencias_a_revisar", "referencias_a_revisar"]})
+    assert resp.status_code == 200
+    [nota] = (await client.get(_notes_url(w))).json()
+    assert nota["tags"] == ["referencias_a_revisar"]
+
+
+# ── Talency: sólo lectura, con registro ─────────────────────────────────────────────────
+
+async def test_talency_reads_private_notes_read_only_and_every_read_is_logged(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    await client.post(_notes_url(w), json={"body": PRIVADA, "application_id": str(w["a"]["app"].id)})
+    client.as_user(w["b"]["user"])
+    await client.post(_notes_url(w), json={"body": "Otra empresa, otra mirada"})
+
+    client.as_user(w["admin"])
+    url = f"/api/v1/admin/candidates/{w['cand'].id}/notes"
+    resp = await client.get(url)
+    assert resp.status_code == 200
+    vistas = {n["body"]: n["company_name"] for n in resp.json()}
+    assert vistas == {PRIVADA: "Logística Sur", "Otra empresa, otra mirada": "Metalúrgica Norte"}
+    assert (await client.get(url)).status_code == 200
+
+    async with maker() as db:
+        logs = (await db.execute(select(AuditLog).where(AuditLog.action == "admin_read_notes"))).scalars().all()
+    assert len(logs) == 2
+    assert all(l.admin_user_id == w["admin"].id and l.target_id == w["cand"].id for l in logs)
+    assert PRIVADA not in "".join(l.notes or "" for l in logs)
+
+    # Sólo lectura: no hay cómo escribir ni borrar desde el panel de Talency.
+    assert (await client.post(url, json={"body": "x"})).status_code in (404, 405)
+    assert (await client.delete(url)).status_code in (404, 405)
+    # Y la ficha no existente da 404.
+    assert (await client.get(f"/api/v1/admin/candidates/{uuid.uuid4()}/notes")).status_code == 404
+
+
+async def test_only_admins_can_use_the_admin_notes_endpoint(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    await client.post(_notes_url(w), json={"body": PRIVADA})
+    url = f"/api/v1/admin/candidates/{w['cand'].id}/notes"
+    for user in (w["a"]["user"], w["cand_user"]):
+        client.as_user(user)
+        resp = await client.get(url)
+        assert resp.status_code == 403 and PRIVADA not in resp.text
+    async with maker() as db:
+        assert (await db.execute(select(func.count()).select_from(AuditLog)
+                                 .where(AuditLog.action == "admin_read_notes"))).scalar_one() == 0
+
+
+async def test_the_rest_of_the_admin_panel_does_not_leak_notes(client, maker):
     w = await _world(maker)
     app_id, job_id = w["a"]["app"].id, w["a"]["job"].id
     client.as_user(w["a"]["user"])
-    await client.post(f"/api/v1/me/company/applications/{app_id}/notes", json={"body": PRIVADA})
-
+    await client.post(_notes_url(w), json={"body": PRIVADA, "application_id": str(app_id)})
     client.as_user(w["admin"])
-    # Los endpoints de notas son de la empresa: un admin no entra.
-    assert (await client.get(f"/api/v1/me/company/applications/{app_id}/notes")).status_code == 403
-    # Y nada del panel de admin las devuelve.
     for url in (
         f"/api/v1/admin/applications/{app_id}/history",
         f"/api/v1/admin/jobs/{job_id}/applications",
@@ -300,116 +408,85 @@ async def test_talency_cannot_read_private_notes(client, maker):
         assert PRIVADA not in resp.text, url
 
 
-def test_no_admin_or_candidate_module_reads_the_notes_table():
-    """Garantía estructural: sólo el servicio y los endpoints de empresa tocan las notas. Si
-    mañana alguien suma un endpoint de admin que las lea, este test lo frena (decisión de
-    Talency del 06/10/2026: las notas privadas son sólo de la empresa)."""
+def test_only_the_company_service_and_one_admin_read_touch_the_notes_table():
+    """Garantía estructural: ningún módulo de candidato ni de admin (salvo la lectura de Talency,
+    que es de sólo lectura y deja registro) toca las notas. Si mañana alguien suma otro endpoint
+    que las lea o las escriba, este test lo frena."""
     v1 = Path(__file__).resolve().parents[1] / "app" / "api" / "v1"
     for path in v1.glob("*.py"):
-        if path.name == "applications.py":
+        if path.name in ("applications.py", "admin.py"):
             continue
         source = path.read_text(encoding="utf-8")
         assert "ApplicationNote" not in source and "application_notes" not in source, path.name
-        assert "list_notes" not in source and "visible_notes" not in source, path.name
-
-
-# ── Notas: visibles ─────────────────────────────────────────────────────────────────────
-
-async def test_visible_note_travels_inside_discarded_and_is_canceled_with_it(client, maker):
-    w = await _world(maker)
-    app_id = w["a"]["app"].id
-    client.as_user(w["a"]["user"])
-    before = datetime.now(timezone.utc)
-    resp = await client.patch(f"/api/v1/me/company/applications/{app_id}/status",
-                              json={"status": "discarded", "note": VISIBLE, "note_visible": True})
-    assert resp.status_code == 200
-
-    [notif] = await _notifs(maker, w["cand_user"].id)
-    assert notif.type == "application_discarded"
-    assert f"Mensaje de la empresa: {VISIBLE}" in notif.body
-    [mail] = await _mails(maker, w["cand_user"].id)
-    assert mail.template_key == "application_discarded" and VISIBLE in mail.text
-    assert mail.scheduled_at >= before + timedelta(hours=23, minutes=59)
-    # Una sola notificación: la nota no genera un aviso aparte.
-    assert await _notifs(maker, w["cand_user"].id, "application_note") == []
-
-    history = await _candidate_history(client, w, app_id)
-    assert [h["note"] for h in history if h["kind"] == "note"] == [VISIBLE]
-
-    # La empresa se arrepiente antes de las 24 h: el mail (con la nota) no sale.
-    client.as_user(w["a"]["user"])
-    await client.patch(f"/api/v1/me/company/applications/{app_id}/status", json={"status": "in_process"})
-    async with maker() as db:
-        await db.execute(text("UPDATE email_outbox SET scheduled_at=:t WHERE id=:id"),
-                         {"t": NOON - timedelta(minutes=1), "id": mail.id})
-        await db.commit()
-    stats = await dispatcher.dispatch_due(session_maker=maker, provider=SimulatedProvider(), now=NOON)
-    assert stats.canceled == 1
-    async with maker() as db:
-        assert (await db.execute(select(EmailOutbox.status).where(EmailOutbox.id == mail.id))).scalar_one() == "canceled"
-
-
-async def test_standalone_visible_note_notifies_once_per_day_per_application(client, maker):
-    w = await _world(maker)
-    app_id = w["a"]["app"].id
-    client.as_user(w["a"]["user"])
-    for body in ("Gracias por postularte. La semana que viene llamamos a entrevistas.", "Te escribimos el lunes."):
-        resp = await client.post(f"/api/v1/me/company/applications/{app_id}/notes",
-                                 json={"body": body, "visible_to_candidate": True})
-        assert resp.status_code == 201
-    [notif] = await _notifs(maker, w["cand_user"].id, "application_note")
-    assert notif.title == "La empresa te dejó un mensaje" and "entrevistas" in notif.body
-    assert len(await _mails(maker, w["cand_user"].id, "application_note")) == 1
-    history = await _candidate_history(client, w, app_id)
-    assert len([h for h in history if h["kind"] == "note"]) == 2
-
-
-async def test_deleted_note_leaves_the_candidate_timeline(client, maker):
-    w = await _world(maker)
-    app_id = w["a"]["app"].id
-    client.as_user(w["a"]["user"])
-    note_id = (await client.post(f"/api/v1/me/company/applications/{app_id}/notes",
-                                 json={"body": VISIBLE, "visible_to_candidate": True})).json()["id"]
-    assert (await client.delete(f"/api/v1/me/company/applications/{app_id}/notes/{note_id}")).status_code == 204
-    assert (await client.get(f"/api/v1/me/company/applications/{app_id}/notes")).json() == []
-    assert [h for h in await _candidate_history(client, w, app_id) if h["kind"] == "note"] == []
+        assert "list_candidate_notes" not in source and "add_note" not in source, path.name
+    admin = (v1 / "admin.py").read_text(encoding="utf-8")
+    assert admin.count("application_events.admin_candidate_notes") == 1
+    for prohibido in ("add_note", "delete_note", "list_candidate_notes", "ApplicationNote("):
+        assert prohibido not in admin, prohibido
+    assert '@router.get(\n    "/admin/candidates/{candidate_id}/notes"' in admin
 
 
 async def test_note_validation(client, maker):
     w = await _world(maker)
     app_id = w["a"]["app"].id
     client.as_user(w["a"]["user"])
-    url = f"/api/v1/me/company/applications/{app_id}/notes"
-    assert (await client.post(url, json={"body": "x" * 1001})).status_code == 422
-    assert (await client.post(url, json={"body": "   "})).status_code == 422
+    assert (await client.post(_notes_url(w), json={"body": "x" * 1001})).status_code == 422
+    assert (await client.post(_notes_url(w), json={"body": "   "})).status_code == 422
     resp = await client.patch(f"/api/v1/me/company/applications/{app_id}/status",
                               json={"status": "seen", "note": "x" * 1001})
     assert resp.status_code == 422
     assert (await _app(maker, app_id)).status == "new"
+    # Una postulación de otra persona no sirve de origen.
+    async with maker() as db:
+        otro_user = User(id=uuid.uuid4(), email="carla@mail.com", role="candidate", is_active=True)
+        db.add(otro_user)
+        await db.flush()
+        otra = CandidateProfile(id=uuid.uuid4(), user_id=otro_user.id, first_name="Carla", last_name="R", phone="2")
+        db.add(otra)
+        await db.flush()
+        otra_app = Application(id=uuid.uuid4(), candidate_id=otra.id, job_posting_id=w["a"]["job"].id, status="new")
+        db.add(otra_app)
+        await db.commit()
+    resp = await client.post(_notes_url(w), json={"body": "x", "application_id": str(otra_app.id)})
+    assert resp.status_code == 422
 
 
 # ── Cruce entre empresas ────────────────────────────────────────────────────────────────
 
 async def test_company_b_cannot_read_write_or_delete_company_a_notes(client, maker):
     w = await _world(maker)
-    a_app, b_app = w["a"]["app"].id, w["b"]["app"].id
+    a_app = w["a"]["app"].id
     client.as_user(w["a"]["user"])
-    note_id = (await client.post(f"/api/v1/me/company/applications/{a_app}/notes",
-                                 json={"body": PRIVADA})).json()["id"]
+    note_id = (await client.post(_notes_url(w), json={"body": PRIVADA,
+                                                      "application_id": str(a_app)})).json()["id"]
 
     client.as_user(w["b"]["user"])
-    base = f"/api/v1/me/company/applications/{a_app}"
-    assert (await client.get(f"{base}/notes")).status_code == 404
-    assert (await client.post(f"{base}/notes", json={"body": "intrusa"})).status_code == 404
-    assert (await client.delete(f"{base}/notes/{note_id}")).status_code == 404
-    assert (await client.patch(f"{base}/status", json={"status": "discarded", "note": "x"})).status_code == 404
-    # Con su propia postulación pero la nota de A: tampoco.
-    assert (await client.delete(f"/api/v1/me/company/applications/{b_app}/notes/{note_id}")).status_code == 404
-    assert PRIVADA not in (await client.get(f"/api/v1/me/company/applications/{b_app}/notes")).text
+    # B también conoce a la persona (se postuló a B), pero no ve ni una palabra de lo de A.
+    resp = await client.get(_notes_url(w))
+    assert resp.status_code == 200 and resp.json() == [] and PRIVADA not in resp.text
+    assert (await client.post(_notes_url(w), json={"body": "x", "application_id": str(a_app)})).status_code == 404
+    assert (await client.delete(f"/api/v1/me/company/notes/{note_id}")).status_code == 404
+    assert (await client.patch(f"/api/v1/me/company/applications/{a_app}/status",
+                               json={"status": "discarded", "note": "x"})).status_code == 404
 
     async with maker() as db:
         notas = (await db.execute(select(ApplicationNote))).scalars().all()
-    assert [(n.body, n.deleted_at) for n in notas] == [(PRIVADA, None)]
+    assert [(n.body, n.deleted_at, n.company_id) for n in notas] == [(PRIVADA, None, w["a"]["company"].id)]
+
+
+async def test_a_company_cannot_annotate_a_person_it_has_no_relation_with(client, maker):
+    w = await _world(maker)
+    async with maker() as db:
+        u = User(id=uuid.uuid4(), email="dario@mail.com", role="candidate", is_active=True)
+        db.add(u)
+        await db.flush()
+        ajena = CandidateProfile(id=uuid.uuid4(), user_id=u.id, first_name="Darío", last_name="S", phone="3")
+        db.add(ajena)
+        await db.commit()
+    client.as_user(w["a"]["user"])
+    url = f"/api/v1/me/company/candidates/{ajena.id}/notes"
+    assert (await client.get(url)).status_code == 404
+    assert (await client.post(url, json={"body": "x"})).status_code == 404
 
 
 async def test_another_candidate_cannot_read_the_history(client, maker):
@@ -430,28 +507,28 @@ async def test_another_candidate_cannot_read_the_history(client, maker):
 async def test_candidate_deletion_empties_the_notes(client, maker):
     w = await _world(maker)
     client.as_user(w["a"]["user"])
-    for visible in (False, True):
-        await client.post(f"/api/v1/me/company/applications/{w['a']['app'].id}/notes",
-                          json={"body": VISIBLE, "visible_to_candidate": visible})
+    await client.post(_notes_url(w), json={"body": PRIVADA, "application_id": str(w["a"]["app"].id),
+                                           "tags": ["no_se_presento"]})
+    await client.post(_notes_url(w), json={"body": "Sin postulación"})
     async with maker() as db:
         u = (await db.execute(select(User).where(User.id == w["cand_user"].id))).scalar_one()
         preview = await delete_account(db, u, actor=None, reason="test", delete_in_clerk=False)
     assert preview.mode.value == "tombstone"
     async with maker() as db:
-        bodies = (await db.execute(select(ApplicationNote.body))).scalars().all()
-    assert bodies == [None, None]
+        rows = (await db.execute(select(ApplicationNote.body, ApplicationNote.tags))).all()
+    assert rows == [(None, []), (None, [])]
 
 
-async def test_company_deletion_drops_private_notes_and_keeps_visible_ones(client, maker):
+async def test_company_deletion_drops_its_notes(client, maker):
     w = await _world(maker)
     client.as_user(w["a"]["user"])
-    for body, visible in ((PRIVADA, False), (VISIBLE, True)):
-        await client.post(f"/api/v1/me/company/applications/{w['a']['app'].id}/notes",
-                          json={"body": body, "visible_to_candidate": visible})
+    await client.post(_notes_url(w), json={"body": PRIVADA})
+    client.as_user(w["b"]["user"])
+    await client.post(_notes_url(w), json={"body": "De la otra empresa"})
     async with maker() as db:
         u = (await db.execute(select(User).where(User.id == w["a"]["user"].id))).scalar_one()
         preview = await delete_account(db, u, actor=None, reason="test", delete_in_clerk=False)
     assert preview.mode.value == "tombstone"
     async with maker() as db:
-        rows = (await db.execute(select(ApplicationNote.body, ApplicationNote.visible_to_candidate))).all()
-    assert rows == [(VISIBLE, True)]
+        rows = (await db.execute(select(ApplicationNote.body))).scalars().all()
+    assert rows == ["De la otra empresa"]

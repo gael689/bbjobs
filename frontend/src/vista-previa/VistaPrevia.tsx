@@ -575,7 +575,7 @@ function Reglas() {
     ["Una semana sin entrar", "«¿Seguís buscando trabajo?» sale como mucho una vez cada 30 días. Si no vuelve después de 3, no se le escribe más."],
     ["Baja", "Todos los mails opcionales traen un link para dejar de recibirlos, por tipo. Los de cuenta y pagos no."],
     ["Resúmenes", "Si no hay nada que contar, no se manda nada."],
-    ["WhatsApp", "Los mails de empresas llevan el WhatsApp de Talency (291 508-9353) con un link directo."],
+    ["WhatsApp", "Los mails de empresas llevan el WhatsApp de Talency (291 536-2225) con un link directo."],
     ["La IA", "Nunca manda mails ni cambia el estado de una postulación. La decisión es siempre de una persona."],
   ];
   return (

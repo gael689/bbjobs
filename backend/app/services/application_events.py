@@ -3,15 +3,15 @@
 Tres cosas, todas del lado de la empresa (ver AVISOS-POR-ACCION-Y-NOTAS-PLAN.md §2–§3):
 
 - **Cambio de estado** (`change_status`): lo que antes vivía entero en el endpoint `PATCH
-  .../status`. Opcionalmente lleva una nota; si la nota es visible, viaja **dentro** del aviso
-  de ese estado (con "No avanza", en el mail de las 24 h, que se cancela igual que siempre si la
-  empresa cambia el estado en el medio).
+  .../status`. Opcionalmente lleva una observación privada (caso típico: "No avanza" + motivo).
 - **"Vieron tu CV"** (`mark_seen`): la primera vez que la empresa abre el perfil completo o el CV
   desde una postulación, la postulación pasa sola a "Perfil revisado" y el postulante recibe el
   aviso. Sólo con la compuerta de módulos nuevos abierta.
-- **Notas** (`add_note`, `list_notes`, `delete_note`, `visible_notes`): privadas por defecto.
-  Una privada no le llega al postulante por ningún camino (endpoint, notificación ni mail), y
-  tampoco la lee Talency: ningún endpoint de admin las devuelve (decisión del 06/10/2026).
+- **Observaciones** (`add_note`, `list_candidate_notes`, `delete_note`, `admin_candidate_notes`):
+  **siempre privadas** (Eugenia, 22/10/2026). No le llegan al postulante por ningún camino
+  (endpoint, notificación ni mail) y ni siquiera sabe que existen. Las lee la empresa que las
+  escribió, en cualquier búsqueda futura sobre esa persona, y el equipo de Talency en sólo
+  lectura, con un registro de cada lectura.
 
 Toda consulta de empresa filtra por `company_id`. El texto de la nota es de la empresa, o sea
 no confiable: se guarda tal cual y se escapa al mostrarlo (React en la web, `render_email` en el
@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.features import new_modules_enabled
 from app.models.candidate import CandidateProfile
 from app.models.company import CompanyProfile
+from app.models.alerts import AuditLog
 from app.models.history import ApplicationNote
 from app.models.job import SELECTABLE_STATUSES, Application, ApplicationStatus, JobPosting
 from app.services.history import log_application_status_change
@@ -35,8 +36,6 @@ from app.services.notifications import create_notification
 
 NOTE_MAX_LENGTH = 1000
 CANDIDATE_LINK = "/dashboard/candidate/postulaciones"
-# Cómo se presenta la nota visible dentro del aviso del cambio de estado.
-COMPANY_MESSAGE_PREFIX = "Mensaje de la empresa: "
 
 
 class NoteError(Exception):
@@ -49,8 +48,6 @@ class NoteError(Exception):
 # "Vieron tu CV": lo dispara la plataforma, no la empresa a mano (texto del brief a Eugenia).
 SEEN_AUTO_TITLE = "Una empresa vio tu CV"
 SEEN_AUTO_BODY = "{company} revisó tu perfil para la búsqueda '{job_title}'."
-NOTE_TITLE = "La empresa te dejó un mensaje"
-NOTE_BODY = "{company} te dejó un mensaje sobre tu postulación a '{job_title}':\n\n{note}"
 
 
 def _now() -> datetime:
@@ -90,12 +87,13 @@ async def change_status(
     app: Application,
     new_status: ApplicationStatus,
     note: str | None = None,
-    note_visible: bool = False,
+    note_tags: list[str] | None = None,
 ) -> ApplicationNote | None:
     """Cambia el estado, deja el historial y avisa al postulante. No commitea.
 
-    La nota sólo se guarda con la compuerta de módulos nuevos abierta: con la compuerta
-    cerrada el `PATCH` se comporta exactamente como antes. Devuelve la nota creada, si hubo."""
+    La observación (siempre privada) sólo se guarda con la compuerta de módulos nuevos abierta:
+    con la compuerta cerrada el `PATCH` se comporta exactamente como antes. Devuelve la nota
+    creada, si hubo."""
     texto = _clean(note) if new_modules_enabled() else ""
     # "Contactado" y "Finalista" ya no se eligen (Eugenia, 08/10/2026). Una postulación vieja en
     # uno de ellos puede quedarse ahí o pasar a otro, pero nadie la puede volver a poner.
@@ -118,8 +116,8 @@ async def change_status(
     nota = None
     if texto:
         nota = ApplicationNote(
-            id=uuid.uuid4(), application_id=app.id, company_id=company.id,
-            author_user_id=company.user_id, body=texto, visible_to_candidate=note_visible,
+            id=uuid.uuid4(), candidate_id=app.candidate_id, application_id=app.id, company_id=company.id,
+            author_user_id=company.user_id, body=texto, tags=list(note_tags or []),
             status_at_time=ApplicationStatus(new_status).value,
         )
         db.add(nota)
@@ -177,13 +175,9 @@ async def change_status(
         if job and candidate:
             notif_type, notif_title, notif_body = notif
             body = notif_body.format(job_title=job.title)
+            # La observación no toca la notificación ni el mail: es la garantía que prueba
+            # tests/test_application_notes_db.py.
             email_vars = {"puesto": job.title}
-            # Sólo la nota **visible** entra al aviso. La privada no toca la notificación ni el
-            # mail: es la garantía que prueba tests/test_application_notes_db.py.
-            if nota is not None and nota.visible_to_candidate:
-                body = f"{body}\n\n{COMPANY_MESSAGE_PREFIX}{nota.body}"
-                email_vars["mensaje_empresa"] = nota.body
-                nota.notified_at = now
             await create_notification(
                 db,
                 user_id=candidate.user_id,
@@ -193,8 +187,7 @@ async def change_status(
                 link=CANDIDATE_LINK,
                 email_vars=email_vars,
                 # Para revalidar al enviar: "No avanza" sale 24 h después y se cancela si la
-                # empresa cambió el estado en el medio (auditoría R9/M18). La nota visible viaja
-                # en ese mismo mail, así que se cancela con él.
+                # empresa cambió el estado en el medio (auditoría R9/M18).
                 ref_id=app.id,
             )
     return nota
@@ -285,89 +278,72 @@ async def mark_seen(
     return [app_id for app_id, _ in avisadas]
 
 
-# ── Notas ─────────────────────────────────────────────────────────────────────────────
+# ── Observaciones ─────────────────────────────────────────────────────────────────────
 
 async def add_note(
     db: AsyncSession,
     *,
     company: CompanyProfile,
-    app: Application,
+    candidate_id: uuid.UUID,
     body: str,
-    visible: bool = False,
-    now: datetime | None = None,
+    application: Application | None = None,
+    tags: list[str] | None = None,
 ) -> ApplicationNote:
-    """Nota suelta (sin cambio de estado). No commitea.
+    """Observación privada sobre una persona. No commitea y **nunca avisa a nadie**.
 
-    Si es visible, el postulante recibe `application_note`, como mucho un aviso por día por
-    postulación (las siguientes del mismo día se ven igual en su línea de tiempo). El mail,
-    además, sale como mucho uno por día por persona (catálogo, `once_per_day`)."""
+    Quién llama ya comprobó que la empresa tiene acceso al candidato (se postuló a una búsqueda
+    suya o lo desbloqueó en la Base de Talento). `application`, si viene, es de esta empresa y de
+    este candidato: sólo sirve para recordar de qué búsqueda salió."""
     texto = _clean(body)
     if not texto:
-        raise NoteError("La nota está vacía.")
+        raise NoteError("La observación está vacía.")
     if len(texto) > NOTE_MAX_LENGTH:
-        raise NoteError(f"La nota puede tener hasta {NOTE_MAX_LENGTH} caracteres.")
-    now = now or _now()
-
+        raise NoteError(f"La observación puede tener hasta {NOTE_MAX_LENGTH} caracteres.")
+    if application is not None and application.candidate_id != candidate_id:
+        raise NoteError("La postulación no es de esta persona.")
     nota = ApplicationNote(
-        id=uuid.uuid4(), application_id=app.id, company_id=company.id,
-        author_user_id=company.user_id, body=texto, visible_to_candidate=visible,
+        id=uuid.uuid4(), candidate_id=candidate_id, company_id=company.id,
+        application_id=application.id if application is not None else None,
+        author_user_id=company.user_id, body=texto, tags=list(tags or []),
     )
-    if not visible:
-        db.add(nota)
-        return nota
-
-    from app.services.email.policy import local_day_start
-
-    avisadas_hoy = (await db.execute(
-        select(func.count()).select_from(ApplicationNote).where(
-            ApplicationNote.application_id == app.id,
-            ApplicationNote.company_id == company.id,
-            ApplicationNote.status_at_time.is_(None),
-            ApplicationNote.notified_at >= local_day_start(now),
-        )
-    )).scalar_one()
     db.add(nota)
-    if avisadas_hoy:
-        return nota
-
-    job, candidate = await _job_and_candidate(db, app)
-    if job and candidate and candidate.deleted_at is None:
-        await create_notification(
-            db,
-            user_id=candidate.user_id,
-            type="application_note",
-            title=NOTE_TITLE,
-            body=NOTE_BODY.format(company=company.legal_name, job_title=job.title, note=texto),
-            link=CANDIDATE_LINK,
-            email_vars={"puesto": job.title, "mensaje_empresa": texto},
-            ref_id=app.id,
-        )
-        nota.notified_at = now
     return nota
 
 
-async def list_notes(db: AsyncSession, *, company: CompanyProfile, app: Application) -> list[ApplicationNote]:
-    """Todas las notas (privadas y visibles) de la postulación, sólo las de esta empresa."""
-    return list((await db.execute(
-        select(ApplicationNote)
+def _con_titulo(filas) -> list[ApplicationNote]:
+    """Cada nota con `job_title` (la búsqueda de origen, si hay) como atributo suelto, sólo para
+    armar la respuesta."""
+    resultado = []
+    for nota, titulo in filas:
+        nota.job_title = titulo
+        resultado.append(nota)
+    return resultado
+
+
+async def list_candidate_notes(
+    db: AsyncSession, *, company: CompanyProfile, candidate_id: uuid.UUID
+) -> list[ApplicationNote]:
+    """Todas las observaciones de **esta empresa** sobre la persona, de la más nueva a la más
+    vieja. Nunca las de otra empresa."""
+    filas = (await db.execute(
+        select(ApplicationNote, JobPosting.title)
+        .outerjoin(Application, ApplicationNote.application_id == Application.id)
+        .outerjoin(JobPosting, Application.job_posting_id == JobPosting.id)
         .where(
-            ApplicationNote.application_id == app.id,
             ApplicationNote.company_id == company.id,
+            ApplicationNote.candidate_id == candidate_id,
             ApplicationNote.deleted_at.is_(None),
         )
-        .order_by(ApplicationNote.created_at, ApplicationNote.id)
-    )).scalars().all())
+        .order_by(ApplicationNote.created_at.desc(), ApplicationNote.id)
+    )).all()
+    return _con_titulo(filas)
 
 
-async def delete_note(
-    db: AsyncSession, *, company: CompanyProfile, app: Application, note_id: uuid.UUID
-) -> bool:
-    """Borrado lógico. `False` si la nota no existe o no es de esta empresa. Una nota visible
-    sale de la vista del postulante, pero el aviso que ya recibió no vuelve. No commitea."""
+async def delete_note(db: AsyncSession, *, company: CompanyProfile, note_id: uuid.UUID) -> bool:
+    """Borrado lógico. `False` si la observación no existe o no es de esta empresa. No commitea."""
     nota = (await db.execute(
         select(ApplicationNote).where(
             ApplicationNote.id == note_id,
-            ApplicationNote.application_id == app.id,
             ApplicationNote.company_id == company.id,
             ApplicationNote.deleted_at.is_(None),
         )
@@ -378,19 +354,32 @@ async def delete_note(
     return True
 
 
-async def visible_notes(db: AsyncSession, application_id: uuid.UUID) -> list[ApplicationNote]:
-    """Lo único que el postulante puede leer de las notas: las visibles, no borradas. Las
-    privadas no pasan por acá ni por ningún otro camino de candidato."""
-    return list((await db.execute(
-        select(ApplicationNote)
-        .where(
-            ApplicationNote.application_id == application_id,
-            ApplicationNote.visible_to_candidate.is_(True),
-            ApplicationNote.deleted_at.is_(None),
-            ApplicationNote.body.is_not(None),
-        )
-        .order_by(ApplicationNote.created_at, ApplicationNote.id)
-    )).scalars().all())
+AUDIT_READ_NOTES = "admin_read_notes"
+
+
+async def admin_candidate_notes(
+    db: AsyncSession, *, admin_user_id: uuid.UUID, candidate_id: uuid.UUID
+) -> list[tuple[ApplicationNote, str | None]]:
+    """Lo que lee Talency: las observaciones de **todas** las empresas sobre la persona, con el
+    nombre de la empresa. Sólo lectura, y cada lectura deja un registro (`AuditLog`). No
+    commitea: quien llama confirma junto con el registro."""
+    filas = (await db.execute(
+        select(ApplicationNote, JobPosting.title, CompanyProfile.legal_name)
+        .join(CompanyProfile, ApplicationNote.company_id == CompanyProfile.id)
+        .outerjoin(Application, ApplicationNote.application_id == Application.id)
+        .outerjoin(JobPosting, Application.job_posting_id == JobPosting.id)
+        .where(ApplicationNote.candidate_id == candidate_id, ApplicationNote.deleted_at.is_(None))
+        .order_by(ApplicationNote.created_at.desc(), ApplicationNote.id)
+    )).all()
+    db.add(AuditLog(
+        admin_user_id=admin_user_id, action=AUDIT_READ_NOTES, target_entity="candidate",
+        target_id=candidate_id, notes=f"{len(filas)} observaciones",
+    ))
+    resultado = []
+    for nota, titulo, empresa in filas:
+        nota.job_title = titulo
+        resultado.append((nota, empresa))
+    return resultado
 
 
 # ── Vista previa del aviso al postulante ──────────────────────────────────────────────
@@ -414,15 +403,12 @@ async def status_email_preview(
     company: CompanyProfile,
     app: Application,
     new_status: ApplicationStatus,
-    note: str | None = None,
-    note_visible: bool = False,
 ) -> dict:
     """El mail que le llegaría al postulante si la empresa confirma el cambio (pedido de Eugenia:
     "que le muestre el mensaje que le va a llegar al candidato"). Mismo texto y mismo renderer
     que la cola (`copy.py` + `build_content`), con el nombre y el puesto reales. No guarda nada.
 
-    La nota sólo aparece si es visible: una privada nunca entra al mail, tampoco a la vista
-    previa."""
+    Una observación nunca entra al mail ni a la vista previa."""
     from app.services.email.catalog import rule_for
     from app.services.email.copy import first_name
     from app.services.email.outbox import build_content, template_override
@@ -434,10 +420,7 @@ async def status_email_preview(
     if rule.mode != "instant" or job is None or candidate is None or (override is not None and not override.enabled):
         return {"sends_email": False, "type": notif_type, "delay_hours": 0,
                 "subject": None, "html": None, "text": None}
-    texto = _clean(note)[:NOTE_MAX_LENGTH]
     variables = {"puesto": job.title, "nombre": first_name(candidate.first_name)}
-    if texto and note_visible:
-        variables["mensaje_empresa"] = texto
     subject, rendered = build_content(
         user_id=candidate.user_id, category=rule.category, title="", body="", link=CANDIDATE_LINK,
         cta_label=rule.cta_label, unsubscribable=rule.unsubscribable, override=override,

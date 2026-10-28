@@ -192,12 +192,13 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
             Application.__table__.update().where(Application.candidate_id == p.id).values(
                 # Las estrellas son un juicio sobre la persona: se van con ella.
                 cover_letter=None, company_starred_at=None, admin_starred_at=None, admin_starred_by=None))
-        # Notas de las empresas sobre sus postulaciones: hablan de la persona. Se vacía el texto
-        # (como cover_letter) y queda la fila, para que la empresa vea que hubo una nota.
+        # Observaciones de las empresas sobre la persona: hablan de ella. Se vacía el texto
+        # (como cover_letter) y las etiquetas, y queda la fila, para que la empresa vea que hubo
+        # una observación.
         await db.execute(
             ApplicationNote.__table__.update().where(
-                ApplicationNote.application_id.in_(select(Application.id).where(Application.candidate_id == p.id))
-            ).values(body=None))
+                ApplicationNote.candidate_id == p.id
+            ).values(body=None, tags=[]))
         # IA: fragmentos, texto del CV, índice y recomendaciones. En la lápida la fila del
         # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
         for model in (CandidateChunk, CandidateCvText, CandidateAiIndex, JobRecommendation, CandidateSummary):
@@ -279,12 +280,9 @@ async def _tombstone_company(db: AsyncSession, user: User, now: datetime) -> Non
 
         await db.execute(delete(CompanyVerificationDocument).where(CompanyVerificationDocument.company_id == c.id))
 
-        # Notas de la empresa: la fila de la empresa sobrevive (lápida), así que el CASCADE de
-        # application_notes no corre. Las privadas ya no las puede leer nadie (ni Talency): se
-        # borran. Las visibles quedan, porque son parte de la línea de tiempo del postulante,
-        # igual que el historial de estados.
-        await db.execute(delete(ApplicationNote).where(
-            ApplicationNote.company_id == c.id, ApplicationNote.visible_to_candidate.is_(False)))
+        # Observaciones de la empresa: la fila de la empresa sobrevive (lápida), así que el
+        # CASCADE de application_notes no corre. Son todas privadas y las escribió ella: se borran.
+        await db.execute(delete(ApplicationNote).where(ApplicationNote.company_id == c.id))
     await db.execute(delete(Notification).where(Notification.user_id == user.id))
     await _tombstone_user(user, now)
 

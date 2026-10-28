@@ -18,11 +18,11 @@ UID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 # E3–E21 en el orden del PDF de Eugenia (E21 es el resumen diario, en DIGESTS).
 EUGENIA_EMPRESAS = [
-    "company_rejected", "company_suspended", "company_reactivated", "company_onboarding_guide",
+    "welcome_company", "company_verified", "company_rejected", "company_suspended", "company_reactivated", "company_onboarding_guide",
     "job_approved", "job_rejected", "job_takedown", "job_reopened", "job_deleted",
     "job_expiring_soon", "job_expired", "job_no_applications", "job_feature_active",
     "job_feature_rejected", "job_feature_expired", "talent_pack_active", "talent_pack_rejected",
-    "recommended_candidates_new",
+    "recommended_candidates_new", "job_feature_granted", "talent_pack_granted", "talent_pack_low",
 ]
 SAMPLE = {"nombre": "Rocío", "empresa": "Logística Sur", "puesto": "Operario/a", "dias": "3 días",
           "cantidad": 4, "cantidad_contactos": 10, "puestos": "A, B", "mensaje": "Te quedan 2.",
@@ -73,10 +73,10 @@ def test_company_voice_greeting_signature_and_whatsapp():
     assert "Saludos," in r.html and "<strong>Equipo de BBJobs</strong>" in r.html
     assert "Una iniciativa de Talency" in r.html
     assert "El talento de Bahía" not in r.html          # esa firma es de los candidatos
-    assert 'href="https://wa.me/5492915089353"' in r.html and ">291 508-9353</a>" in r.html
+    assert 'href="https://wa.me/5492915362225"' in r.html and ">291 536-2225</a>" in r.html
     assert "Ver mi publicación" in r.html and "/empleos/operario-x" in r.html
     assert "Hola, Rocío:" in r.text and "Equipo de BBJobs" in r.text
-    assert "291 508-9353 (https://wa.me/5492915089353)" in r.text
+    assert "291 536-2225 (https://wa.me/5492915362225)" in r.text
     assert "<h1" not in r.html                            # sus textos de empresa no tienen título
 
 
@@ -91,7 +91,7 @@ def test_whatsapp_link_comes_from_settings(monkeypatch):
     monkeypatch.setattr(settings, "TALENCY_WHATSAPP_DISPLAY", "291 000-1111")
     _, r = _company("company_reactivated", nombre="Rocío")
     assert 'href="https://wa.me/5492910001111"' in r.html and "291 000-1111" in r.html
-    assert "5492915089353" not in r.html
+    assert "5492915362225" not in r.html
 
 
 def test_job_title_cannot_inject_bold_links_or_whatsapp():
@@ -111,11 +111,25 @@ def test_suspended_and_registration_have_no_button():
     assert "Ver en BBJobs" not in r.html
 
 
-def test_rejections_do_not_carry_the_reason_in_the_mail():
-    # P11: "consultá el motivo en tu cuenta"; el motivo no viaja en el mail.
-    for key in ("company_rejected", "job_rejected"):
-        _, r = _company(key, nombre="R", puesto="X", detalle="El aviso pide edad")
-        assert "El aviso pide edad" not in r.html and "Motivo:" not in r.html
+def test_job_rejection_carries_the_reason_and_the_company_one_does_not_yet():
+    # E8 (22/10/2026): "el motivo del rechazo sí va en el mail". Lo escribe Talency. Sin motivo
+    # cargado, el párrafo se omite. E3 (verificación) sigue sin motivo hasta que lo confirme (P11).
+    _, r = _company("job_rejected", nombre="R", puesto="X", detalle="Falta indicar la zona")
+    assert "<strong>Motivo:</strong> Falta indicar la zona" in r.html or "Motivo:" in r.html
+    assert "Falta indicar la zona" in r.html
+    _, r = _company("job_rejected", nombre="R", puesto="X", detalle="")
+    assert "Motivo" not in r.html
+    _, r = _company("company_rejected", nombre="R", puesto="X", detalle="El CUIT no coincide")
+    assert "El CUIT no coincide" not in r.html and "Motivo:" not in r.html
+    assert COPY["company_rejected"].confirmar == ("P11",)
+
+
+def test_every_company_mail_is_in_company_voice_without_a_bold_line():
+    for key in ("welcome_company", "company_verified"):
+        assert COPY[key].voice == "empresa" and COPY[key].heading == "", key
+        _, r = _company(key, nombre="Rocío", empresa="Logística Sur")
+        assert "Hola, Rocío:" in r.html and "Equipo de BBJobs" in r.html and "291 536-2225" in r.html, key
+        assert "¡Hola" not in r.html and "El talento de Bahía" not in r.html, key
 
 
 def test_days_variables():
@@ -155,7 +169,7 @@ def test_paid_feature_waiting_for_approval_does_not_say_active():
 def test_gifts_from_talency_have_their_own_notice_without_payment_words():
     for key in ("job_feature_granted", "talent_pack_granted"):
         assert key in RULES and RULES[key].critical
-        assert COPY[key].source == "propuesto" and "P9" in COPY[key].confirmar
+        assert COPY[key].source == "eugenia" and not COPY[key].confirmar
         _, r = _company(key, nombre="R", puesto="X", cantidad_contactos=5)
         low = r.html.lower()
         assert "contrataste" not in low and "acredit" not in low and "tu compra" not in low

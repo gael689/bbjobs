@@ -517,8 +517,8 @@ export default function CompanyBusquedasPage() {
         cvLinkEndpoint={viewProfile
           ? `/me/company/candidates/${viewProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
           : undefined}
-        footer={MODULOS_NUEVOS_VISIBLES && perfilAppId
-          ? <NotasPostulacion key={perfilAppId} applicationId={perfilAppId} />
+        footer={MODULOS_NUEVOS_VISIBLES && viewProfile
+          ? <NotasPostulacion key={viewProfile.id} candidateId={viewProfile.id} applicationId={perfilAppId} />
           : undefined}
       />
     </div>

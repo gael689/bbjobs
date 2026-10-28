@@ -2,83 +2,124 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ChatBubbleLeftEllipsisIcon, LockClosedIcon, EyeIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftEllipsisIcon, LockClosedIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 /**
- * Notas de la empresa sobre una postulación (módulo nuevo, detrás de NEXT_PUBLIC_MODULOS_NUEVOS).
+ * Observaciones de la empresa sobre una persona (módulo nuevo, detrás de NEXT_PUBLIC_MODULOS_NUEVOS).
  *
- * Arrancan **privadas**: para que las lea el postulante hay que tildar la casilla. Una privada
- * no se puede volver visible después y ninguna se edita (ver AVISOS-POR-ACCION-Y-NOTAS-PLAN.md
- * §3). El texto de la nota se muestra como texto plano: React lo escapa y no se arman links.
+ * Son **siempre privadas** (Eugenia, 22/10/2026): no hay casilla para que las vea el postulante,
+ * que ni siquiera sabe que existen. Las ve la empresa que las escribió, en cualquier búsqueda
+ * futura sobre esa persona, y el equipo de Talency en sólo lectura. Ninguna se edita ni vence. El
+ * texto se muestra como texto plano: React lo escapa y no se arman links.
  */
 
 export const NOTA_MAX = 1000;
 
-export interface NotaPostulacion {
+/** Las etiquetas rápidas son una lista cerrada que valida el backend (`NOTE_TAGS`). */
+export const ETIQUETAS_NOTA: { valor: string; label: string }[] = [
+  { valor: "no_se_presento", label: "No se presentó" },
+  { valor: "ya_entrevistado", label: "Ya entrevistado" },
+  { valor: "referencias_a_revisar", label: "Referencias a revisar" },
+];
+
+const LABEL_ETIQUETA: Record<string, string> = Object.fromEntries(ETIQUETAS_NOTA.map(e => [e.valor, e.label]));
+
+export interface NotaObservacion {
   id: string;
-  application_id: string;
+  candidate_id: string;
+  application_id?: string | null;
+  job_title?: string | null;
   body: string | null;
-  visible_to_candidate: boolean;
+  tags: string[];
   status_at_time?: string | null;
-  notified_at?: string | null;
   created_at: string;
 }
 
-/** La casilla de visibilidad y lo que le explica a la empresa. Compartida entre el cuadro del
- *  cambio de estado y la nota suelta, para que digan exactamente lo mismo. */
-export function CasillaVisibilidad({ visible, onChange }: { visible: boolean; onChange: (v: boolean) => void }) {
+export interface NotaParaTalency extends NotaObservacion {
+  company_id: string;
+  company_name?: string | null;
+}
+
+function fechaCorta(iso: string) {
+  return new Date(iso).toLocaleString("es-AR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/** El cartel que acompaña a cualquier campo de observación: registrar hechos, no datos
+ *  sensibles (Ley 23.592), y quién la puede leer. */
+export function CartelObservacion() {
   return (
-    <div className="mt-2">
-      <label className="flex items-center gap-2 text-xs font-semibold text-[#1C2230] cursor-pointer">
-        <input
-          type="checkbox"
-          checked={visible}
-          onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 accent-[#1E8EA3]"
-        />
-        Que la vea el postulante
-      </label>
-      {visible ? (
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#8A6A54] bg-[#D4B7A2]/15 border border-[#D4B7A2]/60 rounded-lg px-2.5 py-1.5">
-          La va a leer el postulante. No incluyas motivos como edad, género, estado civil o salud.
-        </p>
-      ) : (
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#64748B]">
-          Sin tildar, la nota es privada: sólo la ve tu empresa. No la ve el postulante ni el equipo de BBJobs y Talency.
-        </p>
-      )}
+    <div className="mt-2 space-y-1.5">
+      <p className="text-[11.5px] leading-relaxed text-[#8A6A54] bg-[#D4B7A2]/15 border border-[#D4B7A2]/60 rounded-lg px-2.5 py-1.5">
+        Registrá hechos, no opiniones. No incluyas edad, género, estado civil, salud ni otros datos sensibles
+        (Ley 23.592): un motivo discriminatorio por escrito expone a tu empresa.
+      </p>
+      <p className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[#64748B]">
+        <LockClosedIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span>La observación es privada: no la ve el postulante ni otras empresas. El equipo de Talency puede leerla.</span>
+      </p>
     </div>
   );
 }
 
-function EtiquetaVisibilidad({ visible }: { visible: boolean }) {
-  return visible ? (
-    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold bg-[#E6F4F7] text-[#187B8E] border border-[#9ED4DF] px-1.5 py-0.5 rounded-full">
-      <EyeIcon className="w-3 h-3" /> La ve el postulante
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold bg-[#F1F5F9] text-[#64748B] border border-[#DDE3EC] px-1.5 py-0.5 rounded-full">
-      <LockClosedIcon className="w-3 h-3" /> Privada
-    </span>
+/** Etiquetas rápidas opcionales, para marcar con un toque los casos más comunes. */
+export function EtiquetasRapidas({ valor, onChange }: { valor: string[]; onChange: (v: string[]) => void }) {
+  function alternar(t: string) {
+    onChange(valor.includes(t) ? valor.filter(x => x !== t) : [...valor, t]);
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2" role="group" aria-label="Etiquetas rápidas">
+      {ETIQUETAS_NOTA.map(e => {
+        const activa = valor.includes(e.valor);
+        return (
+          <button
+            key={e.valor}
+            type="button"
+            onClick={() => alternar(e.valor)}
+            aria-pressed={activa}
+            className={`text-[11.5px] font-bold px-2.5 py-1 rounded-full border transition-colors ${
+              activa
+                ? "bg-[#1E8EA3] text-white border-[#1E8EA3]"
+                : "bg-white text-[#64748B] border-[#DDE3EC] hover:border-[#9ED4DF]"
+            }`}
+          >
+            {e.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-/** Lista de notas de la postulación y el formulario para sumar una suelta. Va al pie de la
- *  ficha del candidato cuando se abre desde una postulación. */
-export function NotasPostulacion({ applicationId }: { applicationId: string }) {
-  const [notas, setNotas] = useState<NotaPostulacion[] | null>(null);
+function Etiquetas({ tags }: { tags: string[] }) {
+  if (!tags.length) return null;
+  return (
+    <>
+      {tags.map(t => (
+        <span key={t} className="text-[10.5px] font-bold bg-[#E6F4F7] text-[#187B8E] border border-[#9ED4DF] px-1.5 py-0.5 rounded-full">
+          {LABEL_ETIQUETA[t] ?? t}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Observaciones de **tu empresa** sobre esta persona y el formulario para sumar una. Va al pie
+ *  de la ficha del candidato; `applicationId` (si la ficha se abrió desde una postulación) deja
+ *  registrado de qué búsqueda salió. */
+export function NotasPostulacion({ candidateId, applicationId }: { candidateId: string; applicationId?: string | null }) {
+  const [notas, setNotas] = useState<NotaObservacion[] | null>(null);
   const [texto, setTexto] = useState("");
-  const [visible, setVisible] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let vigente = true;
-    api.get(`/me/company/applications/${applicationId}/notes`)
+    api.get(`/me/company/candidates/${candidateId}/notes`)
       .then(r => { if (vigente) setNotas(r.data); })
       .catch(() => { if (vigente) setNotas([]); });
     return () => { vigente = false; };
-  }, [applicationId]);
+  }, [candidateId]);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -86,30 +127,28 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
     setGuardando(true);
     setError(null);
     try {
-      const r = await api.post(`/me/company/applications/${applicationId}/notes`, {
+      const r = await api.post(`/me/company/candidates/${candidateId}/notes`, {
         body: texto.trim(),
-        visible_to_candidate: visible,
+        tags,
+        ...(applicationId ? { application_id: applicationId } : {}),
       });
-      setNotas(prev => [...(prev ?? []), r.data]);
+      setNotas(prev => [r.data, ...(prev ?? [])]);
       setTexto("");
-      setVisible(false);
+      setTags([]);
     } catch {
-      setError("No pudimos guardar la nota. Probá de nuevo.");
+      setError("No pudimos guardar la observación. Probá de nuevo.");
     } finally {
       setGuardando(false);
     }
   }
 
-  async function borrar(nota: NotaPostulacion) {
-    const aviso = nota.visible_to_candidate
-      ? "¿Borrar la nota? Deja de verse en el panel del postulante, pero si ya le llegó el aviso, eso no se deshace."
-      : "¿Borrar la nota?";
-    if (!window.confirm(aviso)) return;
+  async function borrar(nota: NotaObservacion) {
+    if (!window.confirm("¿Borrar la observación?")) return;
     try {
-      await api.delete(`/me/company/applications/${applicationId}/notes/${nota.id}`);
+      await api.delete(`/me/company/notes/${nota.id}`);
       setNotas(prev => (prev ?? []).filter(n => n.id !== nota.id));
     } catch {
-      setError("No pudimos borrar la nota. Probá de nuevo.");
+      setError("No pudimos borrar la observación. Probá de nuevo.");
     }
   }
 
@@ -117,7 +156,7 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
     <div className="mt-8 pt-6 border-t border-[#DDE3EC]">
       <div className="flex items-center gap-2 mb-3">
         <ChatBubbleLeftEllipsisIcon className="w-4 h-4 text-[#1E8EA3]" />
-        <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Notas de la postulación</p>
+        <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Observaciones de tu empresa sobre esta persona</p>
       </div>
 
       {notas === null ? (
@@ -125,23 +164,22 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
           <div className="w-4 h-4 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : notas.length === 0 ? (
-        <p className="text-xs text-[#64748B] mb-3">Todavía no hay notas.</p>
+        <p className="text-xs text-[#64748B] mb-3">Todavía no hay observaciones.</p>
       ) : (
         <div className="space-y-2 mb-4">
           {notas.map(n => (
             <div key={n.id} className="border border-[#DDE3EC] rounded-xl px-4 py-3 bg-[#FAFBFD]">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <EtiquetaVisibilidad visible={n.visible_to_candidate} />
-                  <span className="text-[11px] text-[#94A3B8]">
-                    {new Date(n.created_at).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                  </span>
+                  <span className="text-[11px] text-[#64748B]">{fechaCorta(n.created_at)}</span>
+                  {n.job_title && <span className="text-[11px] text-[#64748B]">· Búsqueda: {n.job_title}</span>}
+                  <Etiquetas tags={n.tags} />
                 </div>
                 <button
                   type="button"
                   onClick={() => borrar(n)}
-                  className="text-[#94A3B8] hover:text-red-600 transition-colors"
-                  aria-label="Borrar nota"
+                  className="text-[#64748B] hover:text-red-600 transition-colors"
+                  aria-label="Borrar observación"
                 >
                   <TrashIcon className="w-3.5 h-3.5" />
                 </button>
@@ -158,19 +196,20 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
           onChange={e => setTexto(e.target.value)}
           maxLength={NOTA_MAX}
           rows={3}
-          placeholder="Agregar una nota"
+          placeholder="Agregar una observación"
           className="w-full border border-[#DDE3EC] rounded-xl px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] resize-y"
         />
-        <CasillaVisibilidad visible={visible} onChange={setVisible} />
+        <EtiquetasRapidas valor={tags} onChange={setTags} />
+        <CartelObservacion />
         <div className="flex items-center gap-3 mt-3">
           <button
             type="submit"
             disabled={guardando || !texto.trim()}
             className="text-xs font-bold bg-[#1E8EA3] text-white rounded-lg px-3 py-1.5 hover:bg-[#187B8E] transition-colors disabled:opacity-50"
           >
-            {guardando ? "Guardando…" : "Guardar nota"}
+            {guardando ? "Guardando…" : "Guardar observación"}
           </button>
-          <span className="text-[11px] text-[#94A3B8]">{texto.length}/{NOTA_MAX}</span>
+          <span className="text-[11px] text-[#64748B]">{texto.length}/{NOTA_MAX}</span>
           {error && <span className="text-[11px] text-red-600">{error}</span>}
         </div>
       </form>
@@ -178,7 +217,66 @@ export function NotasPostulacion({ applicationId }: { applicationId: string }) {
   );
 }
 
-/** Cuadro que se abre al cambiar el estado: confirma el cambio y deja agregar una nota
+/** Lo que ve el equipo de Talency en la ficha de un candidato: las observaciones de **todas** las
+ *  empresas, en sólo lectura. Cada vez que se abre queda registrado en el backend. */
+export function ObservacionesParaTalency({ candidateId }: { candidateId: string }) {
+  const [notas, setNotas] = useState<NotaParaTalency[] | null>(null);
+  const [error, setError] = useState(false);
+  // Con la compuerta de módulos nuevos cerrada el backend responde 404: no hay nada que mostrar.
+  const [apagado, setApagado] = useState(false);
+
+  useEffect(() => {
+    let vigente = true;
+    api.get(`/admin/candidates/${candidateId}/notes`)
+      .then(r => { if (vigente) setNotas(r.data); })
+      .catch(e => {
+        if (!vigente) return;
+        if (e?.response?.status === 404) setApagado(true);
+        setNotas([]);
+        setError(true);
+      });
+    return () => { vigente = false; };
+  }, [candidateId]);
+
+  if (apagado) return null;
+
+  return (
+    <div className="mt-8 pt-6 border-t border-[#DDE3EC]">
+      <div className="flex items-center gap-2 mb-1">
+        <ChatBubbleLeftEllipsisIcon className="w-4 h-4 text-[#1E8EA3]" />
+        <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Observaciones de las empresas</p>
+      </div>
+      <p className="text-[11.5px] text-[#64748B] mb-3">
+        Sólo lectura. Son privadas: el postulante y las otras empresas no las ven. Cada lectura queda registrada.
+      </p>
+      {notas === null ? (
+        <div className="py-4 flex justify-center">
+          <div className="w-4 h-4 border-2 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : error ? (
+        <p className="text-xs text-red-600">No pudimos cargar las observaciones.</p>
+      ) : notas.length === 0 ? (
+        <p className="text-xs text-[#64748B]">Ninguna empresa dejó observaciones sobre esta persona.</p>
+      ) : (
+        <div className="space-y-2">
+          {notas.map(n => (
+            <div key={n.id} className="border border-[#DDE3EC] rounded-xl px-4 py-3 bg-[#FAFBFD]">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-xs font-bold text-[#1C2230]">{n.company_name ?? "Empresa"}</span>
+                <span className="text-[11px] text-[#64748B]">{fechaCorta(n.created_at)}</span>
+                {n.job_title && <span className="text-[11px] text-[#64748B]">· Búsqueda: {n.job_title}</span>}
+                <Etiquetas tags={n.tags} />
+              </div>
+              <p className="text-sm text-[#1C2230] whitespace-pre-line break-words">{n.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cuadro que se abre al cambiar el estado: confirma el cambio y deja agregar una observación
  *  opcional en el mismo paso (el caso típico: "No avanza" y el motivo). */
 interface VistaPreviaMail {
   sends_email: boolean;
@@ -188,23 +286,18 @@ interface VistaPreviaMail {
 }
 
 /** El mail que le llegaría al postulante (pedido de Eugenia, 08/10/2026). Lo arma el backend con
- *  el mismo texto y el mismo diseño que la cola de mails, con el nombre y el puesto reales. Se
- *  vuelve a pedir cuando cambia la nota (con una pausa, para no pedir en cada tecla). */
-function useVistaPreviaMail(appId: string, status: string, nota: string, visible: boolean) {
+ *  el mismo texto y el mismo diseño que la cola de mails, con el nombre y el puesto reales. La
+ *  observación nunca entra al mail, así que sólo depende del estado. */
+function useVistaPreviaMail(appId: string, status: string) {
   const [vista, setVista] = useState<VistaPreviaMail | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let vigente = true;
-    const t = setTimeout(() => {
-      api.post<VistaPreviaMail>(`/me/company/applications/${appId}/status-preview`, {
-        status,
-        ...(nota.trim() ? { note: nota.trim(), note_visible: visible } : {}),
-      })
-        .then(r => { if (vigente) { setVista(r.data); setError(false); } })
-        .catch(() => { if (vigente) setError(true); });
-    }, nota ? 500 : 0);
-    return () => { vigente = false; clearTimeout(t); };
-  }, [appId, status, nota, visible]);
+    api.post<VistaPreviaMail>(`/me/company/applications/${appId}/status-preview`, { status })
+      .then(r => { if (vigente) { setVista(r.data); setError(false); } })
+      .catch(() => { if (vigente) setError(true); });
+    return () => { vigente = false; };
+  }, [appId, status]);
   return { vista, error };
 }
 
@@ -243,6 +336,9 @@ function VistaPreviaDelMail({ vista, error }: { vista: VistaPreviaMail | null; e
         srcDoc={vista.html}
         className="w-full h-72 rounded-xl border border-[#DDE3EC] bg-white"
       />
+      <p className="mt-1.5 text-[11.5px] text-[#64748B]">
+        Tu observación no aparece en el mail: el postulante no la ve.
+      </p>
     </div>
   );
 }
@@ -254,17 +350,17 @@ export function CambioEstadoConNota({
   status: string;
   estadoLabel: string;
   onCancelar: () => void;
-  onConfirmar: (nota: string, visible: boolean) => Promise<void>;
+  onConfirmar: (nota: string, tags: string[]) => Promise<void>;
 }) {
   const [texto, setTexto] = useState("");
-  const [visible, setVisible] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
-  const { vista, error } = useVistaPreviaMail(appId, status, texto, visible);
+  const { vista, error } = useVistaPreviaMail(appId, status);
 
   async function confirmar() {
     setGuardando(true);
     try {
-      await onConfirmar(texto.trim(), visible);
+      await onConfirmar(texto.trim(), tags);
     } finally {
       setGuardando(false);
     }
@@ -286,7 +382,7 @@ export function CambioEstadoConNota({
         </div>
 
         <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">
-          Agregar una nota (opcional)
+          Agregar una observación (opcional)
         </label>
         <textarea
           value={texto}
@@ -295,7 +391,8 @@ export function CambioEstadoConNota({
           rows={3}
           className="w-full border border-[#DDE3EC] rounded-xl px-3 py-2 text-sm text-[#1C2230] focus:outline-none focus:border-[#1E8EA3] resize-y"
         />
-        <CasillaVisibilidad visible={visible} onChange={setVisible} />
+        <EtiquetasRapidas valor={tags} onChange={setTags} />
+        <CartelObservacion />
 
         <VistaPreviaDelMail vista={vista} error={error} />
 

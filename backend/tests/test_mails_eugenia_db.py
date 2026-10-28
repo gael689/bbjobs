@@ -56,15 +56,15 @@ async def test_preview_shows_the_real_mail_with_name_and_job(client, maker):
     assert await _notifs(maker, w["cand_user"].id) == []
 
 
-async def test_preview_includes_only_visible_notes(client, maker):
+async def test_preview_never_includes_notes(client, maker):
+    """Las observaciones son privadas (Eugenia, 22/10/2026): ni siquiera si el cliente manda una."""
     w = await _world(maker)
     client.as_user(w["a"]["user"])
     url = f"{_status_url(w['a']['app'].id)}-preview"
-    privada = (await client.post(url, json={"status": "discarded", "note": PRIVADA, "note_visible": False})).json()
-    visible = (await client.post(url, json={"status": "discarded", "note": VISIBLE, "note_visible": True})).json()
-    assert PRIVADA not in privada["html"] and PRIVADA not in privada["text"]
-    assert VISIBLE in visible["html"] and "Mensaje de la empresa:" in visible["html"]
-    assert visible["delay_hours"] == 24
+    data = (await client.post(url, json={"status": "discarded", "note": PRIVADA, "note_visible": True})).json()
+    assert PRIVADA not in data["html"] and PRIVADA not in data["text"]
+    assert "Mensaje de la empresa" not in data["html"]
+    assert data["delay_hours"] == 24
 
 
 async def test_preview_of_new_status_sends_no_email(client, maker):
@@ -231,7 +231,7 @@ async def test_expiring_soon_mail_says_the_real_days_left(maker, monkeypatch):
     [mail] = await _mails(maker, a["user"].id, "job_expiring_soon")
     assert "vencerá en 2 días" in mail.html
     assert "Hola, R:" in mail.html and "Equipo de BBJobs" in mail.html
-    assert "https://wa.me/5492915089353" in mail.html
+    assert "https://wa.me/5492915362225" in mail.html
 
 
 async def test_expired_mail_says_the_job_duration_not_30(maker, monkeypatch):

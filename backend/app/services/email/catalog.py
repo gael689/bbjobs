@@ -114,7 +114,6 @@ RULES: dict[str, Rule] = {
     "application_seen": Rule(C.postulaciones, once_per_day=True),
     # Nota visible suelta de la empresa. La que va junto a un cambio de estado viaja dentro de
     # ese aviso y no genera éste. Las privadas no generan ningún aviso.
-    "application_note": Rule(C.postulaciones, once_per_day=True),
     "application_contacted": _POSTULACION,
     "application_in_process": _POSTULACION,
     "application_finalist": _POSTULACION,

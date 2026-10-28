@@ -11,6 +11,7 @@ import Paginacion from "@/components/ui/Paginacion";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
+import { ObservacionesParaTalency } from "@/components/dashboard/NotasPostulacion";
 import BuscadorPostulantes from "@/components/dashboard/postulantes/BuscadorPostulantes";
 import BotonEstrella from "@/components/dashboard/postulantes/BotonEstrella";
 import { FILTROS_VACIOS, hayFiltros, type FiltrosPostulantes } from "@/components/dashboard/postulantes/filtros";
@@ -822,6 +823,7 @@ export default function AdminBusquedasPage() {
           ? `/admin/candidates/${viewProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
           : undefined}
         showCompletion
+        footer={viewProfile && <ObservacionesParaTalency candidateId={viewProfile.id} />}
       />
     </div>
   );

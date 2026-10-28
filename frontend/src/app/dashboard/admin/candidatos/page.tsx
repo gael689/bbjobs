@@ -9,6 +9,7 @@ import {
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import Paginacion from "@/components/ui/Paginacion";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import { ObservacionesParaTalency } from "@/components/dashboard/NotasPostulacion";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import DeleteAccountModal, { DeleteAccountZone } from "@/components/dashboard/DeleteAccountModal";
 import { useListaPaginada, type ValorFiltro } from "@/hooks/useListaPaginada";
@@ -296,7 +297,12 @@ export default function AdminCandidatosPage() {
         activity={activity}
         cvLinkEndpoint={profile ? `/admin/candidates/${profile.id}/cv/link` : undefined}
         showCompletion
-        footer={profileUserId && <DeleteAccountZone onClick={() => setDeleteUserId(profileUserId)} />}
+        footer={profile && (
+          <>
+            <ObservacionesParaTalency candidateId={profile.id} />
+            {profileUserId && <DeleteAccountZone onClick={() => setDeleteUserId(profileUserId)} />}
+          </>
+        )}
       />
 
       {deleteUserId && (
