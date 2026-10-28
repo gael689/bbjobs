@@ -16,6 +16,7 @@ from app.models.job import JobPosting, Application, ApplicationStatus, JobModera
 from app.models.catalogs import Skill
 from app.models.history import ApplicationStatusHistory
 from app.models.payment import TalentUnlock
+from app.services import other_processes as other_processes_service
 from app.schemas.application import (
     ApplicationCreate, ApplicationResponse, ApplicationStatusUpdate,
     ApplicationNoteCreate, ApplicationNoteResponse,
@@ -698,6 +699,31 @@ async def preview_application_status_email(
     return await application_events.status_email_preview(
         db, company=company, app=app, new_status=payload.status,
     )
+
+
+# ── "Está en otro proceso" (Eugenia, 22/10/2026; detrás de un interruptor de producto) ─────
+
+class OtherProcessesResponse(BaseModel):
+    """Sólo un número: nunca la empresa, la búsqueda ni una fecha. 0 con el interruptor
+    apagado."""
+    en_proceso: int
+
+
+@router.get("/me/company/applications/{app_id}/other-processes", response_model=OtherProcessesResponse)
+async def other_processes(
+    app_id: uuid.UUID,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cuántas veces la persona de esta postulación está En proceso o Seleccionada en otras
+    empresas (últimos 90 días). Una postulación de otra empresa da 404."""
+    app = await application_events.company_application(db, company, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada")
+    n = await other_processes_service.count_other_processes(
+        db, company_id=company.id, candidate_id=app.candidate_id,
+    )
+    return OtherProcessesResponse(en_proceso=n)
 
 
 # ── Observaciones de la empresa sobre una persona (módulo nuevo, detrás de la compuerta) ──

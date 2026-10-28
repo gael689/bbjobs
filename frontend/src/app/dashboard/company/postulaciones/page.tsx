@@ -8,7 +8,7 @@ import {
   BriefcaseIcon, ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
-import { CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { AvisoOtrosProcesos, CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import BuscadorPostulantes from "@/components/dashboard/postulantes/BuscadorPostulantes";
 import BotonEstrella from "@/components/dashboard/postulantes/BotonEstrella";
@@ -376,9 +376,14 @@ function Postulaciones() {
         cvLinkEndpoint={candidateProfile
           ? `/me/company/candidates/${candidateProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
           : undefined}
-        footer={MODULOS_NUEVOS_VISIBLES && candidateProfile
-          ? <NotasPostulacion key={candidateProfile.id} candidateId={candidateProfile.id} applicationId={abiertaDesde} />
-          : undefined}
+        footer={candidateProfile && (
+          <>
+            {abiertaDesde && <AvisoOtrosProcesos key={abiertaDesde} applicationId={abiertaDesde} />}
+            {MODULOS_NUEVOS_VISIBLES && (
+              <NotasPostulacion key={candidateProfile.id} candidateId={candidateProfile.id} applicationId={abiertaDesde} />
+            )}
+          </>
+        )}
       />
 
       {cambioPendiente && (

@@ -10,7 +10,7 @@ import {
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
-import { NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { AvisoOtrosProcesos, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
@@ -517,9 +517,14 @@ export default function CompanyBusquedasPage() {
         cvLinkEndpoint={viewProfile
           ? `/me/company/candidates/${viewProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
           : undefined}
-        footer={MODULOS_NUEVOS_VISIBLES && viewProfile
-          ? <NotasPostulacion key={viewProfile.id} candidateId={viewProfile.id} applicationId={perfilAppId} />
-          : undefined}
+        footer={viewProfile && (
+          <>
+            {perfilAppId && <AvisoOtrosProcesos key={perfilAppId} applicationId={perfilAppId} />}
+            {MODULOS_NUEVOS_VISIBLES && (
+              <NotasPostulacion key={viewProfile.id} candidateId={viewProfile.id} applicationId={perfilAppId} />
+            )}
+          </>
+        )}
       />
     </div>
   );

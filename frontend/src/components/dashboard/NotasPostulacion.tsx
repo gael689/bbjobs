@@ -103,6 +103,29 @@ function Etiquetas({ tags }: { tags: string[] }) {
   );
 }
 
+/** "Está en otro proceso" (Eugenia, 22/10/2026): si la persona de esta postulación está En
+ *  proceso o Seleccionada en otra empresa (últimos 90 días), se avisa sin decir cuál. Es
+ *  informativo. El backend devuelve 0 mientras el interruptor esté apagado, y entonces no se
+ *  muestra nada. */
+export function AvisoOtrosProcesos({ applicationId }: { applicationId: string }) {
+  const [enProceso, setEnProceso] = useState(0);
+
+  useEffect(() => {
+    let vigente = true;
+    api.get<{ en_proceso: number }>(`/me/company/applications/${applicationId}/other-processes`)
+      .then(r => { if (vigente) setEnProceso(r.data.en_proceso); })
+      .catch(() => { if (vigente) setEnProceso(0); });
+    return () => { vigente = false; };
+  }, [applicationId]);
+
+  if (enProceso <= 0) return null;
+  return (
+    <p className="mt-4 text-xs leading-relaxed text-[#1C2230] bg-[#E6F4F7] border border-[#9ED4DF] rounded-xl px-3 py-2">
+      Esta persona está en proceso en otra búsqueda de BBJobs. Es solo informativo: podés contactarla igual.
+    </p>
+  );
+}
+
 /** Observaciones de **tu empresa** sobre esta persona y el formulario para sumar una. Va al pie
  *  de la ficha del candidato; `applicationId` (si la ficha se abrió desde una postulación) deja
  *  registrado de qué búsqueda salió. */
@@ -394,6 +417,7 @@ export function CambioEstadoConNota({
         <EtiquetasRapidas valor={tags} onChange={setTags} />
         <CartelObservacion />
 
+        {(status === "in_process" || status === "selected") && <AvisoOtrosProcesos applicationId={appId} />}
         <VistaPreviaDelMail vista={vista} error={error} />
 
         <div className="flex justify-end gap-2 mt-5">

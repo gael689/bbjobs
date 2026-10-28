@@ -32,6 +32,10 @@ class SettingKey(str, enum.Enum):
     # Asistentes con IA (Frente 6, puntos 3 y 5): redactar la búsqueda (empresas) y sugerir
     # habilidades del catálogo a partir del CV (candidatos). Apagado, las pantallas son las de hoy.
     asistente_ia_activo = "asistente_ia_activo"
+    # Aviso a la empresa de que la persona está En proceso o Seleccionada en otra empresa
+    # (services/other_processes.py). Interruptor de producto, no de módulo nuevo: apagado hasta
+    # que la política de privacidad lo mencione y el candidato pueda oponerse.
+    aviso_otros_procesos_activo = "aviso_otros_procesos_activo"
 
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
@@ -43,6 +47,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.revision_cv_activa: False,
     SettingKey.busqueda_ia_activa: False,
     SettingKey.asistente_ia_activo: False,
+    SettingKey.aviso_otros_procesos_activo: False,
 }
 
 # Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no

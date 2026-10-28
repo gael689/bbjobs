@@ -65,7 +65,10 @@ async def test_admin_settings_hide_new_switches_when_closed(monkeypatch):
     monkeypatch.setattr(admin, "get_all_settings", fake_all)
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
     visible = (await admin._visible_settings(None)).model_dump(exclude_none=True)
-    assert set(visible) == {"stats_visibles_para_candidatos", "stats_visibles_en_landing"}
+    # `aviso_otros_procesos_activo` es un interruptor de producto, no de módulo nuevo: se ve siempre.
+    assert set(visible) == {
+        "stats_visibles_para_candidatos", "stats_visibles_en_landing", "aviso_otros_procesos_activo",
+    }
 
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
     visible = (await admin._visible_settings(None)).model_dump(exclude_none=True)

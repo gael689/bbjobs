@@ -23,6 +23,8 @@ interface Uso {
 }
 
 const INTERRUPTORES: { clave: string; titulo: string; ayuda: string }[] = [
+  { clave: "aviso_otros_procesos_activo", titulo: "Aviso de \"está en otro proceso\"",
+    ayuda: "Al avanzar a un postulante, la empresa ve que está en proceso en otra búsqueda (sin decir cuál). Prendelo recién cuando la política de privacidad lo mencione." },
   { clave: "emails_automaticos_activos", titulo: "Mails automáticos",
     ayuda: "Avisos, resúmenes y campañas por mail. Apagado, no sale ningún mail." },
   { clave: "ia_recomendaciones_activas", titulo: "Candidatos recomendados con IA",

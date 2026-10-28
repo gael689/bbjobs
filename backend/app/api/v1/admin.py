@@ -1333,6 +1333,7 @@ class SiteSettingsResponse(BaseModel):
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
     asistente_ia_activo: Optional[bool] = None
+    aviso_otros_procesos_activo: Optional[bool] = None
 
 
 class SiteSettingsUpdate(BaseModel):
@@ -1343,6 +1344,7 @@ class SiteSettingsUpdate(BaseModel):
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
     asistente_ia_activo: Optional[bool] = None
+    aviso_otros_procesos_activo: Optional[bool] = None
 
 
 async def _visible_settings(db: AsyncSession) -> SiteSettingsResponse:
