@@ -103,7 +103,12 @@ async def _index_changed(db, provider) -> dict:
     )).all())
     fresh_cvs = []   # CV leídos recién en esta vuelta (para las habilidades sugeridas)
     for profile, email in rows:
-        status = await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+        try:
+            async with db.begin_nested():   # un CV que no se puede guardar no frena la tanda
+                status = await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+        except Exception as exc:
+            logger.error("ai_cv_text_error", candidate_id=str(profile.id), error=f"{type(exc).__name__}: {str(exc)[:150]}")
+            continue
         if status == "ok" and profile.cv_file_url and \
                 prev_cv.get(profile.id) != hashlib.sha256(profile.cv_file_url.encode()).hexdigest():
             fresh_cvs.append(profile.id)

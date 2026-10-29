@@ -131,3 +131,56 @@ Registro No Llame antes de escribir por WhatsApp a prospectos.
   de la redactora arreglado (tag de 6 dígitos = "monto"). 630 tests.
 - **Quedó para después:** sumar los avisos destacados al mismo pedido del contador de la campanita
   (hoy son dos consultas por minuto por panel abierto) y mandar los umbrales 70/80 desde la API.
+
+## Lanzamiento — lo que falta (28/10/2026, cierre)
+
+**Medición de CVs reales: hecha.** Dos muestras al azar de 40 (sólo lectura, sin IA). La primera
+pasaba el chequeo automático pero **no la revisión a mano**: se escapaban fechas de nacimiento
+("Fecha Nac.:", rótulo pegado a otra palabra, fecha suelta, "8 de febrero del 2000"), edad suelta
+("25 años"), domicilios (calle y altura, piso, depto, CP), nombres de referencias dentro de la línea,
+segundos nombres/apellidos que no están en el perfil, nombres detrás de "Prof./Dr." y teléfonos
+pegados a la palabra siguiente. Todo corregido en `redact.py`, con tests de cada forma; el detector
+de fugas ahora también cuenta fecha de nacimiento, edad, domicilio y teléfonos sueltos. Segunda
+muestra: **cero fugas** y revisión a mano limpia. Límite que queda: un nombre de un tercero en texto
+libre sin rótulo (p. ej. un empleador que es una persona) puede pasar.
+De paso apareció un **error real**: un CV con un emoji partido hacía reventar el armado de la
+ficha y frenaba la tarea de 10 minutos para todos. Arreglado en la limpieza del texto, y ahora un
+perfil que falla se saltea sin frenar la tanda.
+
+En orden. Lo legal va al final a propósito (decisión de Gael).
+
+**1. Código en producción, con la compuerta cerrada** (no cambia nada visible salvo los arreglos)
+- Backup de la base de Railway antes de tocar nada.
+- Habilitar `vector` (pgvector) en el Postgres de Railway.
+- Merge de `feat/mails-ia` a `main` y push (la rama tiene 89 commits sin subir).
+- Migraciones: producción está en `a7c3e9d2f514`, head es `d2f4a6c8e0b1` (ida y vuelta probada en local).
+- Verificar que el sitio sigue igual y que `/admin/settings` no muestra los módulos nuevos.
+
+**2. IA (no necesita Resend)**
+- Cuenta de Gemini con facturación, tope de gasto y DPA aceptado; `GEMINI_API_KEY` en Railway.
+- Probar en local con la clave real lo que se construyó después de la prueba de octubre: tarea
+  nocturna, aviso "candidatos que encajan", tope de gasto, Panorama.
+- Abrir la compuerta (`MODULOS_NUEVOS_ACTIVOS`, `NEXT_PUBLIC_MODULOS_NUEVOS`) y prender sólo
+  "IA recomendaciones". Probarla vos unos días antes de mostrársela a Eugenia (demo privada:
+  https://claude.ai/artifact/WZPo9RVSWTkc8o18gh24LJ).
+
+**3. Mails (lo último del código)**
+- Resend: cuenta, dominios `avisos.` y `novedades.` verificados (DNS), webhooks, DPA; tracking
+  apagado en avisos. Otra cuenta para prospección.
+- Primer envío real contra Resend (hasta ahora todo fue en modo simulado).
+- Calentamiento: arrancar con pocos envíos por día y subir de a poco.
+
+**4. Pruebas a mano que siguen pendientes**
+- Revisión de CV con Mercado Pago sandbox.
+- Sincronización real desde el centro contra un backend local.
+- Borrar de Clerk los 3 usuarios de prueba.
+
+**5. Eugenia**
+- Validar avisos (horario, tope, remitente), qué incluye la Revisión de CV, etiquetar 3 búsquedas
+  reales para calibrar el orden de los recomendados, rubros y textos de campañas.
+
+**6. Legal (al final)**
+- Talency: inscripción en la AAIP, razón social, CUIT y domicilio, Registro No Llame antes de
+  WhatsApp a prospectos.
+- `LEGAL_V3_VIGENTE_DESDE` en Railway y `NEXT_PUBLIC_LEGAL_V3_VIGENTE_DESDE` en Vercel el día que
+  se abre la compuerta.

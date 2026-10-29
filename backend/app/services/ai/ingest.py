@@ -55,6 +55,10 @@ def sanitize_text(text: str | None, max_chars: int = MAX_CHARS) -> str:
     """NFKC, sin invisibles ni controles, espacios colapsados, recortado al presupuesto."""
     if not text:
         return ""
+    # pypdf puede devolver un emoji partido en dos "surrogates" sueltos: el texto no se puede
+    # codificar en UTF-8 y armar la ficha reventaba (medición de CVs reales del 28/10). Se
+    # rearman los pares y lo suelto queda como U+FFFD.
+    text = text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
     text = unicodedata.normalize("NFKC", text)
     text = _INVISIBLE.sub("", text)
     text = _CONTROL.sub(" ", text)

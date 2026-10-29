@@ -174,7 +174,14 @@ async def index_candidates(db: AsyncSession, provider: AIProvider, ids: list[uui
     unchanged: list[uuid.UUID] = []
     for cid, (cdata, *_rest) in data.items():
         stats["revisados"] += 1
-        ficha = build_ficha(cdata)
+        try:
+            ficha = build_ficha(cdata)
+        except Exception as exc:
+            # Un perfil raro no frena al resto de la tanda (antes un CV con un emoji partido
+            # cortaba la tarea de 10 minutos en cada vuelta).
+            logger.error("ai_ficha_error", candidate_id=str(cid), error=f"{type(exc).__name__}: {str(exc)[:150]}")
+            stats["fallidos"] = stats.get("fallidos", 0) + 1
+            continue
         prev = current.get(cid)
         if prev and prev.ficha_hash == ficha.ficha_hash and prev.model == model:
             unchanged.append(cid)

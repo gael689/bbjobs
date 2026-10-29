@@ -577,3 +577,29 @@ async def test_index_tick_does_not_pick_up_unchanged_profiles_again(maker, ai):
         assert stats["reindexados"] == 0
     async with maker() as db:
         assert cid not in await pipeline.candidates_needing_index(db, 100_000)
+
+
+async def test_one_broken_profile_does_not_stop_the_index_batch(maker, ai, monkeypatch):
+    # Medición de CVs reales del 28/10: un CV con un emoji partido hacía reventar build_ficha y
+    # la tarea de 10 minutos no guardaba a nadie de la tanda.
+    from app.services.ai import pipeline
+
+    _, _, people = await _ready_world(maker, ai)
+    roto, sano = people["bueno"][1].id, people["talento"][1].id
+    async with maker() as db:
+        for cid in (roto, sano):
+            p = await db.get(CandidateProfile, cid)
+            p.summary = (p.summary or "") + " Atención al público y caja."   # cambia la ficha
+        await db.commit()
+    real = pipeline.build_ficha
+
+    def build(c):
+        if c.id == str(roto):
+            raise UnicodeEncodeError("utf-8", "\ud83d", 0, 1, "surrogates not allowed")
+        return real(c)
+
+    monkeypatch.setattr(pipeline, "build_ficha", build)
+    async with maker() as db:
+        stats = await pipeline.index_candidates(db, ai, [roto, sano])
+        await db.commit()
+    assert stats["fallidos"] == 1 and stats["reindexados"] == 1
