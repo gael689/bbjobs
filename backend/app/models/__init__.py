@@ -14,7 +14,7 @@ from app.models.email import (
     EmailOutbox, EmailTemplate, EmailPreference, EmailSuppression, EmailCampaign, EmailDigestState,
     EmailCategory, EmailStatus, CampaignStatus,
 )
-from app.models.alerts import JobAlert, JobAlertNotification, AuditLog, Notification
+from app.models.alerts import JobAlert, JobAlertNotification, CandidateJobMatch, AuditLog, Notification
 from app.models.contact import ContactMessage, ContactTopic
 from app.models.history import ApplicationNote, ApplicationStatusHistory, CandidateActivityLog
 from app.models.landing import LandingStat
@@ -95,6 +95,7 @@ __all__ = [
     "TestSubmissionStatus",
     "JobAlert",
     "JobAlertNotification",
+    "CandidateJobMatch",
     "AuditLog",
     "Notification",
     "ContactMessage",

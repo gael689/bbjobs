@@ -34,6 +34,30 @@ class JobAlertNotification(UUIDMixin, Base):
         UniqueConstraint("alert_id", "job_posting_id", name="uq_alert_job_posting"),
     )
 
+class CandidateJobMatch(UUIDMixin, Base):
+    """Una búsqueda que encaja con el perfil de un candidato, para el aviso "Hay una búsqueda que
+    encaja con tu perfil" (services/email/matches.py, migración e6a8c0d2f4b7).
+
+    Una fila por (candidato, búsqueda), nunca dos: así la misma búsqueda no le llega dos veces.
+    `status`: `pending` (espera el próximo aviso; como mucho uno cada 24 h), `sent` (salió en el
+    aviso o en "Búsquedas para vos") o `skipped` (dejó de tener sentido antes de salir: la
+    búsqueda cerró, se postuló, se dio de baja de la categoría…). `via`: `ia` (puntaje evaluado
+    por la IA) o `simple` (sin IA, `digests.score_for_candidate`). Habla de la persona: se borra
+    en la lápida de `account_deletion.py`."""
+    __tablename__ = "candidate_job_matches"
+    __table_args__ = (UniqueConstraint("candidate_id", "job_id", name="uq_candidate_job_matches_candidate_job"),)
+
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False, index=True)
+    score: Mapped[int] = mapped_column(nullable=False)
+    via: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending", server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class AuditLog(UUIDMixin, Base):
     __tablename__ = "audit_logs"
 
