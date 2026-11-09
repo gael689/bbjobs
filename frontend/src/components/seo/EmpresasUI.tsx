@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowDownIcon, ArrowRightIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import Migas from "@/components/seo/Migas";
 import type { Miga } from "@/lib/seo/schema";
-import type { Par, Paso } from "@/lib/seo/seleccion";
+import type { Par, Paso, Puesto } from "@/lib/seo/seleccion";
 import { prefetchDe } from "@/lib/rutas-sesion";
 
 // Piezas visuales de las páginas para empresas (/seleccion-de-personal, sus sectores y
@@ -159,7 +159,62 @@ export function Chips({ items, titulo, id }: { items: string[]; titulo: string; 
   );
 }
 
-export type Camino = { titulo: string; precio: string; puntos: string[]; accion: string; href: string; destacado?: boolean };
+/** Un título y párrafos cortos: el contexto del sector, cómo se adapta el proceso. */
+export function Texto({ titulo, parrafos, id }: { titulo: string; parrafos: string[]; id: string }) {
+  return (
+    <section className="max-w-4xl mx-auto px-4 sm:px-6 mb-20" aria-labelledby={id}>
+      <h2 id={id} className="font-display font-extrabold text-3xl sm:text-4xl text-[#1C2230] tracking-tight mb-6">{titulo}</h2>
+      <div className="max-w-3xl space-y-4 text-lg text-[#1C2230] leading-relaxed">
+        {parrafos.map((p) => (
+          <p key={p}>{p}</p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Puestos del sector en tarjetas: el nombre y qué lo hace difícil de cubrir. */
+export function Puestos({ puestos, titulo, id }: { puestos: Puesto[]; titulo: string; id: string }) {
+  return (
+    <section className="max-w-4xl mx-auto px-4 sm:px-6 mb-20" aria-labelledby={id}>
+      <h2 id={id} className="font-display font-extrabold text-3xl sm:text-4xl text-[#1C2230] tracking-tight mb-8">{titulo}</h2>
+      <ul className="grid md:grid-cols-2 gap-4">
+        {puestos.map((p) => (
+          <li key={p.nombre} className="bg-white border border-[#DDE3EC] rounded-3xl p-6">
+            <h3 className="flex items-center gap-2.5 font-display font-extrabold text-lg text-[#1C2230] mb-2">
+              <span className="w-6 h-6 rounded-full bg-[#1E8EA3] flex items-center justify-center shrink-0" aria-hidden>
+                <CheckIcon className="w-3.5 h-3.5 text-white stroke-[3]" />
+              </span>
+              {p.nombre}
+            </h3>
+            <p className="text-[#1C2230] leading-snug">{p.texto}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Lista con tildes, en una caja clara: qué se mira en una búsqueda del sector. */
+export function ListaChequeo({ items, titulo, id }: { items: string[]; titulo: string; id: string }) {
+  return (
+    <section className="max-w-4xl mx-auto px-4 sm:px-6 mb-20" aria-labelledby={id}>
+      <div className="rounded-[2rem] bg-[#E6F4F7] border border-[#9ED4DF] p-7 sm:p-10">
+        <h2 id={id} className="font-display font-extrabold text-3xl sm:text-4xl text-[#1C2230] tracking-tight mb-6">{titulo}</h2>
+        <ul className="space-y-4">
+          {items.map((t) => (
+            <li key={t} className="flex items-start gap-3 text-[#1C2230] leading-snug">
+              <CheckIcon className="w-5 h-5 mt-0.5 shrink-0 text-[#1E8EA3] stroke-[3]" aria-hidden />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+export type Camino ={ titulo: string; precio: string; puntos: string[]; accion: string; href: string; destacado?: boolean };
 
 /** Dos caminos lado a lado: publicar por tu cuenta o que Talency se encargue. */
 export function DosCaminos({ caminos, titulo }: { caminos: [Camino, Camino]; titulo: string }) {

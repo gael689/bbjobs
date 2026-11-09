@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BuildingOffice2Icon, MapPinIcon } from "@heroicons/react/24/outline";
+import { ArrowRightIcon, BuildingOffice2Icon, MapPinIcon } from "@heroicons/react/24/outline";
 import JsonLd from "@/components/seo/JsonLd";
 import Preguntas from "@/components/seo/Preguntas";
 import ConsultaSeleccion from "@/components/seo/ConsultaSeleccion";
-import { BotonPrincipal, BotonSecundario, Chips, HeroEmpresas, Pasos, ProblemaSolucion } from "@/components/seo/EmpresasUI";
-import { PASOS_CORTOS, SELECCION_RUBROS, getSeleccionRubro } from "@/lib/seo/seleccion";
+import { BotonPrincipal, BotonSecundario, HeroEmpresas, ListaChequeo, ProblemaSolucion, Puestos, Texto } from "@/components/seo/EmpresasUI";
+import { SELECCION_RUBROS, getSeleccionRubro } from "@/lib/seo/seleccion";
 import { RUBROS_INDICE, SELECCION_INDICE, localidadDeZona } from "@/lib/seo/indice";
 import { etiquetasJob, getActiveJobs, getCatalogos, idsPorSlug } from "@/lib/seo/datos";
 import { serviceSchema } from "@/lib/seo/schema";
@@ -58,6 +58,16 @@ export default async function SeleccionRubroPage({ params }: Props) {
   const jobs = todas.filter((j) => j.industry_id && ids.has(j.industry_id)).slice(0, 4);
   const path = `/seleccion-de-personal/${slug}`;
   const hermanos = RUBROS_INDICE.filter((x) => x.slug !== slug && SELECCION_INDICE.includes(x.slug));
+  const sector = r.nombre.toLowerCase();
+  // Enlaces internos con contexto: el listado del rubro, publicar por tu cuenta y dos sectores vecinos.
+  const enlaces = [
+    { href: `/empleos-de/${slug}`, titulo: `Empleos de ${sector} en BBJobs`, texto: "Las búsquedas del sector que hoy están publicadas en el portal." },
+    { href: "/publicar-empleo", titulo: "Publicar un empleo por tu cuenta", texto: "Gratis para empresas verificadas, si preferís manejar la búsqueda vos." },
+    ...r.relacionados.flatMap((rel) => {
+      const otro = RUBROS_INDICE.find((x) => x.slug === rel.slug && SELECCION_INDICE.includes(x.slug));
+      return otro ? [{ href: `/seleccion-de-personal/${otro.slug}`, titulo: `Selección de personal: ${otro.nombre}`, texto: rel.motivo }] : [];
+    }),
+  ];
 
   return (
     <div className="bg-[#FAFBFD] min-h-screen pb-20">
@@ -77,11 +87,15 @@ export default async function SeleccionRubroPage({ params }: Props) {
         <BotonSecundario href="/publicar-empleo">Prefiero publicar yo</BotonSecundario>
       </HeroEmpresas>
 
+      <Texto titulo={r.contextoTitulo} parrafos={r.contexto} id="contexto" />
+
       <ProblemaSolucion titulo="Lo que te frena, resuelto" pares={r.dolores} />
 
-      <Chips items={r.perfiles} titulo="Perfiles que buscamos" id="perfiles" />
+      <Puestos puestos={r.perfiles} titulo="Los puestos que más se buscan" id="perfiles" />
 
-      <Pasos pasos={PASOS_CORTOS} titulo="Así de simple" id="proceso" />
+      <ListaChequeo items={r.verifica} titulo={`Qué mira Talency en una búsqueda de ${sector}`} id="requisitos" />
+
+      <Texto titulo="Cómo se organiza la búsqueda" parrafos={r.proceso} id="proceso" />
 
       {/* Búsquedas activas del sector: muestran que el portal se mueve en ese rubro. */}
       {jobs.length > 0 && (
@@ -113,6 +127,23 @@ export default async function SeleccionRubroPage({ params }: Props) {
           </ul>
         </section>
       )}
+
+      <nav className="max-w-4xl mx-auto px-4 sm:px-6 mb-20" aria-labelledby="seguir">
+        <h2 id="seguir" className="font-display font-extrabold text-2xl sm:text-3xl text-[#1C2230] tracking-tight mb-5">Seguí por acá</h2>
+        <ul className="grid sm:grid-cols-2 gap-3">
+          {enlaces.map((e) => (
+            <li key={e.href}>
+              <Link href={e.href} className="group flex h-full items-start justify-between gap-3 bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] rounded-2xl px-5 py-4 transition-colors">
+                <span>
+                  <span className="block font-bold text-[#1C2230] group-hover:text-[#187B8E] transition-colors">{e.titulo}</span>
+                  <span className="block text-sm text-[#1C2230] leading-snug mt-1">{e.texto}</span>
+                </span>
+                <ArrowRightIcon className="w-5 h-5 mt-0.5 shrink-0 text-[#1E8EA3]" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <ConsultaSeleccion sector={r.nombre} titulo={`Tu búsqueda de ${r.nombre.toLowerCase()}, en buenas manos`} />
 
