@@ -85,7 +85,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_sent",
@@ -115,7 +116,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_seen",
@@ -145,7 +147,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": true,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_in_process",
@@ -175,7 +178,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_selected",
@@ -205,7 +209,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_discarded",
@@ -235,7 +240,8 @@
    "demora_horas": 24,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_discarded_interview",
@@ -265,7 +271,8 @@
    "demora_horas": 24,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "talent_profile_unlocked",
@@ -295,7 +302,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": true,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "profile_incomplete",
@@ -325,7 +333,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "candidate_reactivation",
@@ -355,7 +364,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "cv_review_paid",
@@ -385,7 +395,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "cv_review_payment_rejected",
@@ -415,7 +426,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "cv_review_in_progress",
@@ -445,7 +457,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "cv_review_delivered",
@@ -475,7 +488,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "digest_para_vos",
@@ -502,7 +516,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "aviso_busquedas",
@@ -529,7 +544,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "welcome_company",
@@ -559,7 +575,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "company_verified",
@@ -589,7 +606,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "company_rejected",
@@ -621,7 +639,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "company_suspended",
@@ -651,7 +670,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "company_reactivated",
@@ -681,7 +701,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "company_onboarding_guide",
@@ -711,7 +732,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "job_approved",
@@ -741,7 +763,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_rejected",
@@ -771,7 +794,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_takedown",
@@ -801,7 +825,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_reopened",
@@ -831,7 +856,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_deleted",
@@ -861,7 +887,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_expiring_soon",
@@ -891,7 +918,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_expired",
@@ -921,7 +949,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_no_applications",
@@ -951,7 +980,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "recommended_candidates_new",
@@ -998,7 +1028,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_feature_active",
@@ -1037,7 +1068,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_feature_granted",
@@ -1067,7 +1099,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_feature_rejected",
@@ -1097,7 +1130,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_feature_expired",
@@ -1127,7 +1161,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "talent_pack_active",
@@ -1157,7 +1192,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "talent_pack_granted",
@@ -1187,7 +1223,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "talent_pack_rejected",
@@ -1217,7 +1254,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "talent_pack_low",
@@ -1247,7 +1285,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": false
+   "con_baja": false,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "digest_empresa",
@@ -1274,7 +1313,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_payment_received",
@@ -1304,7 +1344,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_payment_refunded",
@@ -1334,7 +1375,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_cv_review_new",
@@ -1364,7 +1406,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_cv_review_duplicate_payment",
@@ -1394,7 +1437,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_cv_review_overdue",
@@ -1424,7 +1468,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_email_health",
@@ -1454,7 +1499,8 @@
    "demora_horas": 0,
    "critico": true,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_campaign_draft_ready",
@@ -1484,7 +1530,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "digest_equipo",
@@ -1511,7 +1558,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   }
  ],
  "sin_mail": [
@@ -1526,7 +1574,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "application_new_status",
@@ -1539,7 +1588,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "skill_suggestions_ready",
@@ -1552,7 +1602,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_company_pending",
@@ -1565,7 +1616,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_company_reapplied",
@@ -1578,7 +1630,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "job_pending_review",
@@ -1591,7 +1644,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "contact_message_received",
@@ -1604,7 +1658,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_campaign_weekly_ready",
@@ -1617,7 +1672,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   },
   {
    "tipo": "admin_ai_new_fits",
@@ -1630,7 +1686,8 @@
    "demora_horas": 0,
    "critico": false,
    "uno_por_dia": false,
-   "con_baja": true
+   "con_baja": true,
+   "remitente": "BBJobs <avisos@avisos.bbjobs.com.ar>"
   }
  ],
  "preguntas": [

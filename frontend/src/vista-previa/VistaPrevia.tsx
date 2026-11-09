@@ -39,6 +39,7 @@ export interface Aviso {
   critico: boolean;
   uno_por_dia: boolean;
   con_baja: boolean;
+  remitente: string;
 }
 export interface SinMail {
   tipo: string;
@@ -365,6 +366,14 @@ function TarjetaAviso({ a, preguntas }: { a: Aviso; preguntas: Pregunta[] }) {
                   Asunto propuesto: tu texto no tenía asunto y usamos el título que escribiste arriba (P12).
                 </span>
               )}
+            </Dato>
+            <Dato titulo="Quién lo manda">
+              {a.remitente}
+              <span className={`mt-1 block text-xs ${muted}`}>
+                {a.remitente.includes("@novedades.")
+                  ? "Alertas, recordatorios y novedades salen de una dirección aparte, para que no afecten a los avisos importantes."
+                  : "Los avisos de la cuenta, de las postulaciones y de las búsquedas salen de esta dirección."}
+              </span>
             </Dato>
             <Dato titulo="¿Se puede dar de baja?">
               {a.con_baja

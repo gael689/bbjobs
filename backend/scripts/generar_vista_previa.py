@@ -26,7 +26,7 @@ from app.core.config import settings  # noqa: E402
 
 settings.FRONTEND_URL = "https://www.bbjobs.com.ar"
 
-from app.services.email.catalog import RULES  # noqa: E402
+from app.services.email.catalog import RULES, remitente_para  # noqa: E402
 from app.services.email.copy import COPY, DIGESTS, dias_texto, greeting  # noqa: E402
 from app.services.email.outbox import build_content, manage_url_for  # noqa: E402
 from app.services.email.render import EmailItem, render_email  # noqa: E402
@@ -377,6 +377,7 @@ def regla(rule) -> dict:
     return {
         "categoria": rule.category.value, "modo": rule.mode, "demora_horas": int(rule.delay.total_seconds() // 3600),
         "critico": rule.critical, "uno_por_dia": rule.once_per_day, "con_baja": rule.unsubscribable,
+        "remitente": remitente_para(rule.category),
     }
 
 
