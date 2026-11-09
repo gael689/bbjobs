@@ -42,6 +42,11 @@ quedó abajo como **pendiente de Talency**, no en la página.
     `lib/seo/indice.ts`).
   - **Siempre indexables**, a diferencia de las de candidatos: su contenido es el servicio en ese
     sector, no el listado. Sin búsquedas activas el bloque de búsquedas simplemente no aparece.
+  - **Actualización 09/11/2026:** hoy se generan los 11 sectores. Una auditoría midió ~280
+    palabras por página con la mitad del texto compartido entre ellas; se reescribieron con texto
+    propio de cada sector (contexto en la región, puestos, qué se mira en la búsqueda, cómo se
+    organiza, 5 preguntas, enlaces a `/empleos-de/<sector>`, `/publicar-empleo` y 2 sectores
+    vecinos). Sólo hechos generales y comprobables; sin cifras, sueldos, clientes ni plazos.
   - Para sumar un sector: texto en `SELECCION_RUBROS` (`lib/seo/seleccion.ts`) + slug en
     `SELECCION_INDICE` (`lib/seo/indice.ts`). Sitemap, llms.txt, hub y enlaces se actualizan solos.
 - **`/publicar-empleo`**: para la empresa que publica por su cuenta. Todo verificado en el código:
