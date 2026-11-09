@@ -1058,6 +1058,10 @@ async def moderate_job(
         # 10 min la recalcula. No frena la aprobación ni falla si la IA está apagada.
         from app.services.ai.realtime import request_recompute
         await request_recompute(job.id, "aprobada")
+        # Aviso al candidato "Hay una búsqueda que encaja con tu perfil": sin IA, se anota acá
+        # con el puntaje simple; con IA, al terminar el recálculo (services/email/matches.py).
+        from app.services.email.matches import on_job_approved
+        await on_job_approved(job.id)
     return {"status": "ok", "moderation_status": job.moderation_status}
 
 

@@ -45,7 +45,7 @@ async def on_candidate_onboarded(db: AsyncSession, user: User) -> None:
     await create_notification(
         db, user_id=user.id, type="welcome_candidate", title="Bienvenido/a a BBJobs",
         body=("Completá tu perfil y cargá tu CV: es lo primero que miran las empresas. Después podés "
-              "postularte con un clic y armar alertas para enterarte de las búsquedas nuevas."),
+              "postularte con un clic. Cuando se publique una búsqueda que encaje con tu perfil, te avisamos."),
         link="/dashboard/candidate/perfil",
     )
 

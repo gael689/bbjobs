@@ -1,8 +1,9 @@
-"""Resúmenes: piezas puras (coincidencia de alertas, puntaje semanal, listas en el mail)."""
+"""Resúmenes: piezas puras (puntaje semanal, listas en el mail, texto del aviso al candidato)."""
 import uuid
 from types import SimpleNamespace
 
-from app.services.email.digests import alert_matches, score_for_candidate
+from app.services.email.copy import DIGESTS
+from app.services.email.digests import score_for_candidate
 from app.services.email.render import EmailItem, render_email
 
 IND, Z1, Z2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -12,19 +13,6 @@ def _job(**kw):
     base = dict(industry_id=IND, zone_id=Z1, modality="presencial")
     base.update(kw)
     return SimpleNamespace(**base)
-
-
-def _alert(**kw):
-    base = dict(industry_id=None, zone_id=None, modality=None)
-    base.update(kw)
-    return SimpleNamespace(**base)
-
-
-def test_alert_filters_are_and_and_empty_means_any():
-    assert alert_matches(_alert(), _job())
-    assert alert_matches(_alert(industry_id=IND, zone_id=Z1), _job())
-    assert not alert_matches(_alert(zone_id=Z2), _job())
-    assert not alert_matches(_alert(modality="remoto"), _job())
 
 
 def test_weekly_score_prefers_zone_and_shared_skills():
@@ -46,3 +34,12 @@ def test_items_render_as_links_escaped_and_in_plain_text():
     assert "Cajero &lt;b&gt;" in out.html and "/empleos/1" in out.html
     assert "javascript:" not in out.html
     assert "- Cajero <b> (Centro · presencial)" in out.text
+
+
+def test_match_alert_copy_singular_and_plural():
+    copy = DIGESTS["aviso_busquedas"]
+    assert copy.source == "propuesto" and copy.item_cta == "Postularme"
+    assert copy.for_count(1).subject == "Hay una búsqueda que encaja con tu perfil"
+    many = copy.for_count(3)
+    assert many.subject == "Hay 3 búsquedas que encajan con tu perfil"
+    assert "3 búsquedas" in many.heading and many.intro.startswith("Las elegimos")

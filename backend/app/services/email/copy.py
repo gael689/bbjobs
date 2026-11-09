@@ -35,7 +35,7 @@ Un `type` sin entrada acá sale como antes: título y cuerpo de la notificación
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 Source = Literal["eugenia", "propuesto"]
@@ -525,6 +525,22 @@ class DigestCopy:
     help_whatsapp: str | None = None
     confirmar: tuple[str, ...] = ()
     subject_proposed: bool = False
+    # Con más de un ítem (el aviso de búsquedas que encajan): `{cantidad}` = cuántos van.
+    subject_many: str | None = None
+    heading_many: str | None = None
+    intro_many: str | None = None
+
+    def for_count(self, n: int) -> "DigestCopy":
+        """El texto para `n` ítems: con más de uno, las versiones en plural (si las hay)."""
+        if n <= 1:
+            return self
+        values = {"cantidad": str(n)}
+        return replace(
+            self,
+            subject=fill(self.subject_many, values) if self.subject_many else self.subject,
+            heading=fill(self.heading_many, values) if self.heading_many else self.heading,
+            intro=fill(self.intro_many, values) if self.intro_many else self.intro,
+        )
 
 
 DIGESTS: dict[str, DigestCopy] = {
@@ -534,12 +550,17 @@ DIGESTS: dict[str, DigestCopy] = {
         "Estas son las búsquedas publicadas esta semana en BBJobs. Revisá los requisitos de cada "
         "propuesta y postulate a las que se ajusten a tu experiencia e intereses.",
         "Ver todas las oportunidades", "Ver búsqueda", E),
-    "digest_alertas": DigestCopy(
-        "Nuevas búsquedas para tu alerta en BBJobs",
-        "Hay búsquedas nuevas que coinciden con tu alerta",
-        "Se publicaron en BBJobs y coinciden con lo que estás buscando. Revisá los requisitos y "
-        "postulate a las que te interesen.",
-        "Ver todas las oportunidades", "Ver búsqueda", E),
+    # Aviso inmediato al candidato (PLAN-FINAL-IA-Y-MAILS §3.2). Propuesto: lo valida Eugenia.
+    "aviso_busquedas": DigestCopy(
+        "Hay una búsqueda que encaja con tu perfil",
+        "Se publicó una búsqueda que encaja con tu perfil",
+        "La elegimos según tu experiencia, tus habilidades y tu zona. Revisá los requisitos y, si te "
+        "interesa, postulate con un clic.",
+        "Ver más búsquedas", "Postularme",
+        subject_many="Hay {cantidad} búsquedas que encajan con tu perfil",
+        heading_many="Se publicaron {cantidad} búsquedas que encajan con tu perfil",
+        intro_many="Las elegimos según tu experiencia, tus habilidades y tu zona. Revisá los requisitos "
+                   "y postulate a las que te interesen con un clic."),
     # E21
     "digest_empresa": DigestCopy(
         "Tu resumen de postulaciones", "",

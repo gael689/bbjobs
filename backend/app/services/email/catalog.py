@@ -189,8 +189,10 @@ RULES: dict[str, Rule] = {
     "admin_ai_new_fits": Rule(C.admin, mode="none"),
 
     # ── Resúmenes (T3): los arma services/email/digests.py y van directo a la cola ──
-    "digest_alertas": Rule(C.alertas, mode="digest", exempt_daily_cap=True),
     "digest_para_vos": Rule(C.alertas, mode="digest", exempt_daily_cap=True),
+    # "Hay una búsqueda que encaja con tu perfil" (services/email/matches.py): ya agrupa lo de 24 h
+    # en un mail, pero sí cuenta para el tope de 2 por día y respeta la franja (Gael, 09/11/2026).
+    "aviso_busquedas": Rule(C.alertas, mode="digest"),
     "digest_empresa": Rule(C.postulaciones, mode="digest", exempt_daily_cap=True),
     "digest_equipo": Rule(C.admin, mode="digest", exempt_daily_cap=True),
 }
