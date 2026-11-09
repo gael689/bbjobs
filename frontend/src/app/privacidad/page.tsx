@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import Section, { linkClass } from "@/components/legal/Section";
 import { LEGAL_VERSION, LEGAL_VIGENTE_DESDE } from "@/lib/legal";
@@ -5,6 +7,13 @@ import { LEGAL_VERSION, LEGAL_VIGENTE_DESDE } from "@/lib/legal";
 // Versión 2.0 (06/10/2026): describe lo que la plataforma ya hace en producción (Base de Talento,
 // pagos, Clerk) y corrige los plazos de la Ley 25.326. Lo de los módulos nuevos (IA, mails,
 // Revisión de CV) se suma cuando se lancen; el borrador completo está fuera del repo.
+export const metadata: Metadata = metaPagina({
+  title: "Política de privacidad | BBJobs",
+  description:
+    "Qué datos guarda BBJobs, para qué los usa, quién puede verlos y cómo ejercer tus derechos sobre tu información personal.",
+  path: "/privacidad",
+});
+
 export default function PrivacidadPage() {
   const mail = <a href="mailto:privacidad@bbjobs.com.ar" className={linkClass}>privacidad@bbjobs.com.ar</a>;
   return (

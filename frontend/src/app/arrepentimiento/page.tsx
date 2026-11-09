@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import Section, { linkClass } from "@/components/legal/Section";
 import ArrepentimientoForm from "@/components/legal/ArrepentimientoForm";
 
-export const metadata: Metadata = {
-  title: "Botón de arrepentimiento · BBJobs",
-  description: "Arrepentite de una compra en BBJobs dentro de los 10 días corridos, sin dar motivos.",
-};
+export const metadata: Metadata = metaPagina({
+  title: "Botón de arrepentimiento | BBJobs",
+  description:
+    "Arrepentite de una compra en BBJobs dentro de los 10 días corridos, sin dar motivos.",
+  path: "/arrepentimiento",
+});
 
 // Botón de arrepentimiento (Ley 24.240 art. 34; Disposición 954/2025): accesible sin iniciar
 // sesión, con link en el pie de todas las páginas públicas y código de trámite en el momento.

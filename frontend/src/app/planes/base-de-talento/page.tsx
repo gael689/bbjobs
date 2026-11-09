@@ -1,15 +1,17 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import {
   ArrowLeftIcon, ArrowRightIcon, LockClosedIcon, LockOpenIcon,
   ShieldCheckIcon, MagnifyingGlassIcon, CheckIcon,
 } from "@heroicons/react/24/outline";
 
-export const metadata: Metadata = {
-  title: "Cómo funciona la Base de Talento",
+export const metadata: Metadata = metaPagina({
+  title: "Base de Talento: candidatos de Bahía Blanca | BBJobs",
   description:
     "Buscá entre los candidatos de Bahía Blanca que autorizaron aparecer. Mirás todos los perfiles gratis y pagás sólo por los contactos que querés desbloquear.",
-};
+  path: "/planes/base-de-talento",
+});
 
 // Espejo de backend/app/schemas/payment.py.
 const TALENT_PACK_PRICE = 49900;

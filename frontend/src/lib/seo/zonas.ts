@@ -19,7 +19,7 @@ const PREGUNTA_VERIFICADAS: Pregunta = {
 export const ZONAS: PaginaSeo[] = [
   {
     slug: "bahia-blanca",
-    title: "Trabajo en Bahía Blanca: búsquedas activas | BBJobs",
+    title: "Trabajo en Bahía Blanca: ofertas de empleo activas | BBJobs",
     description:
       "Búsquedas laborales activas en Bahía Blanca, publicadas por empresas verificadas por Talency. Mirá los avisos, cargá tu CV gratis y postulate con un click.",
     h1: "Trabajo en Bahía Blanca",

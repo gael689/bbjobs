@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
+
+export const metadata: Metadata = metaPagina({
+  title: "Quiénes somos: el portal de empleos de Bahía Blanca | BBJobs",
+  description:
+    "BBJobs es el portal de empleos de Bahía Blanca y la región, una iniciativa de la consultora Talency. Empresas verificadas a mano y candidatos locales en un mismo lugar.",
+  path: "/nosotros",
+});
 
 export default function NosotrosPage() {
   return (

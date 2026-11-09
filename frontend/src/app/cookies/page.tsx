@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import Section, { linkClass } from "@/components/legal/Section";
 import ConfigurarCookiesButton from "@/components/consent/ConfigurarCookiesButton";
 
-export const metadata: Metadata = {
-  title: "Política de cookies — BBJobs",
+export const metadata: Metadata = metaPagina({
+  title: "Política de cookies | BBJobs",
   description: "Qué cookies usa BBJobs, para qué sirven, cuánto duran y cómo cambiar tu elección.",
-  alternates: { canonical: "/cookies" },
-};
+  path: "/cookies",
+});
 
 // Página pedida en el Frente 3 (MAILS-SEO-IA-OCTUBRE-PLAN.md). Tiene que coincidir con la sección
 // "11. Cookies" de /privacidad y con lo que hacen components/consent/ y lib/analytics.ts.

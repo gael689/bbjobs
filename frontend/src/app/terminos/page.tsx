@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import Section, { linkClass } from "@/components/legal/Section";
 import { LEGAL_VERSION, LEGAL_VIGENTE_DESDE } from "@/lib/legal";
@@ -5,6 +7,13 @@ import { LEGAL_VERSION, LEGAL_VIGENTE_DESDE } from "@/lib/legal";
 // Versión 2.0 (06/10/2026): suma la Base de Talento, los servicios pagos, el arrepentimiento y el
 // registro de aceptación, y saca la "renuncia a cualquier otro fuero" (abusiva frente a un
 // consumidor, Ley 24.240 art. 37).
+export const metadata: Metadata = metaPagina({
+  title: "Términos y condiciones de uso | BBJobs",
+  description:
+    "Las reglas de uso de BBJobs para candidatos y empresas: registro, publicación de búsquedas, servicios pagos y uso de los datos de los postulantes.",
+  path: "/terminos",
+});
+
 export default function TerminosPage() {
   return (
     <div className="bg-[#FAFBFD] min-h-screen pt-[140px] pb-20">

@@ -3,9 +3,9 @@ import { SITIO, urlAbs } from "@/lib/seo/sitio";
 
 // Metadata propia de /empleos (la página es un componente cliente y no puede exportarla).
 // Las fichas /empleos/[id] definen la suya en generateMetadata y pisan esta.
-const title = "Empleos en Bahía Blanca y la región | BBJobs";
+const title = "Empleos en Bahía Blanca: ofertas de trabajo activas | BBJobs";
 const description =
-  "Todas las búsquedas laborales activas de Bahía Blanca, Punta Alta, Monte Hermoso y Coronel Suárez, de empresas verificadas por Talency. Postulate gratis.";
+  "La bolsa de trabajo de Bahía Blanca y la región: todas las búsquedas activas de empresas verificadas por Talency, con filtros por sector, zona y modalidad. Postularte es gratis.";
 
 export const metadata: Metadata = {
   title,

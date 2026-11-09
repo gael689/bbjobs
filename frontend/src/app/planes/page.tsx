@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import { CheckIcon, StarIcon, UserGroupIcon, BriefcaseIcon } from "@heroicons/react/24/outline";
 import CtaPlan from "@/components/planes/CtaPlan";
 
-export const metadata: Metadata = {
-  title: "Planes y precios",
+export const metadata: Metadata = metaPagina({
+  title: "Planes y precios para empresas | BBJobs",
   description:
     "Publicar búsquedas en BBJobs es gratis para toda empresa verificada. Destacá un aviso o accedé a la Base de Talento de Bahía Blanca.",
-};
+  path: "/planes",
+});
 
 // Espejo de backend/app/schemas/payment.py. Si cambia allá, cambia acá — el precio está en dos
 // lugares y mostrar uno mientras se cobra el otro es la peor forma de enterarse.

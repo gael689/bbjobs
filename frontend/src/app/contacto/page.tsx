@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
+import { metaPagina } from "@/lib/seo/meta";
 import Link from "next/link";
 import { PhoneIcon, ChatBubbleLeftRightIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import ContactForm from "@/components/contact/ContactForm";
 
 const WHATSAPP_NUMBER = "5492915089353"; // 291 508-9353 (Bahía Blanca)
 const PHONE_DISPLAY = "+54 9 291 508-9353";
+
+export const metadata: Metadata = metaPagina({
+  title: "Contacto | BBJobs, empleos en Bahía Blanca",
+  description:
+    "Escribinos por el formulario o por WhatsApp: empresas que quieren publicar búsquedas, candidatos con dudas sobre su cuenta o cualquier consulta sobre BBJobs.",
+  path: "/contacto",
+});
 
 export default function ContactoPage() {
   return (
