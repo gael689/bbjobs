@@ -489,6 +489,34 @@ async def test_a_company_cannot_annotate_a_person_it_has_no_relation_with(client
     assert (await client.post(url, json={"body": "x"})).status_code == 404
 
 
+async def test_notes_from_the_talent_pool_only_for_the_company_that_unlocked(client, maker):
+    """Base de Talento: la persona nunca se postuló. A la desbloqueó y puede anotar; B no."""
+    from app.models.payment import TalentCreditPack, TalentUnlock
+
+    w = await _world(maker)
+    async with maker() as db:
+        u = User(id=uuid.uuid4(), email="ema@mail.com", role="candidate", is_active=True)
+        db.add(u)
+        await db.flush()
+        ema = CandidateProfile(id=uuid.uuid4(), user_id=u.id, first_name="Ema", last_name="T", phone="4")
+        pack = TalentCreditPack(id=uuid.uuid4(), company_id=w["a"]["company"].id, credits_total=3,
+                                status="active", activated_at=datetime.now(timezone.utc))
+        db.add_all([ema, pack])
+        await db.flush()
+        db.add(TalentUnlock(company_id=w["a"]["company"].id, candidate_id=ema.id, pack_id=pack.id))
+        await db.commit()
+    url = f"/api/v1/me/company/candidates/{ema.id}/notes"
+
+    client.as_user(w["a"]["user"])
+    resp = await client.post(url, json={"body": "Lo llamamos, no atendió", "tags": ["referencias_a_revisar"]})
+    assert resp.status_code == 201 and resp.json()["application_id"] is None
+    assert [n["body"] for n in (await client.get(url)).json()] == ["Lo llamamos, no atendió"]
+
+    client.as_user(w["b"]["user"])
+    assert (await client.get(url)).status_code == 404
+    assert (await client.post(url, json={"body": "x"})).status_code == 404
+
+
 # ── Ícono "Tiene observaciones" en la lista de postulantes ─────────────────────────────
 
 def _list_url(w, key):

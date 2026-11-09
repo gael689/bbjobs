@@ -6,6 +6,8 @@ import {
   LockClosedIcon, LockOpenIcon, MagnifyingGlassIcon, UserCircleIcon,
   BriefcaseIcon, AcademicCapIcon, MapPinIcon, ShieldCheckIcon, SparklesIcon,
 } from "@heroicons/react/24/outline";
+import { NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 // ── Tipos, espejo de app/api/v1/talent.py ──────────────────────────────
 type BlindExperience = { role_title: string; months: number; company_name: string | null; description: string | null };
@@ -587,6 +589,13 @@ function ModalPerfil({
               ))}
             </div>
           </Seccion>
+        )}
+
+        {/* Observaciones privadas de la empresa (módulo nuevo): sólo sobre perfiles desbloqueados,
+            que es lo que el backend exige para anotar sobre alguien que no se postuló. Son las
+            mismas que ve en Postulaciones si después la persona se postula a una búsqueda suya. */}
+        {MODULOS_NUEVOS_VISIBLES && perfil.unlocked && (
+          <NotasPostulacion key={perfil.id} candidateId={perfil.id} />
         )}
       </div>
     </div>
