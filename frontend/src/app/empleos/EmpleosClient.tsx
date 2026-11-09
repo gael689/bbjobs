@@ -1,0 +1,421 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
+import {
+  BriefcaseIcon, MagnifyingGlassIcon, MapPinIcon,
+  BuildingOffice2Icon, FunnelIcon, XMarkIcon,
+} from "@heroicons/react/24/outline";
+import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPanel";
+import VerifiedBadge from "@/components/jobs/VerifiedBadge";
+import { jobUrl } from "@/lib/seo/urls";
+
+interface Job extends PreviewJob {
+  zone_id?: string;
+}
+
+interface Catalog { id: string; name: string; }
+
+const MODALITY_LABEL: Record<string, string> = {
+  presencial: "Presencial",
+  remoto: "Remoto",
+  "híbrido": "Híbrido",
+};
+
+const MODALITY_CLS: Record<string, string> = {
+  presencial: "bg-blue-100 text-blue-700",
+  remoto: "bg-green-100 text-green-700",
+  "híbrido": "bg-purple-100 text-purple-700",
+};
+
+const PAGE_SIZE = 20;
+
+// La primera página sin filtros llega ya en el HTML desde page.tsx (ISR), para que el buscador vea
+// los links a cada búsqueda. Si esa lectura falló (initialJobs null), se pide desde el navegador
+// como antes. `bloqueBusquedas` es el bloque server-rendered de empleos por sector y zona.
+export default function EmpleosClient({
+  initialJobs,
+  initialTotal,
+  bloqueBusquedas,
+}: {
+  initialJobs: Job[] | null;
+  initialTotal: number;
+  bloqueBusquedas?: ReactNode;
+}) {
+  const router = useRouter();
+  const [jobs, setJobs] = useState<Job[]>(initialJobs ?? []);
+  const [total, setTotal] = useState(initialJobs ? initialTotal : 0);
+  const [page, setPage] = useState(1);
+  const [industries, setIndustries] = useState<Catalog[]>([]);
+  const [zones, setZones] = useState<Catalog[]>([]);
+  const [contractTypes, setContractTypes] = useState<Catalog[]>([]);
+  // Con la lista inicial del servidor, la búsqueda sin filtros ya está resuelta.
+  const [resolvedFiltersKey, setResolvedFiltersKey] = useState<string | null>(
+    initialJobs ? new URLSearchParams({ page: "1", page_size: String(PAGE_SIZE) }).toString() : null,
+  );
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [previewJob, setPreviewJob] = useState<Job | null>(null);
+
+  // Si venimos de vuelta de /login?redirect_url=/empleos?job=... (ej. tras postularse sin
+  // sesión), reabrimos la misma vista previa en vez de dejar al usuario en la lista pelada.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const jobId = new URLSearchParams(window.location.search).get("job");
+    if (!jobId) return;
+    api.get(`/jobs/${jobId}`).then(r => setPreviewJob(r.data)).catch(() => {});
+  }, []);
+
+  function setJobParam(id: string | null) {
+    const params = new URLSearchParams(window.location.search);
+    if (id) params.set("job", id); else params.delete("job");
+    const qs = params.toString();
+    router.replace(`/empleos${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  function openPreview(job: Job) {
+    setPreviewJob(job);
+    setJobParam(job.id);
+  }
+
+  function closePreview() {
+    setPreviewJob(null);
+    setJobParam(null);
+  }
+
+  // Prellenado desde la URL (ej. viene de /empleos?q=... del hero de la home). Va en un efecto y no
+  // en el valor inicial del estado: el HTML ya trae la lista sin filtro, y leer la URL antes de
+  // hidratar haría que servidor y navegador rendericen cosas distintas.
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const desdeUrl = new URLSearchParams(window.location.search).get("q");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (desdeUrl) setQ(desdeUrl);
+  }, []);
+  const [industryId, setIndustryId] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [modality, setModality] = useState("");
+  const [contractTypeId, setContractTypeId] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
+
+  useEffect(() => {
+    api.get("/catalogs/industries").then(r => setIndustries(r.data)).catch(() => {});
+    api.get("/catalogs/zones").then(r => setZones(r.data)).catch(() => {});
+    api.get("/catalogs/contract-types").then(r => setContractTypes(r.data)).catch(() => {});
+  }, []);
+
+  function buildParams(targetPage: number) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (industryId) params.set("industry_id", industryId);
+    if (zoneId) params.set("zone_id", zoneId);
+    if (modality) params.set("modality", modality);
+    if (contractTypeId) params.set("contract_type_id", contractTypeId);
+    if (salaryMin) params.set("salary_min", salaryMin);
+    if (salaryMax) params.set("salary_max", salaryMax);
+    params.set("page", String(targetPage));
+    params.set("page_size", String(PAGE_SIZE));
+    return params;
+  }
+
+  const filtersKey = buildParams(1).toString();
+  const loading = resolvedFiltersKey !== filtersKey;
+
+  useEffect(() => {
+    // `ignore` evita que una respuesta vieja (de un filtro anterior) pise los resultados
+    // del filtro actual si llega después — puede pasar tecleando rápido en la búsqueda.
+    if (filtersKey === resolvedFiltersKey) return;
+    let ignore = false;
+    const timeout = setTimeout(() => {
+      api.get(`/jobs?${filtersKey}`)
+        .then(r => {
+          if (ignore) return;
+          setJobs(r.data.items);
+          setTotal(r.data.total);
+          setPage(1);
+          if (q.trim()) track("search", { search_term: q.trim(), results: r.data.total });
+        })
+        .catch(() => { if (!ignore) { setJobs([]); setTotal(0); } })
+        .finally(() => { if (!ignore) setResolvedFiltersKey(filtersKey); });
+    }, q ? 400 : 0);
+
+    return () => { ignore = true; clearTimeout(timeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey]);
+
+  function loadMore() {
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    api.get(`/jobs?${buildParams(nextPage).toString()}`)
+      .then(r => {
+        setJobs(prev => [...prev, ...r.data.items]);
+        setTotal(r.data.total);
+        setPage(nextPage);
+      })
+      .finally(() => setLoadingMore(false));
+  }
+
+  function clearFilters() {
+    setQ("");
+    setIndustryId("");
+    setZoneId("");
+    setModality("");
+    setContractTypeId("");
+    setSalaryMin("");
+    setSalaryMax("");
+  }
+
+  const hasFilters = q || industryId || zoneId || modality || contractTypeId || salaryMin || salaryMax;
+  const zoneName = (id: string) => zones.find(z => z.id === id)?.name || "";
+
+  return (
+    <div className="bg-[#FAFBFD] min-h-screen pt-[140px]">
+      {/* Hero */}
+      <div className="bg-gradient-to-r from-[#E6F4F7] to-[#FAFBFD] border-b border-[#9ED4DF] px-4 sm:px-6 py-14">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-[#1E8EA3] font-bold text-sm uppercase tracking-wider mb-3">Portal de empleos</p>
+          <h1 className="text-4xl font-display font-extrabold text-[#1C2230] mb-3">
+            Encontrá tu próximo trabajo en Bahía Blanca
+          </h1>
+          <p className="text-[#64748B] text-lg mb-8">
+            Empresas verificadas, búsquedas reales, postulaciones con un click.
+          </p>
+          {/* Search */}
+          <div className="relative max-w-xl mx-auto">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+            <input
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Buscar por puesto, empresa, sector o zona..."
+              className="w-full pl-12 pr-4 py-4 border border-[#DDE3EC] rounded-2xl bg-white text-[#1C2230] text-sm focus:outline-none focus:border-[#1E8EA3] shadow-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Filters sidebar */}
+          <aside className="w-full lg:w-60 shrink-0">
+            <div className="bg-white border border-[#DDE3EC] rounded-2xl p-5 sticky top-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <FunnelIcon className="w-4 h-4 text-[#1E8EA3]" />
+                  <span className="font-bold text-sm text-[#1C2230]">Filtros</span>
+                </div>
+                {hasFilters && (
+                  <button onClick={clearFilters} className="text-xs text-[#64748B] hover:text-red-500 transition-colors flex items-center gap-1">
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Modalidad</label>
+                  <div className="space-y-1">
+                    {["", "presencial", "remoto", "híbrido"].map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setModality(m)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          modality === m
+                            ? "bg-[#E6F4F7] text-[#1E8EA3] font-bold"
+                            : "text-[#64748B] hover:bg-[#FAFBFD]"
+                        }`}
+                      >
+                        {m === "" ? "Todas" : MODALITY_LABEL[m]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Sector</label>
+                  <select
+                    value={industryId}
+                    onChange={e => setIndustryId(e.target.value)}
+                    className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                  >
+                    <option value="">Todas</option>
+                    {industries.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Zona</label>
+                  <select
+                    value={zoneId}
+                    onChange={e => setZoneId(e.target.value)}
+                    className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                  >
+                    <option value="">Todas</option>
+                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Tipo de contrato</label>
+                  <select
+                    value={contractTypeId}
+                    onChange={e => setContractTypeId(e.target.value)}
+                    className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                  >
+                    <option value="">Todos</option>
+                    {contractTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#64748B] mb-1.5 block uppercase tracking-wide">Salario (ARS)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Mín"
+                      value={salaryMin}
+                      onChange={e => setSalaryMin(e.target.value)}
+                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                    />
+                    <span className="text-[#94A3B8] text-xs shrink-0">a</span>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Máx"
+                      value={salaryMax}
+                      onChange={e => setSalaryMax(e.target.value)}
+                      className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Results */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-[#64748B]">
+                {loading ? "Cargando..." : `${total} ${total === 1 ? "empleo encontrado" : "empleos encontrados"}`}
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-8 h-8 border-3 border-[#1E8EA3] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="bg-white border border-[#DDE3EC] rounded-2xl p-16 text-center">
+                <BriefcaseIcon className="w-12 h-12 text-[#DDE3EC] mx-auto mb-4" />
+                <p className="font-bold text-[#1C2230] mb-2">No hay empleos que coincidan</p>
+                <p className="text-sm text-[#64748B]">Probá con otros filtros o volvé más tarde.</p>
+                {hasFilters && (
+                  <button onClick={clearFilters} className="mt-4 text-sm font-bold text-[#1E8EA3] hover:underline">
+                    Ver todos los empleos
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {jobs.map(job => (
+                  <a
+                    key={job.id}
+                    href={jobUrl(job)}
+                    onClick={e => { e.preventDefault(); openPreview(job); }}
+                    className={`relative overflow-hidden block rounded-2xl p-6 transition-all group ${
+                      job.is_featured
+                        ? "bg-gradient-to-br from-red-50 to-white border-2 border-red-200 hover:border-red-400 hover:shadow-md"
+                        : "bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] hover:shadow-sm"
+                    }`}
+                  >
+                    {job.is_featured && (
+                      <div className="absolute -right-10 top-4 w-36 rotate-45 bg-red-600 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                        Destacado
+                      </div>
+                    )}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
+                        {job.logo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={job.logo_url} alt={job.company_legal_name_snapshot} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <span className="font-display font-extrabold text-[#1E8EA3] text-lg">
+                            {job.company_legal_name_snapshot?.[0] || "?"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${MODALITY_CLS[job.modality] || "bg-gray-100 text-gray-600"}`}>
+                            {MODALITY_LABEL[job.modality] || job.modality}
+                          </span>
+                          {job.published_at && (
+                            <span className="text-xs text-[#64748B]">{new Date(job.published_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}</span>
+                          )}
+                        </div>
+                        <h2 className="text-lg font-display font-bold text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors truncate">
+                          {job.title}
+                        </h2>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-sm text-[#64748B]">
+                          <span className="flex items-center gap-1">
+                            <BuildingOffice2Icon className="w-4 h-4" />
+                            {job.company_legal_name_snapshot}
+                            <VerifiedBadge />
+                          </span>
+                          {job.zone_id && zoneName(job.zone_id) && (
+                            <span className="flex items-center gap-1">
+                              <MapPinIcon className="w-4 h-4" />
+                              {zoneName(job.zone_id)}
+                            </span>
+                          )}
+                        </div>
+                        {job.salary_visible && (job.salary_min || job.salary_max) && (
+                          <p className="text-sm font-bold text-[#1E8EA3] mt-2">
+                            {job.salary_currency || "ARS"} {job.salary_min?.toLocaleString("es-AR")}
+                            {job.salary_max ? ` – ${job.salary_max.toLocaleString("es-AR")}` : "+"}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 self-center">
+                        <span className="text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full group-hover:bg-[#1E8EA3] group-hover:text-white group-hover:border-[#1E8EA3] transition-all">
+                          Postularme
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {!loading && jobs.length < total && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] text-[#1E8EA3] font-bold text-sm rounded-2xl px-8 py-3 transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? "Cargando..." : "Cargar más"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Empleos por sector y zona (server-rendered, ver page.tsx). */}
+      {bloqueBusquedas && <div className="pt-14">{bloqueBusquedas}</div>}
+
+      {previewJob && (
+        <JobPreviewPanel
+          job={previewJob}
+          returnPath={`/empleos?job=${previewJob.id}`}
+          onClose={closePreview}
+        />
+      )}
+    </div>
+  );
+}

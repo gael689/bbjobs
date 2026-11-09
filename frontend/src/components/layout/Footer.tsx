@@ -52,7 +52,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Plataforma</h4>
           <ul className="space-y-3 text-sm">
             {[
-              { href: "/", label: "Ver avisos" },
+              { href: "/empleos", label: "Ver avisos" },
               { href: "/register?type=candidate", label: "Cargar mi cv" },
             ].map(({ href, label }) => (
               <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
