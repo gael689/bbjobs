@@ -15,7 +15,8 @@ const NOMBRE: Record<string, { titulo: string; detalle: string }> = {
   cuenta: { titulo: "Avisos de tu cuenta y pagos", detalle: "Siempre llegan: verificación, pagos y seguridad." },
   postulaciones: { titulo: "Postulaciones", detalle: "Cambios de estado y postulaciones nuevas." },
   busquedas: { titulo: "Tus búsquedas", detalle: "Aprobación, vencimiento y cambios de tus búsquedas." },
-  alertas: { titulo: "Alertas y resúmenes", detalle: "Búsquedas nuevas que coinciden con lo que buscás." },
+  // Un solo interruptor para el candidato (Gael, 09/11/2026): BBJobs elige según el perfil.
+  alertas: { titulo: "Recibir búsquedas recomendadas", detalle: "Búsquedas que encajan con tu perfil y el resumen de los lunes." },
   recordatorios: { titulo: "Recordatorios", detalle: "Por ejemplo, completar el perfil." },
   novedades: { titulo: "Novedades y ofertas de BBJobs", detalle: "Como mucho un mail por semana." },
   admin: { titulo: "Avisos del equipo", detalle: "Pagos, revisiones y pendientes del panel." },
