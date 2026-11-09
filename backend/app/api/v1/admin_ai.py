@@ -807,7 +807,8 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
         select(func.count(func.distinct(JobRecommendation.job_id)), func.count(),
                # Mismo criterio que el aviso a la empresa (puntaje y cobertura), así se comparan.
                func.count().filter(JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD,
-                                   JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE))
+                                   JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE,
+                                   JobRecommendation.rerank_status == "done"))
         .where(JobRecommendation.id.in_(live))
     )).one()
     # Postulantes que encajan (≥ 80) y que la empresa ya movió de "Nueva": ¿la recomendación se usa?

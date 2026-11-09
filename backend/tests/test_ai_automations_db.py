@@ -535,7 +535,8 @@ async def test_team_digest_never_goes_out_empty_and_lists_ai_items(maker, monkey
         await db.flush()
         db.add(Application(candidate_id=cand.id, job_posting_id=live.id))
         db.add(JobRecommendation(id=uuid.uuid4(), job_id=live.id, candidate_id=cand.id, source="applicant",
-                                 hybrid_fit=0.9, coverage=0.9, final_score=88, weights_version="t"))
+                                 hybrid_fit=0.9, coverage=0.9, final_score=88, weights_version="t",
+                                 rerank_status="done"))
         await moderation.ensure_vector(db, ai, live)
         await moderation.ensure_vector(db, ai, dup)
         db.add(AiActivityLog(id=uuid.uuid4(), kind="cv_lectura", candidate_id=cand.id, detail={"fugas": 1},

@@ -345,6 +345,7 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
 
 async def send_company_daily(db: AsyncSession, now: datetime) -> int:
     from app.models.ai import JobRecommendation
+    from app.services.ai.scoring import RECOMMENDED_THRESHOLD
 
     companies = (await db.execute(
         select(CompanyProfile, User).join(User, User.id == CompanyProfile.user_id)
@@ -367,7 +368,9 @@ async def send_company_daily(db: AsyncSession, now: datetime) -> int:
             top = (await db.execute(
                 select(func.count()).select_from(JobRecommendation).where(
                     JobRecommendation.job_id == job.id, JobRecommendation.source == "applicant",
-                    JobRecommendation.final_score >= 70)
+                    # Sólo lo que evaluó la IA (plan final §2.4), con el umbral de un solo lugar.
+                    JobRecommendation.final_score >= RECOMMENDED_THRESHOLD,
+                    JobRecommendation.rerank_status == "done")
             )).scalar_one()
             detail = "1 postulación nueva" if n == 1 else f"{n} postulaciones nuevas"
             if top:
