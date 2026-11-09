@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   UsersIcon, UserCircleIcon, CheckCircleIcon,
-  BriefcaseIcon, ChartBarIcon,
+  BriefcaseIcon, ChartBarIcon, ChatBubbleLeftEllipsisIcon,
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import { AvisoOtrosProcesos, CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
@@ -137,6 +137,7 @@ function Postulaciones() {
       postulaciones.actualizarItems(prev => prev.map(a => (
         a.id === app.id ? { ...a, status, seen_at: vistaAhora ? new Date().toISOString() : a.seen_at } : a
       )));
+      if (note && app.notes_count != null) fijarCantidadNotas(app.candidate_id, app.notes_count + 1);
       postulaciones.retocarConteos(c => ({
         ...c,
         by_status: {
@@ -149,6 +150,13 @@ function Postulaciones() {
     } catch {
       toast("Error al actualizar estado");
     }
+  }
+
+  /** El ícono "Tiene observaciones" sigue a lo que la empresa anota sin recargar la lista. */
+  function fijarCantidadNotas(candidateId: string, cantidad: number) {
+    postulaciones.actualizarItems(prev => prev.map(a => (
+      a.candidate_id === candidateId && a.notes_count != null ? { ...a, notes_count: cantidad } : a
+    )));
   }
 
   async function alternarEstrella(app: Application) {
@@ -296,6 +304,17 @@ function Postulaciones() {
                           {!app.seen_at && (
                             <span className="text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] px-1.5 py-0.5 rounded-full">Sin ver</span>
                           )}
+                          {MODULOS_NUEVOS_VISIBLES && !!app.notes_count && (
+                            <span
+                              title={`Tiene observaciones (${app.notes_count})`}
+                              aria-label={`Tiene observaciones: ${app.notes_count}`}
+                              role="img"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-[#8A6A54] bg-[#D4B7A2]/20 border border-[#D4B7A2]/60 px-1.5 py-0.5 rounded-full"
+                            >
+                              <ChatBubbleLeftEllipsisIcon className="w-3 h-3" aria-hidden />
+                              {app.notes_count}
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-[#64748B]">Postuló el {new Date(app.created_at).toLocaleDateString("es-AR")}</p>
                         {app.match && <p className="text-xs text-[#1C2230] mt-0.5 truncate max-w-md">{app.match}</p>}
@@ -380,7 +399,12 @@ function Postulaciones() {
           <>
             {abiertaDesde && <AvisoOtrosProcesos key={abiertaDesde} applicationId={abiertaDesde} />}
             {MODULOS_NUEVOS_VISIBLES && (
-              <NotasPostulacion key={candidateProfile.id} candidateId={candidateProfile.id} applicationId={abiertaDesde} />
+              <NotasPostulacion
+                key={candidateProfile.id}
+                candidateId={candidateProfile.id}
+                applicationId={abiertaDesde}
+                onCantidad={n => fijarCantidadNotas(candidateProfile.id, n)}
+              />
             )}
           </>
         )}

@@ -489,6 +489,87 @@ async def test_a_company_cannot_annotate_a_person_it_has_no_relation_with(client
     assert (await client.post(url, json={"body": "x"})).status_code == 404
 
 
+# ── Ícono "Tiene observaciones" en la lista de postulantes ─────────────────────────────
+
+def _list_url(w, key):
+    return f"/api/v1/me/company/jobs/{w[key]['job'].id}/applications"
+
+
+async def _notes_count(client, w, key):
+    resp = await client.get(_list_url(w, key))
+    assert resp.status_code == 200
+    return [item["notes_count"] for item in resp.json()["items"]]
+
+
+async def test_applicant_list_counts_only_the_own_company_notes(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    assert await _notes_count(client, w, "a") == [0]
+    await client.post(_notes_url(w), json={"body": PRIVADA, "application_id": str(w["a"]["app"].id)})
+    await client.post(_notes_url(w), json={"body": "Otra"})
+    borrada = (await client.post(_notes_url(w), json={"body": "Borrada"})).json()["id"]
+    assert (await client.delete(f"/api/v1/me/company/notes/{borrada}")).status_code == 204
+    assert await _notes_count(client, w, "a") == [2]
+
+    # B conoce a la misma persona (se postuló a B) y no ve el número de A.
+    client.as_user(w["b"]["user"])
+    assert await _notes_count(client, w, "b") == [0]
+    await client.post(_notes_url(w), json={"body": "De B"})
+    assert await _notes_count(client, w, "b") == [1]
+    # B tampoco puede pedir la lista de la búsqueda de A.
+    assert (await client.get(_list_url(w, "a"))).status_code == 404
+
+    client.as_user(w["a"]["user"])
+    assert await _notes_count(client, w, "a") == [2]
+
+
+async def test_applicant_list_has_no_notes_count_for_admin_or_with_the_gate_closed(client, maker, monkeypatch):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    await client.post(_notes_url(w), json={"body": PRIVADA})
+
+    client.as_user(w["admin"])
+    resp = await client.get(f"/api/v1/admin/jobs/{w['a']['job'].id}/applications")
+    assert resp.status_code == 200 and [i["notes_count"] for i in resp.json()["items"]] == [None]
+
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
+    client.as_user(w["a"]["user"])
+    assert await _notes_count(client, w, "a") == [None]
+
+
+async def test_notes_count_is_one_grouped_query_for_the_whole_page(maker):
+    from app.services.application_events import count_notes_by_candidate
+
+    w = await _world(maker)
+    async with maker() as db:
+        u = User(id=uuid.uuid4(), email="carla@mail.com", role="candidate", is_active=True)
+        db.add(u)
+        await db.flush()
+        carla = CandidateProfile(id=uuid.uuid4(), user_id=u.id, first_name="Carla", last_name="R", phone="2")
+        db.add(carla)
+        await db.flush()
+        a, b = w["a"]["company"].id, w["b"]["company"].id
+        db.add_all([
+            ApplicationNote(candidate_id=w["cand"].id, company_id=a, body="1"),
+            ApplicationNote(candidate_id=w["cand"].id, company_id=a, body="2"),
+            ApplicationNote(candidate_id=carla.id, company_id=a, body="3"),
+            ApplicationNote(candidate_id=carla.id, company_id=b, body="de B"),
+        ])
+        await db.commit()
+
+    statements = []
+    engine = create_async_engine(TEST_DB)
+    from sqlalchemy import event
+
+    event.listen(engine.sync_engine, "before_cursor_execute", lambda *args: statements.append(args[2]))
+    async with async_sessionmaker(engine)() as db:
+        counts = await count_notes_by_candidate(db, company_id=a, candidate_ids=[w["cand"].id, carla.id, uuid.uuid4()])
+        assert await count_notes_by_candidate(db, company_id=a, candidate_ids=[]) == {}
+    await engine.dispose()
+    assert counts == {w["cand"].id: 2, carla.id: 1}
+    assert len([s for s in statements if "application_notes" in s]) == 1
+
+
 async def test_another_candidate_cannot_read_the_history(client, maker):
     w = await _world(maker)
     async with maker() as db:

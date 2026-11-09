@@ -339,6 +339,26 @@ async def list_candidate_notes(
     return _con_titulo(filas)
 
 
+async def count_notes_by_candidate(
+    db: AsyncSession, *, company_id: uuid.UUID, candidate_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Cuántas observaciones vigentes tiene **esta empresa** sobre cada persona: una sola
+    consulta agrupada para toda la página de la lista de postulantes (el ícono "Tiene
+    observaciones"). Las personas sin observaciones no aparecen en el resultado."""
+    if not candidate_ids:
+        return {}
+    filas = (await db.execute(
+        select(ApplicationNote.candidate_id, func.count())
+        .where(
+            ApplicationNote.company_id == company_id,
+            ApplicationNote.candidate_id.in_(candidate_ids),
+            ApplicationNote.deleted_at.is_(None),
+        )
+        .group_by(ApplicationNote.candidate_id)
+    )).all()
+    return {candidate_id: n for candidate_id, n in filas}
+
+
 async def delete_note(db: AsyncSession, *, company: CompanyProfile, note_id: uuid.UUID) -> bool:
     """Borrado lógico. `False` si la observación no existe o no es de esta empresa. No commitea."""
     nota = (await db.execute(

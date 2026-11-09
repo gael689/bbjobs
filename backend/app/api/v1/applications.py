@@ -88,6 +88,9 @@ class ApplicationWithCandidateResponse(BaseModel):
     updated_at: datetime.datetime
     # Por qué apareció con el buscador ("Experiencia: Soldador en Profertil"). Sólo con texto.
     match: Optional[str] = None
+    # Observaciones privadas de la empresa que pide sobre esta persona (de cualquier búsqueda
+    # suya). `None` para el admin y con la compuerta cerrada: nunca las de otra empresa.
+    notes_count: Optional[int] = None
     candidate: Optional[CandidateSummary] = None
 
     class Config:
@@ -251,12 +254,14 @@ async def listar_postulantes(
     lado: Lado,
     page: int,
     page_size: int,
+    company_id: uuid.UUID | None = None,
 ) -> Paginated[ApplicationWithCandidateResponse]:
     """El listado de postulantes de una búsqueda, para la empresa y para el admin.
 
     El que llama ya validó el acceso a `job_id` (la empresa, contra su `company_id`). La
     estrella y el visto que viajan son los de `lado`: la empresa nunca recibe los de Talency ni
-    al revés."""
+    al revés. Con `company_id` (sólo la empresa) y la compuerta abierta, cada fila trae cuántas
+    observaciones privadas tiene esa empresa sobre la persona."""
     # select_from explícito: el buscador reusa esta consulta con otras columnas (la compuerta
     # del parecido) y sin él Postgres no sabría desde dónde arranca el JOIN.
     # Join con CandidateProfile en la consulta principal (antes era un SELECT por postulación):
@@ -274,6 +279,11 @@ async def listar_postulantes(
     candidatos = [c for _a, c in rows]
     completions = await compute_profile_completion_bulk(db, candidatos)
     por_que = await coincidencias(db, candidatos, filtros.q)
+    notas: dict[uuid.UUID, int] | None = None
+    if company_id is not None and new_modules_enabled():
+        notas = await application_events.count_notes_by_candidate(
+            db, company_id=company_id, candidate_ids=[c.id for c in candidatos],
+        )
 
     estrella, visto = columna_estrella(lado), columna_visto(lado)
     items = [
@@ -289,6 +299,7 @@ async def listar_postulantes(
             created_at=app.created_at,
             updated_at=app.updated_at,
             match=por_que.get(candidate.id),
+            notes_count=None if notas is None else notas.get(candidate.id, 0),
             candidate=CandidateSummary(
                 id=candidate.id,
                 first_name=candidate.first_name,
@@ -328,7 +339,9 @@ async def list_job_applications(
     db: AsyncSession = Depends(get_db)
 ):
     job = await _job_de_la_empresa(db, id, company)
-    return await listar_postulantes(db, job.id, filtros, lado="empresa", page=page, page_size=page_size)
+    return await listar_postulantes(
+        db, job.id, filtros, lado="empresa", page=page, page_size=page_size, company_id=company.id,
+    )
 
 
 @router.get("/me/company/jobs/{id}/applications/counts", response_model=ApplicantCounts)

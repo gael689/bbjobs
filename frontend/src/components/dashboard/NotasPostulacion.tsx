@@ -129,7 +129,15 @@ export function AvisoOtrosProcesos({ applicationId }: { applicationId: string })
 /** Observaciones de **tu empresa** sobre esta persona y el formulario para sumar una. Va al pie
  *  de la ficha del candidato; `applicationId` (si la ficha se abrió desde una postulación) deja
  *  registrado de qué búsqueda salió. */
-export function NotasPostulacion({ candidateId, applicationId }: { candidateId: string; applicationId?: string | null }) {
+export function NotasPostulacion({
+  candidateId, applicationId, onCantidad,
+}: {
+  candidateId: string;
+  applicationId?: string | null;
+  /** Avisa cuántas observaciones hay después de sumar o borrar una (p. ej. para el ícono "Tiene
+   *  observaciones" de la lista de postulantes). */
+  onCantidad?: (cantidad: number) => void;
+}) {
   const [notas, setNotas] = useState<NotaObservacion[] | null>(null);
   const [texto, setTexto] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -144,6 +152,11 @@ export function NotasPostulacion({ candidateId, applicationId }: { candidateId: 
     return () => { vigente = false; };
   }, [candidateId]);
 
+  function cambiarNotas(siguientes: NotaObservacion[]) {
+    setNotas(siguientes);
+    onCantidad?.(siguientes.length);
+  }
+
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     if (!texto.trim()) return;
@@ -155,7 +168,7 @@ export function NotasPostulacion({ candidateId, applicationId }: { candidateId: 
         tags,
         ...(applicationId ? { application_id: applicationId } : {}),
       });
-      setNotas(prev => [r.data, ...(prev ?? [])]);
+      cambiarNotas([r.data, ...(notas ?? [])]);
       setTexto("");
       setTags([]);
     } catch {
@@ -169,7 +182,7 @@ export function NotasPostulacion({ candidateId, applicationId }: { candidateId: 
     if (!window.confirm("¿Borrar la observación?")) return;
     try {
       await api.delete(`/me/company/notes/${nota.id}`);
-      setNotas(prev => (prev ?? []).filter(n => n.id !== nota.id));
+      cambiarNotas((notas ?? []).filter(n => n.id !== nota.id));
     } catch {
       setError("No pudimos borrar la observación. Probá de nuevo.");
     }

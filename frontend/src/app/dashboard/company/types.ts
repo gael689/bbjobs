@@ -102,6 +102,8 @@ export interface Application {
   starred_at?: string | null;
   /** Por qué apareció con el buscador ("Experiencia: Soldador en Profertil"). */
   match?: string | null;
+  /** Observaciones privadas de tu empresa sobre esta persona. `null` con la compuerta cerrada. */
+  notes_count?: number | null;
   cover_letter?: string;
   candidate?: {
     id: string;
