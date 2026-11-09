@@ -515,6 +515,29 @@ async def test_new_fits_notice_is_short_and_talency_sees_it(maker, ai):
         assert team and all(t.link == "/dashboard/admin/ia" for t in team)
 
 
+async def test_new_fits_need_a_score_evaluated_by_the_ai(maker, ai):
+    """Plan final §2.4: sin la evaluación de la IA la fórmula es otra y no alcanza para avisar."""
+    from app.models.ai import JobRecommendation
+    from app.services.ai import jobs as ai_jobs
+
+    companies, job, people = await _ready_world(maker, ai)
+    await _force_strong(maker, job.id, people["bueno"][1].id, 95)
+    async with maker() as db:
+        rec = (await db.execute(select(JobRecommendation).where(
+            JobRecommendation.job_id == job.id, JobRecommendation.candidate_id == people["bueno"][1].id))).scalar_one()
+        for status in ("none", "failed", "skipped_limit", "skipped_budget"):
+            rec.rerank_status = status
+            await db.commit()
+            await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc))
+            await db.commit()
+            assert (await db.get(JobRecommendation, rec.id)).notified_at is None, status
+        rec.rerank_status = "done"
+        await db.commit()
+        await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc))
+        await db.commit()
+        assert (await db.get(JobRecommendation, rec.id)).notified_at is not None
+
+
 async def test_highlights_only_unread_recent_and_of_the_right_type(maker, client, admin):
     from app.models.alerts import Notification
 

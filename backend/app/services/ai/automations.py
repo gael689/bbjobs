@@ -41,7 +41,7 @@ from app.models.candidate import CandidateProfile
 from app.models.core import User
 from app.models.job import Application, ApplicationStatus, JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.settings import SettingKey
-from app.services.ai import activity
+from app.services.ai import activity, scoring
 from app.services.ai.pipeline import budget_left, spent_today
 from app.services.notifications import create_notification
 from app.services.settings import get_setting
@@ -56,7 +56,7 @@ SKILL_NOTICE_EVERY = timedelta(days=30)
 SKILL_NOTICE_MIN = 2
 SKILL_NOTICE_PER_RUN = 20
 
-UNSEEN_FIT_SCORE = 80
+UNSEEN_FIT_SCORE = scoring.NEW_FIT_THRESHOLD
 BUDGET_WARN_RATIO = 0.8
 
 
@@ -240,6 +240,7 @@ async def team_ai_items(db: AsyncSession, now: datetime) -> list[tuple[str, str 
                   & (Application.candidate_id == JobRecommendation.candidate_id))
             .where(
                 JobRecommendation.source == "applicant", JobRecommendation.final_score >= UNSEEN_FIT_SCORE,
+                JobRecommendation.rerank_status == "done",   # sólo puntajes evaluados (plan final §2.4)
                 Application.status == ApplicationStatus.new.value, Application.deleted_at.is_(None),
                 JobPosting.status == JobPostingStatus.active, JobPosting.deleted_at.is_(None),
             )

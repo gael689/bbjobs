@@ -184,7 +184,7 @@ def recommended_email_vars(titles: list[str], count: int) -> dict:
 
 async def notify_new_fits(db, now: datetime) -> int:
     """Una notificación por empresa por noche con los candidatos nuevos que encajan:
-    puntaje ≥ 80 y cobertura ≥ 50 %, búsqueda activa y aprobada con 3 días o más, como mucho 3 por
+    puntaje ≥ 80 evaluado por la IA y cobertura ≥ 50 %, búsqueda activa y aprobada con 3 días o más, como mucho 3 por
     búsqueda por semana, y nunca dos veces el mismo candidato para la misma búsqueda. No se avisa
     de un perfil que la empresa marcó 👎 ni de uno de la Base de Talento que queda fuera de lo que
     la empresa ve (su cupo de perfiles por búsqueda)."""
@@ -208,6 +208,9 @@ async def notify_new_fits(db, now: datetime) -> int:
             JobRecommendation.notified_at.is_(None),
             JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD,
             JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE,
+            # Sólo puntajes que evaluó la IA (plan final §2.4): sin evaluación la fórmula es otra
+            # (0,75·híbrido + 0,25·semántica) y no es comparable con el umbral.
+            JobRecommendation.rerank_status == "done",
             or_(JobRecommendation.feedback.is_(None), JobRecommendation.feedback != -1),
             JobPosting.status == JobPostingStatus.active,
             JobPosting.moderation_status == JobModerationStatus.approved,

@@ -6,7 +6,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { detalleError } from "@/hooks/useModulo";
-import { NivelChip, PuntajeAnillo } from "@/components/recomendados/Visual";
+import { NivelChip, PuntajeAnillo, type Umbrales } from "@/components/recomendados/Visual";
 import { Aviso, Spinner, usd } from "./comun";
 
 /**
@@ -28,6 +28,7 @@ interface Panorama {
   applicants_strong: number; applicants_strong_advanced: number; notices_week: number;
   feedback_up: number; feedback_down: number;
   top_matches: Coincidencia[];
+  thresholds: Umbrales;
 }
 
 const FUNCIONES: Record<string, string> = {
@@ -220,11 +221,11 @@ export default function Panorama({ onVerBusqueda }: { onVerBusqueda: (jobId: str
               <li key={`${m.job_id}-${m.candidate_ref}`}>
                 <button onClick={() => onVerBusqueda(m.job_id)}
                         className="w-full text-left px-5 py-3.5 flex items-center gap-4 hover:bg-[#FAFBFD] focus:bg-[#FAFBFD]">
-                  <PuntajeAnillo score={m.score} size={48} />
+                  <PuntajeAnillo score={m.score} umbrales={p.thresholds} size={48} />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-[#1C2230] flex flex-wrap items-center gap-2">
                       {m.name ?? `Perfil ${m.candidate_ref}`}
-                      <NivelChip score={m.score} />
+                      <NivelChip score={m.score} umbrales={p.thresholds} />
                       {m.source === "talent" && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#F7EFE9] text-[#5C3B22]">Base de Talento</span>}
                     </p>
                     <p className="text-sm text-[#1C2230] truncate">{m.job_title} · {m.company_name}</p>

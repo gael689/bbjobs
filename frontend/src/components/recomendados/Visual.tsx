@@ -10,14 +10,17 @@ export type Veredicto = "si" | "parcial" | "no" | "sin_datos";
 
 export interface Nivel { label: string; color: string; fondo: string; texto: string }
 
-export function nivel(score: number): Nivel {
-  if (score >= 80) return { label: "Encaja muy bien", color: "#1E8EA3", fondo: "#E6F4F7", texto: "#0F5E6C" };
-  if (score >= 70) return { label: "Encaja", color: "#5FB4C6", fondo: "#EEF7F9", texto: "#145A67" };
+/** Los umbrales vienen de la API (`thresholds`, sale de `scoring.py`): no se escriben acá. */
+export interface Umbrales { recommended: number; strong: number }
+
+export function nivel(score: number, u: Umbrales): Nivel {
+  if (score >= u.strong) return { label: "Encaja muy bien", color: "#1E8EA3", fondo: "#E6F4F7", texto: "#0F5E6C" };
+  if (score >= u.recommended) return { label: "Encaja", color: "#5FB4C6", fondo: "#EEF7F9", texto: "#145A67" };
   return { label: "Encaja poco", color: "#D4B7A2", fondo: "#F7EFE9", texto: "#5C3B22" };
 }
 
-export function PuntajeAnillo({ score, size = 56 }: { score: number; size?: number }) {
-  const n = nivel(score);
+export function PuntajeAnillo({ score, umbrales, size = 56 }: { score: number; umbrales: Umbrales; size?: number }) {
+  const n = nivel(score, umbrales);
   const grosor = size >= 72 ? 7 : 5;
   const r = (size - grosor) / 2;
   const total = 2 * Math.PI * r;
@@ -38,12 +41,23 @@ export function PuntajeAnillo({ score, size = 56 }: { score: number; size?: numb
   );
 }
 
-export function NivelChip({ score }: { score: number }) {
-  const n = nivel(score);
+export function NivelChip({ score, umbrales }: { score: number; umbrales: Umbrales }) {
+  const n = nivel(score, umbrales);
   return (
     <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap"
           style={{ background: n.fondo, color: n.texto }}>
       {n.label}
+    </span>
+  );
+}
+
+/** El puntaje salió sólo de los datos del perfil: la IA todavía no lo evaluó requisito por
+ *  requisito. Va después de los evaluados del mismo nivel (lo ordena la API). */
+export function SinEvaluarChip() {
+  return (
+    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-[#DDE3EC] text-[#64748B]"
+          title="El puntaje sale de los datos del perfil. La IA todavía no lo evaluó requisito por requisito.">
+      Sin evaluar
     </span>
   );
 }

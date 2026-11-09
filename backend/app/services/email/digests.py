@@ -38,6 +38,7 @@ from app.services.email.outbox import emails_enabled, manage_url_for, recipient_
 from app.services.email.policy import AR_TZ
 from app.services.email.render import EmailItem, render_email
 from app.services.email.tokens import unsubscribe_page_url
+from app.services.zonas import proximidad_ids, slugs_por_id
 
 logger = structlog.get_logger("app.services.email.digests")
 
@@ -202,13 +203,20 @@ async def _is_active(db: AsyncSession, profile: CandidateProfile, now: datetime)
     return bool(last_app and last_app >= now - INACTIVE_AFTER)
 
 
-def score_for_candidate(job: JobPosting, job_skills: set, cand_skills: set, cand_zone, modalities: set[str]) -> int:
+def score_for_candidate(job: JobPosting, job_skills: set, cand_skills: set, cand_zone, modalities: set[str],
+                        zone_slugs: dict | None = None) -> float:
     """Puntaje simple y explicable para el resumen semanal (sin IA): zona, modalidad y
-    habilidades técnicas en común. Si existe un recomendado de la IA, manda ese."""
-    score = 0
+    habilidades técnicas en común. Si existe un recomendado de la IA, manda ese.
+
+    La zona suma 2 × cercanía (`services/zonas.py`, plan final §2.1): Zona Norte para una
+    búsqueda en Bahía Blanca suma lo mismo que la zona exacta. `zone_slugs` es el mapa
+    id → slug del catálogo, cargado una vez por corrida."""
+    score = 0.0
     modality = str(getattr(job.modality, "value", job.modality))
-    if modality == "remoto" or (cand_zone and cand_zone == job.zone_id):
+    if modality == "remoto":
         score += 2
+    else:
+        score += 2 * (proximidad_ids(cand_zone, job.zone_id, zone_slugs or {}) or 0.0)
     needed = {"presencial": "onsite", "remoto": "remote", "híbrido": "hybrid"}.get(modality)
     if needed and (not modalities or needed in modalities):
         score += 1
@@ -284,6 +292,7 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
     )).all():
         job_skills.setdefault(job_id, set()).add(skill_id)
 
+    zone_slugs = await slugs_por_id(db)
     with_alerts = select(JobAlert.candidate_id).where(JobAlert.is_active.is_(True))
     rows = (await db.execute(
         select(CandidateProfile, User).join(User, User.id == CandidateProfile.user_id)
@@ -309,7 +318,8 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
         bonus = (lambda job_id: PARA_VOS_SEM_WEIGHT * affinity.get(job_id, PARA_VOS_SEM_NEUTRAL)) if affinity \
             else (lambda job_id: 0.0)
         ranked = sorted(
-            ((score_for_candidate(j, job_skills.get(j.id, set()), skills, profile.location_zone_id, modalities)
+            ((score_for_candidate(j, job_skills.get(j.id, set()), skills, profile.location_zone_id, modalities,
+                                  zone_slugs)
               + bonus(j.id), j, z)
              for j, z in jobs if j.id not in applied),
             key=lambda x: -x[0],
@@ -335,6 +345,7 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
 
 async def send_company_daily(db: AsyncSession, now: datetime) -> int:
     from app.models.ai import JobRecommendation
+    from app.services.ai.scoring import RECOMMENDED_THRESHOLD
 
     companies = (await db.execute(
         select(CompanyProfile, User).join(User, User.id == CompanyProfile.user_id)
@@ -357,7 +368,9 @@ async def send_company_daily(db: AsyncSession, now: datetime) -> int:
             top = (await db.execute(
                 select(func.count()).select_from(JobRecommendation).where(
                     JobRecommendation.job_id == job.id, JobRecommendation.source == "applicant",
-                    JobRecommendation.final_score >= 70)
+                    # Sólo lo que evaluó la IA (plan final §2.4), con el umbral de un solo lugar.
+                    JobRecommendation.final_score >= RECOMMENDED_THRESHOLD,
+                    JobRecommendation.rerank_status == "done")
             )).scalar_one()
             detail = "1 postulación nueva" if n == 1 else f"{n} postulaciones nuevas"
             if top:

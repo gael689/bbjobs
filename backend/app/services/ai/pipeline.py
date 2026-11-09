@@ -7,7 +7,8 @@ Flujo por búsqueda (auditoría §5-ter):
    que no se postularon).
 3. Puntaje híbrido para todos (gratis): criterios estructurados + semántica por requisito
    (máximo coseno entre los fragmentos del candidato, en percentil dentro del universo).
-4. Rerank con IA sólo para el top-30 (y quien entra a ese top), de a una ficha por llamada,
+4. Rerank con IA sólo para el top-30 —20 lugares para postulantes y 10 para la Base de Talento—
+   (y quien entra a ese top), de a una ficha por llamada,
    reutilizando lo ya evaluado si no cambió ni la ficha ni el aviso. Fichas con sospecha de
    inyección: sólo híbrido.
 5. Todo queda en `job_recommendations`. **Nadie se descarta**: la empresa ve a todos.
@@ -44,12 +45,17 @@ from app.models.core import User
 from app.models.job import Application, JobPosting, JobPostingSkill
 from app.services.ai import requirements as reqs
 from app.services.ai import rerank, scoring
+from app.services import zonas
 from app.services.ai.chunks import CandidateData, Education as EduData, Experience as ExpData, build_ficha
 from app.services.email.policy import local_day_start
 
 logger = structlog.get_logger("app.services.ai.pipeline")
 
 RERANK_TOP = 30
+# Lugares reservados dentro de los 30 (plan final §2.3): con 62 postulantes de mediana, la Base de
+# Talento no entraba nunca a la evaluación con IA. Si un grupo no llena los suyos, los usa el otro.
+RERANK_TOP_APPLICANTS = 20
+RERANK_TOP_TALENT = 10
 TALENT_POOL_CONSIDERED = 30
 FRAGMENTS_PER_REQUIREMENT = 2
 MAX_FRAGMENTS = 8
@@ -319,6 +325,16 @@ async def _chunks_for(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.UUID,
     return out
 
 
+def rerank_candidates(applicants_ranked: list, talent_ranked: list) -> set:
+    """Quiénes pasan por la IA: los mejores 20 postulantes y los mejores 10 de la Base (cada lista
+    ya viene ordenada por puntaje híbrido). Los lugares que un grupo no usa pasan al otro, así
+    el total sigue siendo `RERANK_TOP` como antes."""
+    spare_applicants = max(0, RERANK_TOP_APPLICANTS - len(applicants_ranked))
+    spare_talent = max(0, RERANK_TOP_TALENT - len(talent_ranked))
+    return (set(applicants_ranked[:RERANK_TOP_APPLICANTS + spare_talent])
+            | set(talent_ranked[:RERANK_TOP_TALENT + spare_applicants]))
+
+
 def _semantic(ctx: JobContext, chunks: list[tuple[str, str, np.ndarray]]) -> tuple[float | None, dict[str, list[int]]]:
     """Promedio, sobre los requisitos, del mejor coseno entre los fragmentos (vectores de norma 1)."""
     if not ctx.req_vectors or not chunks:
@@ -380,16 +396,19 @@ async def _compute_recommendations(
     rows: dict[uuid.UUID, dict] = {}
     raw_sem: dict[uuid.UUID, float] = {}
     tops: dict[uuid.UUID, dict] = {}
+    # Zonas por slug (la tabla de cercanía, services/zonas.py): el catálogo se lee una vez por corrida.
+    zone_slugs = await zonas.slugs_por_id(db)
+    job_zone_slug = zone_slugs.get(job.zone_id) if job.zone_id else None
     for cid, (cdata, skill_ids, zone_id, modalities) in data.items():
         months = scoring.experience_months([(e.start, e.end) for e in cdata.experiences])
-        criteria = {
-            "skills_required": scoring.skills_value(skill_ids, ctx.required_skill_ids),
-            "skills_optional": scoring.skills_value(skill_ids, ctx.optional_skill_ids),
-            "experience": scoring.experience_value(months, job.min_experience_years),
-            "education": scoring.education_value([(e.level, e.status) for e in cdata.educations], min_level),
-            "zone": scoring.zone_value(zone_id, job.zone_id, modality),
-            "modality": scoring.modality_value(modalities, modality),
-        }
+        criteria = scoring.job_criteria(
+            candidate_skill_ids=skill_ids, required_skill_ids=ctx.required_skill_ids,
+            optional_skill_ids=ctx.optional_skill_ids,
+            experience_months_=months, min_experience_years=job.min_experience_years,
+            educations=[(e.level, e.status) for e in cdata.educations], min_education_level=min_level,
+            candidate_zone_slug=zone_slugs.get(zone_id) if zone_id else None, job_zone_slug=job_zone_slug,
+            candidate_modalities=modalities, job_modality=modality,
+        )
         h = scoring.hybrid_score(criteria)
         sem, top = _semantic(ctx, chunks.get(cid, []))
         if sem is not None:
@@ -406,8 +425,10 @@ async def _compute_recommendations(
     talent_ranked = sorted((c for c in rows if rows[c]["source"] == "talent"), key=lambda c: -rows[c]["score"])
     # Sólo los postulantes que se cargaron: quien se opuso a la IA (o tiene el perfil borrado) no
     # tiene fila y queda sin puntaje, no rompe la vuelta.
-    keep = {c for c in applicants if c in rows} | set(talent_ranked[:TALENT_POOL_CONSIDERED])
-    rerank_pool = sorted(keep, key=lambda c: -rows[c]["score"])[:RERANK_TOP]
+    kept_talent = talent_ranked[:TALENT_POOL_CONSIDERED]
+    keep = {c for c in applicants if c in rows} | set(kept_talent)
+    rerank_pool = rerank_candidates(
+        sorted((c for c in applicants if c in rows), key=lambda c: -rows[c]["score"]), kept_talent)
 
     stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0}
     can_rerank = rerank_enabled and provider is not None and bool(ctx.requirements)

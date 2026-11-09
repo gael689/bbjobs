@@ -97,9 +97,67 @@ def test_modality_without_any_flag_is_no_data():
 
 
 def test_zone_is_a_factor_not_a_filter():
-    assert scoring.zone_value("z1", "z1", "presencial") == 1.0
-    assert scoring.zone_value("z2", "z1", "presencial") == 0.5
-    assert scoring.zone_value("z2", "z1", "remoto") is None
+    assert scoring.zone_value("bahia-blanca", "bahia-blanca", "presencial") == 1.0
+    assert scoring.zone_value("zona-norte", "bahia-blanca", "presencial") == 1.0
+    assert scoring.zone_value("punta-alta", "zona-sur", "híbrido") == 0.8
+    assert scoring.zone_value("coronel-suarez", "bahia-blanca", "presencial") == 0.25
+    assert scoring.zone_value("zona-norte", "bahia-blanca", "remoto") is None
+    assert scoring.zone_value(None, "bahia-blanca", "presencial") is None
+
+
+# --- lo que la búsqueda no pide se excluye (plan final §2.2) -------------------------------
+
+def _criteria(**kw):
+    base = dict(candidate_skill_ids={"s1"}, required_skill_ids={"s1"}, optional_skill_ids={"s2"},
+                experience_months_=24, min_experience_years=2,
+                educations=[("secundario", "graduado")], min_education_level="secundario",
+                candidate_zone_slug="zona-norte", job_zone_slug="bahia-blanca",
+                candidate_modalities={"onsite"}, job_modality="presencial")
+    base.update(kw)
+    return scoring.job_criteria(**base)
+
+
+def test_criteria_job_asks_everything():
+    c = _criteria()
+    assert set(c) == {"skills_required", "skills_optional", "experience", "education", "zone", "modality"}
+    assert c["skills_optional"] == 0.0 and c["zone"] == 1.0
+
+
+def test_criteria_job_without_experience_or_education_drops_them():
+    c = _criteria(min_experience_years=None, min_education_level=None)
+    assert "experience" not in c and "education" not in c
+
+
+def test_criteria_job_without_skills_drops_them():
+    c = _criteria(required_skill_ids=set(), optional_skill_ids=set())
+    assert "skills_required" not in c and "skills_optional" not in c
+
+
+def test_criteria_remote_or_zoneless_job_drops_zone():
+    assert "zone" not in _criteria(job_modality="remoto", candidate_modalities={"remote"})
+    assert "zone" not in _criteria(job_zone_slug=None)
+
+
+def test_criteria_missing_candidate_data_stays_as_none():
+    c = _criteria(candidate_skill_ids=set(), experience_months_=None, educations=[], candidate_zone_slug=None,
+                  candidate_modalities=set())
+    assert c == {"skills_required": None, "skills_optional": None, "experience": None, "education": None,
+                 "zone": None, "modality": None}
+
+
+def test_dropping_unasked_criteria_lifts_coverage_to_full():
+    # Caso típico (auditoría 04/10): la búsqueda no pide años ni estudios. Antes la cobertura
+    # quedaba en 75 % aunque el candidato tuviera todo cargado.
+    c = _criteria(min_experience_years=None, min_education_level=None)
+    h = scoring.hybrid_score(c)
+    assert h.coverage == 1.0
+    before = scoring.hybrid_score({**c, "experience": None, "education": None})
+    assert before.coverage == pytest.approx(0.75)
+    assert scoring.final_score(h, 0.5, None, False) > scoring.final_score(before, 0.5, None, False)
+
+
+def test_criteria_unknown_modality_is_dropped():
+    assert "modality" not in _criteria(job_modality=None)
 
 
 def test_education_levels():
@@ -256,3 +314,37 @@ def test_reasons_are_rebuilt_when_an_evaluation_is_degraded():
     r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
     assert r.degraded == 1
     assert r.reasons == ["Su perfil no dice nada sobre manejo de autoelevador y licencia de conducir."]
+
+
+# --- lugares reservados para la Base de Talento en el rerank (plan final §2.3) --------------
+
+def test_rerank_reserves_slots_for_talent():
+    from app.services.ai.pipeline import RERANK_TOP, RERANK_TOP_APPLICANTS, RERANK_TOP_TALENT, rerank_candidates
+
+    applicants = [f"a{i}" for i in range(62)]     # mediana real de postulantes por búsqueda
+    talent = [f"t{i}" for i in range(30)]
+    pool = rerank_candidates(applicants, talent)
+    assert len(pool) == RERANK_TOP
+    assert pool == set(applicants[:RERANK_TOP_APPLICANTS]) | set(talent[:RERANK_TOP_TALENT])
+
+
+def test_rerank_spare_slots_go_to_the_other_group():
+    from app.services.ai.pipeline import RERANK_TOP, rerank_candidates
+
+    pool = rerank_candidates(["a1", "a2"], [f"t{i}" for i in range(30)])
+    assert len(pool) == RERANK_TOP and {"a1", "a2"} <= pool
+    pool = rerank_candidates([f"a{i}" for i in range(50)], ["t1"])
+    assert len(pool) == RERANK_TOP and "t1" in pool and "a28" in pool and "a29" not in pool
+    assert rerank_candidates([], []) == set()
+
+
+def test_busqueda_que_pide_poco_no_da_cobertura_total():
+    """Sólo zona y modalidad (30 de peso): la cobertura no llega a 1 y el puntaje sin IA no
+    satura en "Encaja" (piso MIN_APPLICABLE_WEIGHT)."""
+    h = scoring.hybrid_score({"zone": 1.0, "modality": 1.0})
+    assert h.fit == 1.0
+    assert h.coverage == 30 / scoring.MIN_APPLICABLE_WEIGHT
+    assert scoring.final_score(h, 0.5, None, False) < scoring.RECOMMENDED_THRESHOLD
+    # Con habilidades requeridas el peso supera el piso y no cambia nada.
+    full = scoring.hybrid_score({"skills_required": 1.0, "zone": 1.0, "modality": 1.0})
+    assert full.coverage == 1.0

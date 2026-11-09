@@ -17,7 +17,11 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Iterable
 
-WEIGHTS_VERSION = "2026-10-04b"  # sin datos = 0,4 y encaje ajustado por cobertura
+from app.services.zonas import proximidad
+
+# Cambiarla deja constancia en cada fila recalculada (`job_recommendations.weights_version`); la
+# vuelta de la noche recalcula todo con el híbrido y reutiliza lo que ya evaluó la IA.
+WEIGHTS_VERSION = "2026-11-09b"  # zona por cercanía y fuera lo que la búsqueda no pide (plan final §2.1-2.2)
 
 # Pesos del puntaje híbrido. Son el punto de partida y se calibran con el etiquetado de Eugenia
 # (auditoría R13). Sólo cuentan los criterios que la búsqueda declara y de los que hay dato.
@@ -33,9 +37,10 @@ DEFAULT_WEIGHTS: dict[str, float] = {
 EDUCATION_ORDER = {"secundario": 1, "terciario": 2, "universitario": 3, "posgrado": 4}
 
 RECOMMENDED_THRESHOLD = 70
-NEW_FIT_THRESHOLD = 80
+NEW_FIT_THRESHOLD = 82  # 80 → 82 el 09/11: con los arreglos de 2.1-2.2 los puntajes suben; mantiene la proporción de avisos
 NEW_FIT_MIN_COVERAGE = 0.5
 EXCLUDING_FAIL_CAP = 49
+MIN_APPLICABLE_WEIGHT = 60  # ver hybrid_score
 
 
 def experience_months(intervals: Iterable[tuple[date | None, date | None]], today: date | None = None) -> int | None:
@@ -97,23 +102,57 @@ def skills_value(candidate_skill_ids: set, job_skill_ids: set) -> float | None:
     return len(candidate_skill_ids & job_skill_ids) / len(job_skill_ids)
 
 
-def zone_value(candidate_zone, job_zone, job_modality: str | None) -> float | None:
-    """Factor, no filtro (decisión P6): misma zona 1, otra zona 0,5. No aplica si es remoto."""
+def zone_value(candidate_zone_slug: str | None, job_zone_slug: str | None, job_modality: str | None) -> float | None:
+    """Factor, no filtro (decisión P6), por cercanía real (`services/zonas.py`, plan final §2.1):
+    Bahía Blanca y sus zonas entre sí 1, Punta Alta 0,8, Monte Hermoso o Coronel Suárez 0,25.
+    Recibe **slugs** del catálogo. No aplica si es remoto; sin zona de alguno es `None`."""
     if job_modality == "remoto":
         return None
-    if not candidate_zone or not job_zone:
-        return None
-    return 1.0 if candidate_zone == job_zone else 0.5
+    return proximidad(candidate_zone_slug, job_zone_slug)
+
+
+_MODALITY_NEEDED = {"presencial": "onsite", "remoto": "remote", "híbrido": "hybrid", "hibrido": "hybrid"}
 
 
 def modality_value(candidate_modalities: set[str], job_modality: str | None) -> float | None:
     """Sin ninguna modalidad marcada es `None`, no "no" (auditoría R4: 235 candidatos)."""
     if not job_modality or not candidate_modalities:
         return None
-    needed = {"presencial": "onsite", "remoto": "remote", "híbrido": "hybrid", "hibrido": "hybrid"}.get(job_modality)
+    needed = _MODALITY_NEEDED.get(job_modality)
     if needed is None:
         return None
     return 1.0 if needed in candidate_modalities else 0.0
+
+
+def job_criteria(
+    *, candidate_skill_ids: set, required_skill_ids: set, optional_skill_ids: set,
+    experience_months_: int | None, min_experience_years: int | None,
+    educations: list[tuple[str, str | None]], min_education_level: str | None,
+    candidate_zone_slug: str | None, job_zone_slug: str | None,
+    candidate_modalities: set[str], job_modality: str | None,
+) -> dict[str, float | None]:
+    """Los criterios del híbrido para un candidato y una búsqueda (plan final §2.2).
+
+    Separa dos cosas que antes daban el mismo `None`:
+    - **La búsqueda no lo pide** (sin años de experiencia, sin nivel de estudios, sin habilidades
+      requeridas u opcionales, aviso remoto o sin zona): el criterio **no entra** al diccionario y
+      no cuenta ni para el encaje ni para la cobertura.
+    - **El candidato no lo cargó:** el criterio entra con `None` y baja la cobertura.
+    Antes entraban siempre los 6 y la cobertura nunca pasaba del ~75 %."""
+    criteria: dict[str, float | None] = {}
+    if required_skill_ids:
+        criteria["skills_required"] = skills_value(candidate_skill_ids, required_skill_ids)
+    if optional_skill_ids:
+        criteria["skills_optional"] = skills_value(candidate_skill_ids, optional_skill_ids)
+    if min_experience_years:
+        criteria["experience"] = experience_value(experience_months_, min_experience_years)
+    if min_education_level in EDUCATION_ORDER:
+        criteria["education"] = education_value(educations, min_education_level)
+    if job_modality != "remoto" and job_zone_slug:
+        criteria["zone"] = zone_value(candidate_zone_slug, job_zone_slug, job_modality)
+    if job_modality in _MODALITY_NEEDED:
+        criteria["modality"] = modality_value(candidate_modalities, job_modality)
+    return criteria
 
 
 @dataclass
@@ -127,7 +166,10 @@ def hybrid_score(criteria: dict[str, float | None], weights: dict[str, float] | 
     weights = weights or DEFAULT_WEIGHTS
     applicable = {k: w for k, w in weights.items() if k in criteria}
     known = {k: w for k, w in applicable.items() if criteria.get(k) is not None}
-    total_w = sum(applicable.values())
+    # Piso del peso aplicable: una búsqueda que sólo pide zona y modalidad (30 puntos de peso) no
+    # puede dar cobertura total, porque sin IA eso dejaba a medio padrón en "Encaja" (medición del
+    # 09/11/2026: mediana 75 en las búsquedas sin habilidades requeridas).
+    total_w = max(sum(applicable.values()), MIN_APPLICABLE_WEIGHT) if applicable else 0.0
     known_w = sum(known.values())
     fit = sum(criteria[k] * w for k, w in known.items()) / known_w if known_w else 0.0
     return Hybrid(fit=fit, coverage=known_w / total_w if total_w else 0.0, criteria=criteria)

@@ -423,3 +423,72 @@ async def test_without_accepting_the_v3_privacy_the_ai_does_not_touch_the_profil
     assert await _ai_rows(maker, profile.id) == 0
     async with maker() as db:
         assert profile.id not in await pipeline.candidates_needing_index(db, 100)
+
+
+# ── Plan final §2.1, §2.2 y §2.4 ────────────────────────────────────────────────────────
+
+async def _zone(db, slug: str):
+    """Las zonas reales del catálogo, creadas una sola vez (la tabla no se vacía entre tests)."""
+    z = (await db.execute(select(Zone).where(Zone.slug == slug))).scalar_one_or_none()
+    if z is None:
+        z = Zone(id=uuid.uuid4(), name=slug.replace("-", " ").title(), slug=slug)
+        db.add(z)
+        await db.flush()
+    return z
+
+
+async def test_criteria_only_what_the_job_asks_and_zone_by_proximity(maker):
+    from app.services.ai import scoring
+
+    companies, job, people = await _world(maker)
+    async with maker() as db:
+        bahia, norte, suarez = [await _zone(db, s) for s in ("bahia-blanca", "zona-norte", "coronel-suarez")]
+        (await db.get(JobPosting, job.id)).zone_id = bahia.id
+        (await db.get(CandidateProfile, people["bueno"][1].id)).location_zone_id = norte.id
+        (await db.get(CandidateProfile, people["flojo"][1].id)).location_zone_id = suarez.id
+        await db.commit()
+    await _compute(maker, job.id, FakeAI())
+    recs = await _recs(maker, job.id)
+    # La búsqueda pide una habilidad requerida y es presencial con zona: no pide años, estudios ni
+    # habilidades opcionales, así que esos criterios no existen (antes entraban como "sin dato").
+    assert set(recs["bueno"].criteria) == {"skills_required", "zone", "modality"}
+    assert recs["bueno"].criteria["zone"] == 1.0          # Zona Norte para una búsqueda en Bahía
+    assert recs["flojo"].criteria["zone"] == 0.25         # Coronel Suárez
+    assert recs["bueno"].coverage == 1.0
+    assert recs["bueno"].weights_version == scoring.WEIGHTS_VERSION
+
+
+async def test_company_list_flags_unevaluated_and_puts_them_after_same_level(maker, monkeypatch):
+    from app.main import app
+
+    companies, job, people = await _world(maker)
+    await _compute(maker, job.id, FakeAI())
+    async with maker() as db:
+        rows = (await db.execute(select(JobRecommendation).where(JobRecommendation.job_id == job.id))).scalars().all()
+        by_id = {r.candidate_id: r for r in rows}
+        sin_evaluar = by_id[people["bueno"][1].id]
+        sin_evaluar.final_score, sin_evaluar.rerank_status = 76, "failed"
+        evaluado = by_id[people["flojo"][1].id]
+        evaluado.final_score, evaluado.rerank_status = 72, "done"
+        poco = by_id[people["tramposo"][1].id]
+        poco.final_score = 40
+        await db.commit()
+
+    async def _db():
+        async with maker() as db:
+            yield db
+
+    monkeypatch.setattr(rec_api, "recompute_job", lambda *a, **k: None)
+    app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[require_verified_company] = lambda: companies[0]
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            data = (await c.get(f"/api/v1/me/company/jobs/{job.id}/recommendations")).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert data["thresholds"] == {"recommended": 70, "strong": 80}
+    names = [a["name"] for a in data["applicants"]]
+    # Mismo nivel ("Encaja", 70-79): primero el evaluado (72) y después el sin evaluar (76).
+    assert names[:2] == ["Flojo Test", "Bueno Test"] and names[-1] == "Tramposo Test"
+    flags = {a["name"]: a["evaluated"] for a in data["applicants"]}
+    assert flags["Flojo Test"] is True and flags["Bueno Test"] is False
