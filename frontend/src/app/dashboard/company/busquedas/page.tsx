@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import {
   CheckCircleIcon, XCircleIcon, BoltIcon, PencilIcon, PauseIcon, PlayIcon,
-  UserCircleIcon, XMarkIcon, ArrowRightIcon,
+  UserCircleIcon, XMarkIcon, ArrowRightIcon, ChatBubbleLeftEllipsisIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
@@ -484,8 +484,22 @@ export default function CompanyBusquedasPage() {
                           <UserCircleIcon className="w-8 h-8 text-[#DDE3EC]" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
-                            {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                          <p className="font-bold text-[13.5px] text-[#1C2230] flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">
+                              {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                            </span>
+                            {/* Mismo ícono que Postulaciones: la empresa ya anotó algo sobre esta persona. */}
+                            {MODULOS_NUEVOS_VISIBLES && !!app.notes_count && (
+                              <span
+                                title={`Tiene observaciones (${app.notes_count})`}
+                                aria-label={`Tiene observaciones: ${app.notes_count}`}
+                                role="img"
+                                className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-bold text-[#8A6A54] bg-[#D4B7A2]/20 border border-[#D4B7A2]/60 px-1.5 py-0.5 rounded-full"
+                              >
+                                <ChatBubbleLeftEllipsisIcon className="w-3 h-3" aria-hidden />
+                                {app.notes_count}
+                              </span>
+                            )}
                           </p>
                           <p className="text-[11.5px] text-[#64748B] truncate">
                             {app.candidate?.age && `${app.candidate.age} años · `}

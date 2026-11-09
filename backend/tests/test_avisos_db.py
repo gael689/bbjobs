@@ -204,6 +204,31 @@ async def test_ai_matches_respect_opt_out_and_emails_switch(maker):
         await db.rollback()
 
 
+async def test_simple_matches_reach_who_the_ai_does_not_evaluate(maker, monkeypatch):
+    """Opción B (Gael, 09/11): con la IA prendida, quien no está en la Base de Talento (o se
+    opuso a la IA) recibe el aviso con el puntaje simple; a los de la Base no se los toca."""
+    from app.models.candidate import CandidateProfile
+    from app.services.email import digests
+
+    companies, job, people = await _ready(maker)
+    monkeypatch.setattr(digests, "score_for_candidate", lambda *a, **k: 10.0)  # todos "encajan"
+    async with maker() as db:
+        await db.execute(update(CandidateProfile).where(
+            CandidateProfile.id == people["talento"][1].id).values(visible_in_talent_pool=False))
+        await db.commit()
+        j = await db.get(type(job), job.id)
+        await matches.collect_simple_matches(db, j, only_outside_ai=True)
+        await db.commit()
+        found = (await db.execute(
+            select(CandidateJobMatch.candidate_id, CandidateJobMatch.via, CandidateProfile.visible_in_talent_pool,
+                   CandidateProfile.ai_opt_out_at)
+            .join(CandidateProfile, CandidateProfile.id == CandidateJobMatch.candidate_id)
+        )).all()
+    assert (people["talento"][1].id, "simple") in {(c, v) for c, v, _, _ in found}
+    assert all(not pool or opt_out is not None for _, _, pool, opt_out in found)
+    assert people["bueno"][1].id not in {c for c, _, _, _ in found}                 # ya se postuló
+
+
 async def test_recompute_queue_collects_matches_when_it_finishes(maker, monkeypatch):
     companies, job, people = await _ready(maker)
     seen = []

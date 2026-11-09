@@ -26,7 +26,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import structlog
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,10 +60,12 @@ def _is_live(job: JobPosting | None, now: datetime) -> bool:
             and job.published_at >= now - FRESH_FOR)
 
 
-def _eligible(job_id, now: datetime) -> list:
-    """Condiciones SQL comunes sobre CandidateProfile/User para recibir el aviso de `job_id`."""
+def _eligible(job_id, now: datetime, *, ai: bool = True) -> list:
+    """Condiciones SQL comunes sobre CandidateProfile/User para recibir el aviso de `job_id`.
+    Con `ai=False` (puntaje simple, sin IA) no se excluye a quien se opuso a la IA."""
     return [
-        CandidateProfile.deleted_at.is_(None), CandidateProfile.ai_opt_out_at.is_(None),
+        CandidateProfile.deleted_at.is_(None),
+        *([CandidateProfile.ai_opt_out_at.is_(None)] if ai else []),
         accepted_ai_terms(CandidateProfile.user_id),
         User.deleted_at.is_(None), User.is_active.is_(True), User.last_seen_at >= now - ACTIVE_WITHIN,
         ~exists().where(Application.candidate_id == CandidateProfile.id, Application.job_posting_id == job_id),
@@ -98,8 +100,13 @@ async def collect_ai_matches(db: AsyncSession, job: JobPosting, now: datetime | 
     return await _store(db, job.id, [(cid, score) for cid, score in rows], "ia", now)
 
 
-async def collect_simple_matches(db: AsyncSession, job: JobPosting, now: datetime | None = None) -> int:
-    """Sin IA: el puntaje simple del resumen de los lunes, con el mismo umbral para todos. No commitea."""
+async def collect_simple_matches(db: AsyncSession, job: JobPosting, now: datetime | None = None,
+                                 *, only_outside_ai: bool = False) -> int:
+    """Sin IA: el puntaje simple del resumen de los lunes, con el mismo umbral para todos. No commitea.
+
+    `only_outside_ai=True` (con la IA prendida): sólo quienes la IA no evalúa, es decir los que
+    no están en la Base de Talento o se opusieron a la IA. Así el aviso les llega igual, con el
+    puntaje simple y sin pasar su perfil por la IA (Gael, 09/11/2026, opción B)."""
     from app.services.email.digests import score_for_candidate
     from app.services.email.outbox import emails_enabled
     from app.services.zonas import slugs_por_id
@@ -111,7 +118,11 @@ async def collect_simple_matches(db: AsyncSession, job: JobPosting, now: datetim
         select(JobPostingSkill.skill_id).where(JobPostingSkill.job_posting_id == job.id)
     )).scalars().all())
     profiles = (await db.execute(
-        select(CandidateProfile).join(User, User.id == CandidateProfile.user_id).where(*_eligible(job.id, now))
+        select(CandidateProfile).join(User, User.id == CandidateProfile.user_id).where(
+            *_eligible(job.id, now, ai=False),
+            *([or_(CandidateProfile.visible_in_talent_pool.is_(False),
+                   CandidateProfile.ai_opt_out_at.is_not(None))] if only_outside_ai else []),
+        )
     )).scalars().all()
     if not profiles:
         return 0

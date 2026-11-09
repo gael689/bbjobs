@@ -71,11 +71,14 @@ async def request_recompute(job_id: uuid.UUID, reason: str) -> None:
 
 async def _collect_matches(db: AsyncSession, job: JobPosting, now: datetime) -> None:
     """Anota a quién avisarle de esta búsqueda. Si falla, no tira abajo el recálculo."""
-    from app.services.email.matches import collect_ai_matches
+    from app.services.email.matches import collect_ai_matches, collect_simple_matches
 
     try:
         async with db.begin_nested():
             await collect_ai_matches(db, job, now)
+            # Quienes la IA no evalúa (fuera de la Base o con oposición) reciben el aviso con
+            # el puntaje simple.
+            await collect_simple_matches(db, job, now, only_outside_ai=True)
     except Exception as exc:
         logger.warning("aviso_busquedas_fallo", job_id=str(job.id), error=str(exc)[:200])
 
