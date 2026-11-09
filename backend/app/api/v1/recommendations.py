@@ -39,7 +39,7 @@ from app.models.core import User, UserRole
 from app.models.job import Application, JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.payment import TalentCreditPack, TalentPackStatus, TalentUnlock
 from app.models.settings import SettingKey
-from app.services.ai import pipeline
+from app.services.ai import pendientes, pipeline
 from app.services.email.policy import local_day_start
 from app.services.settings import get_setting
 
@@ -219,6 +219,12 @@ async def job_recommendations(
 
     applicants = [out(r, f, l) for r, f, l in rows if r.source == "applicant"]
     talent = [out(r, f, l) for r, f, l in rows if r.source == "talent"][:limit]
+    # La empresa ya los tiene a la vista: dejan de contar en la bombita y en "Recomendados (N)".
+    # Sólo los que ve (los de la Base fuera de su cupo siguen sin mirar).
+    seen = [r.candidate_id for r, _, _ in rows if r.source == "applicant"] +         [r.candidate_id for r, _, _ in rows if r.source == "talent"][:limit]
+    if any(r.company_viewed_at is None for r, _, _ in rows):
+        await pendientes.mark_viewed(db, job.id, seen)
+        await db.commit()
     scored = {r.candidate_id for r, _, _ in rows if r.source == "applicant"}
     unscored = [
         UnscoredOut(candidate_id=cid, application_id=aid, name=f"{first} {last}".strip())
@@ -238,6 +244,33 @@ async def job_recommendations(
         applicants=applicants, unscored_applicants=unscored, talent=talent, talent_limit=limit,
         computed_at=max((r.computed_at for r, _, _ in rows), default=None),
     )
+
+
+class PendingJobOut(BaseModel):
+    job_id: uuid.UUID
+    title: str
+    count: int
+
+
+class PendingOut(BaseModel):
+    total: int
+    jobs: list[PendingJobOut]
+
+
+async def pending_for_company(db: AsyncSession, company_id: uuid.UUID) -> PendingOut:
+    jobs = [PendingJobOut(**j) for j in await pendientes.pending_by_job(db, company_id)]
+    return PendingOut(total=sum(j.count for j in jobs), jobs=jobs)
+
+
+@router.get("/me/company/recommendations/pending", response_model=PendingOut)
+async def pending_recommendations(
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recomendados ≥ 70 que la empresa todavía no miró, por búsqueda (la bombita del panel).
+    El panel lo recibe también dentro de `/me/notifications/summary`, en el mismo pedido de la
+    campanita."""
+    return await pending_for_company(db, company.id)
 
 
 class RefreshResult(BaseModel):

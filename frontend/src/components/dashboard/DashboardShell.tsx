@@ -10,6 +10,9 @@ import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NovedadesVersion, { MarcaVersion } from "@/components/dashboard/NovedadesVersion";
 import AvisoEmergente from "@/components/notifications/AvisoEmergente";
+import BombitaRecomendados, { type RecomendadosPendientes } from "@/components/notifications/BombitaRecomendados";
+import type { NotificationItemData } from "@/hooks/useNotifications";
+import { EVENTO_RECOMENDADOS_VISTOS } from "@/lib/eventos";
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 const NAV_BADGE_POLL_MS = 45_000;
@@ -27,6 +30,15 @@ export interface DashboardNavItem {
   section?: string;
   /** Etiqueta chica al lado del nombre, p. ej. "En desarrollo" para los módulos nuevos. */
   badge?: string;
+  /** Contador fijo al lado del nombre ("Recomendados (5)"): sale del pedido de la campanita. */
+  contador?: "recomendados";
+}
+
+/** Lo que el panel pregunta cada minuto, en un solo pedido (`/me/notifications/summary`). */
+interface ResumenPanel {
+  count: number;
+  highlights: NotificationItemData[];
+  recommended: RecomendadosPendientes | null;
 }
 
 const ROLE_LABEL: Record<"candidate" | "company" | "admin", string> = {
@@ -44,17 +56,20 @@ function NavLinks({
   navItems,
   pathname,
   unreadCount,
+  recomendados,
   onNavigate,
 }: {
   navItems: DashboardNavItem[];
   pathname: string | null;
   unreadCount: number;
+  recomendados: number;
   onNavigate?: () => void;
 }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
-      {navItems.map(({ href, label, icon: Icon, exact, section, badge }) => {
+      {navItems.map(({ href, label: nombre, icon: Icon, exact, section, badge, contador }) => {
         const isNotifications = href.endsWith("/notificaciones");
+        const label = contador === "recomendados" && recomendados > 0 ? `${nombre} (${recomendados})` : nombre;
         return (
           <div key={`g-${href}`}>
           {section && (
@@ -106,6 +121,8 @@ export default function DashboardShell({
   const { isSignedIn } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navUnreadCount, setNavUnreadCount] = useState(0);
+  const [resumen, setResumen] = useState<ResumenPanel | null>(null);
+  const { userId } = useAuth();
 
   const handleLogout = async () => {
     await signOut({ redirectUrl: "/" });
@@ -113,24 +130,40 @@ export default function DashboardShell({
 
   // Poll liviano sólo para el badge del ítem "Notificaciones" del nav — independiente del
   // useNotifications() que ya usa NotificationBell (ver su comentario: no se debe duplicar
-  // ese hook, que trae la lista completa además del conteo).
+  // ese hook, que trae la lista completa además del conteo). Con los módulos nuevos, el mismo
+  // pedido trae también los carteles emergentes y (empresas) los recomendados sin mirar: antes
+  // el cartel preguntaba aparte.
   const navUnreadPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!isSignedIn) return;
     let cancelled = false;
     const tick = () => {
       if (document.hidden || isSessionExpired()) return;
+      if (MODULOS_NUEVOS_VISIBLES) {
+        api.get<ResumenPanel>("/me/notifications/summary")
+          .then(res => {
+            if (cancelled) return;
+            setNavUnreadCount(res.data.count ?? 0);
+            setResumen(res.data);
+          })
+          .catch(() => {});
+        return;
+      }
       api.get("/me/notifications/unread-count")
         .then(res => { if (!cancelled) setNavUnreadCount(res.data.count ?? 0); })
         .catch(() => {});
     };
     tick();
     navUnreadPollRef.current = setInterval(tick, NAV_BADGE_POLL_MS);
+    // Recomendados avisa cuando la empresa abre una búsqueda: el contador baja en el acto.
+    window.addEventListener(EVENTO_RECOMENDADOS_VISTOS, tick);
     return () => {
       cancelled = true;
       if (navUnreadPollRef.current) clearInterval(navUnreadPollRef.current);
+      window.removeEventListener(EVENTO_RECOMENDADOS_VISTOS, tick);
     };
   }, [isSignedIn]);
+  const recomendados = resumen?.recommended?.total ?? 0;
 
   return (
     <div className="min-h-screen bg-[#FAFBFD] lg:flex">
@@ -157,7 +190,7 @@ export default function DashboardShell({
           <MarcaVersion conNovedades={role !== "candidate"} />
         </div>
 
-        <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} />
+        <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados} />
 
         <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
           <NotificationBell variant="prominent" align="left" openUpward />
@@ -212,7 +245,8 @@ export default function DashboardShell({
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
-            <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} onNavigate={() => setMobileOpen(false)} />
+            <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados}
+                      onNavigate={() => setMobileOpen(false)} />
             <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
               <NotificationBell variant="prominent" align="left" openUpward />
               <Link
@@ -238,7 +272,11 @@ export default function DashboardShell({
       {/* Contenido */}
       <main className="flex-1 min-w-0">{children}</main>
       {/* Los avisos que salen en pantalla son de los módulos nuevos (IA): con la compuerta cerrada, ni se consultan. */}
-      {MODULOS_NUEVOS_VISIBLES && <AvisoEmergente />}
+      {MODULOS_NUEVOS_VISIBLES && <AvisoEmergente avisos={resumen?.highlights ?? []} />}
+      {/* La bombita de la empresa: recomendados que todavía no miró (como mucho una vez por día). */}
+      {MODULOS_NUEVOS_VISIBLES && role === "company" && (
+        <BombitaRecomendados pendientes={resumen?.recommended ?? null} usuario={userId} />
+      )}
       {role !== "candidate" && <NovedadesVersion rol={role} />}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { EVENTO_RECOMENDADOS_VISTOS } from "@/lib/eventos";
 import Link from "next/link";
 import {
   SparklesIcon, ArrowPathIcon, HandThumbUpIcon, HandThumbDownIcon, LockClosedIcon, ChevronDownIcon, ArrowRightIcon,
@@ -246,7 +247,10 @@ export default function RecomendadosPage() {
       .then(r => {
         const activas = r.data.filter(j => j.status !== "draft");
         setBusquedas(activas);
-        if (activas[0]) setJobId(activas[0].id);
+        // La bombita lleva a una búsqueda puntual: `?busqueda=<id>`.
+        const pedida = new URLSearchParams(window.location.search).get("busqueda");
+        const elegida = activas.find(j => j.id === pedida) ?? activas[0];
+        if (elegida) setJobId(elegida.id);
         else setEstado({ tipo: "listo", datos: { enabled: true, status: "ok", disclaimer: "", requirements: [], discarded_requirements: [], applicants: [], talent: [], talent_limit: 0 } });
       })
       .catch(e => setEstado({ tipo: "error", mensaje: detalleError(e) }));
@@ -263,7 +267,11 @@ export default function RecomendadosPage() {
     }
   }, []);
   const cargar = useCallback((id: string) => {
-    pedir(id).then(e => { if (jobActual.current === id) setEstado(e); });
+    pedir(id).then(e => {
+      if (jobActual.current === id) setEstado(e);
+      // Abrirla los marca como vistos en el backend: el contador del menú baja en el acto.
+      if (e.tipo === "listo" && e.datos.status === "ok") window.dispatchEvent(new Event(EVENTO_RECOMENDADOS_VISTOS));
+    });
   }, [pedir]);
 
   useEffect(() => {
