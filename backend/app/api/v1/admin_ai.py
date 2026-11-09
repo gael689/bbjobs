@@ -34,7 +34,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_role
-from app.api.v1.recommendations import DISCLAIMER, SUMMARY_DISCLAIMER, EvalOut, RequirementOut, SummaryLineOut, candidate_ref
+from app.api.v1.recommendations import (
+    DISCLAIMER, SUMMARY_DISCLAIMER, EvalOut, RequirementOut, SummaryLineOut, Thresholds, candidate_ref,
+    evaluated_first,
+)
 from app.core.config import settings
 from app.core.features import require_new_modules
 from app.db import session as db_session
@@ -214,6 +217,7 @@ class AdminRecsResponse(BaseModel):
     queue_reason: Optional[str] = None
     cost_usd: float = 0.0
     rerank_counts: dict[str, int] = {}
+    thresholds: Thresholds = Thresholds()
 
 
 RERANK_ALERTS = {
@@ -318,8 +322,11 @@ async def admin_job_recommendations(job_id: uuid.UUID, _: User = Depends(admin_o
         counts[r.rerank_status] = counts.get(r.rerank_status, 0) + 1
     return AdminRecsResponse(
         status="ok", **base,
-        applicants=[out(*r) for r in rows if r[0].source == "applicant"],
-        talent=[out(*r) for r in rows if r[0].source == "talent"],
+        # Mismo orden que ve la empresa: los "sin evaluar" después de los evaluados del mismo nivel.
+        applicants=evaluated_first([out(*r) for r in rows if r[0].source == "applicant"],
+                                   evaluated=lambda x: x.rerank_status == "done"),
+        talent=evaluated_first([out(*r) for r in rows if r[0].source == "talent"],
+                               evaluated=lambda x: x.rerank_status == "done"),
         talent_limit=limit, computed_at=max(r.computed_at for r, *_ in rows), rerank_counts=counts,
     )
 
@@ -773,6 +780,7 @@ class OverviewResponse(BaseModel):
     feedback_up: int
     feedback_down: int
     top_matches: list[OverviewMatch]
+    thresholds: Thresholds = Thresholds()
 
 
 @router.get("/admin/ai/overview", response_model=OverviewResponse)

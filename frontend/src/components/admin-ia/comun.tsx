@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import type { Umbrales } from "@/components/recomendados/Visual";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
 import type { CandidateFullProfile } from "@/app/dashboard/admin/types";
 
@@ -73,6 +74,7 @@ export interface DetalleBusqueda {
   queue_reason?: string | null;
   cost_usd: number;
   rerank_counts: Record<string, number>;
+  thresholds: Umbrales;
 }
 
 export interface Totales {

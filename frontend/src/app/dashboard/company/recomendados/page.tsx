@@ -8,7 +8,9 @@ import {
 import { api } from "@/lib/api";
 import { detalleError } from "@/hooks/useModulo";
 import EnDesarrollo from "@/components/dashboard/EnDesarrollo";
-import { NivelChip, PuntajeAnillo, RequisitosBarra, VEREDICTO_DETALLE, type Veredicto } from "@/components/recomendados/Visual";
+import {
+  NivelChip, PuntajeAnillo, RequisitosBarra, SinEvaluarChip, VEREDICTO_DETALLE, type Umbrales, type Veredicto,
+} from "@/components/recomendados/Visual";
 
 interface Busqueda { id: string; title: string; status: string }
 
@@ -29,6 +31,8 @@ interface Recomendado {
   evaluations: Evaluacion[];
   locked: boolean;
   feedback?: number | null;
+  // false: el puntaje sale sólo de los datos del perfil (la IA todavía no lo evaluó).
+  evaluated: boolean;
 }
 
 interface Respuesta {
@@ -44,6 +48,8 @@ interface Respuesta {
   talent: Recomendado[];
   talent_limit: number;
   computed_at?: string | null;
+  // Umbrales del puntaje (salen de scoring.py en el backend). Faltan sólo en la respuesta vacía.
+  thresholds?: Umbrales;
 }
 
 const REINTENTO_MS = 5000;
@@ -156,8 +162,8 @@ function Pulgares({ r, onFeedback }: { r: Recomendado; onFeedback: (r: Recomenda
 }
 
 /** Tarjeta grande para los mejores postulantes: se entiende sin abrir nada. */
-function Destacado({ r, puesto, requisitos, onFeedback, onAbrir }: {
-  r: Recomendado; puesto: number; requisitos: Requisito[];
+function Destacado({ r, puesto, requisitos, umbrales, onFeedback, onAbrir }: {
+  r: Recomendado; puesto: number; requisitos: Requisito[]; umbrales: Umbrales;
   onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; onAbrir: (ref: string) => void;
 }) {
   const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
@@ -167,10 +173,10 @@ function Destacado({ r, puesto, requisitos, onFeedback, onAbrir }: {
         {puesto}
       </span>
       <div className="flex items-center gap-3 mb-3 pr-8">
-        <PuntajeAnillo score={r.score} size={72} />
+        <PuntajeAnillo score={r.score} umbrales={umbrales} size={72} />
         <div className="min-w-0">
           <p className="font-display font-bold text-[#1C2230] text-lg leading-tight truncate">{nombre(r)}</p>
-          <div className="mt-1"><NivelChip score={r.score} /></div>
+          <div className="mt-1 flex flex-wrap gap-1.5"><NivelChip score={r.score} umbrales={umbrales} />{!r.evaluated && <SinEvaluarChip />}</div>
         </div>
       </div>
       {r.reasons.length > 0 && (
@@ -193,20 +199,21 @@ function Destacado({ r, puesto, requisitos, onFeedback, onAbrir }: {
   );
 }
 
-function Fila({ r, requisitos, onFeedback, jobId, abierto, onToggle }: {
-  r: Recomendado; requisitos: Requisito[]; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; jobId: string;
+function Fila({ r, requisitos, umbrales, onFeedback, jobId, abierto, onToggle }: {
+  r: Recomendado; requisitos: Requisito[]; umbrales: Umbrales; onFeedback: (r: Recomendado, v: -1 | 0 | 1) => void; jobId: string;
   abierto: boolean; onToggle: () => void;
 }) {
   const texto = (id: string) => requisitos.find(q => q.id === id)?.texto ?? id;
   return (
     <div id={`rec-${r.candidate_ref}`} className={`px-4 sm:px-5 py-4 transition-colors ${abierto ? "bg-[#FAFBFD]" : ""}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <PuntajeAnillo score={r.score} size={48} />
+        <PuntajeAnillo score={r.score} umbrales={umbrales} size={48} />
         <div className="flex-1 min-w-[180px]">
           <p className="font-bold text-[#1C2230] flex flex-wrap items-center gap-2">
             {r.locked && <LockClosedIcon className="w-4 h-4 text-[#5C3B22]" aria-label="Perfil ciego" />}
             {nombre(r)}
-            <NivelChip score={r.score} />
+            <NivelChip score={r.score} umbrales={umbrales} />
+            {!r.evaluated && <SinEvaluarChip />}
           </p>
           {r.reasons[0] && <p className="text-sm text-[#1C2230] mt-0.5 line-clamp-1">{r.reasons[0]}</p>}
         </div>
@@ -412,7 +419,9 @@ export default function RecomendadosPage() {
           );
         }
         const destacados = d.applicants.filter(a => a.recommended).slice(0, DESTACADOS);
-        const muyBien = d.applicants.filter(a => a.score >= 80).length;
+        const umbrales = d.thresholds;
+        if (!umbrales) return null;
+        const muyBien = d.applicants.filter(a => a.score >= umbrales.strong).length;
         return (
           <>
             {d.applicants.length > 0 && (
@@ -436,7 +445,7 @@ export default function RecomendadosPage() {
                 <h2 className="font-display font-bold text-lg text-[#1C2230] mb-3">Para mirar primero</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {destacados.map((r, i) => (
-                    <Destacado key={r.candidate_ref} r={r} puesto={i + 1} requisitos={d.requirements}
+                    <Destacado key={r.candidate_ref} r={r} puesto={i + 1} requisitos={d.requirements} umbrales={umbrales}
                                onFeedback={feedback} onAbrir={abrirDesdeDestacado} />
                   ))}
                 </div>
@@ -454,7 +463,7 @@ export default function RecomendadosPage() {
                 {d.applicants.length === 0 ? (
                   <p className="p-8 text-center text-[#1C2230]">Esta búsqueda todavía no tiene postulantes.</p>
                 ) : d.applicants.map(r => (
-                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId}
+                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} umbrales={umbrales} onFeedback={feedback} jobId={jobId}
                         abierto={abierto === r.candidate_ref} onToggle={() => setAbierto(a => a === r.candidate_ref ? null : r.candidate_ref)} />
                 ))}
               </div>
@@ -483,7 +492,7 @@ export default function RecomendadosPage() {
                 {d.talent.length === 0 ? (
                   <p className="p-8 text-center text-[#1C2230]">Por ahora no hay perfiles para esta búsqueda.</p>
                 ) : d.talent.map(r => (
-                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} onFeedback={feedback} jobId={jobId}
+                  <Fila key={r.candidate_ref} r={r} requisitos={d.requirements} umbrales={umbrales} onFeedback={feedback} jobId={jobId}
                         abierto={abierto === r.candidate_ref} onToggle={() => setAbierto(a => a === r.candidate_ref ? null : r.candidate_ref)} />
                 ))}
               </div>

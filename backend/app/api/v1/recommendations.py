@@ -121,6 +121,27 @@ class EvalOut(BaseModel):
     evidence: Optional[str] = None
 
 
+class Thresholds(BaseModel):
+    """Umbrales del puntaje, en un solo lugar (`services/ai/scoring.py`): la pantalla los lee de
+    acá en vez de tener 70 y 80 escritos a mano (plan final §2.5)."""
+    recommended: int = pipeline.scoring.RECOMMENDED_THRESHOLD
+    strong: int = pipeline.scoring.NEW_FIT_THRESHOLD
+
+
+def score_level(score: int) -> int:
+    """2 = encaja muy bien, 1 = encaja, 0 = encaja poco. Los mismos cortes que muestra la pantalla."""
+    if score >= pipeline.scoring.NEW_FIT_THRESHOLD:
+        return 2
+    return 1 if score >= pipeline.scoring.RECOMMENDED_THRESHOLD else 0
+
+
+def evaluated_first(items: list, *, score=lambda x: x.score, evaluated=lambda x: x.evaluated) -> list:
+    """Orden de la lista (plan final §2.4): por nivel; dentro del mismo nivel, primero los que
+    evaluó la IA y después los "sin evaluar" (la fórmula sin IA no es comparable del todo); y
+    dentro de cada grupo, por puntaje. Estable: los empates quedan como venían."""
+    return sorted(items, key=lambda x: (-score_level(score(x)), not evaluated(x), -score(x)))
+
+
 class RecOut(BaseModel):
     candidate_ref: str
     candidate_id: Optional[uuid.UUID] = None     # sólo postulantes y perfiles desbloqueados
@@ -134,6 +155,9 @@ class RecOut(BaseModel):
     evaluations: list[EvalOut]
     locked: bool
     feedback: Optional[int] = None
+    # False = el puntaje sale sólo de los datos del perfil, sin la evaluación de la IA requisito
+    # por requisito: la pantalla lo marca "sin evaluar".
+    evaluated: bool = False
 
 
 class UnscoredOut(BaseModel):
@@ -155,6 +179,7 @@ class RecsResponse(BaseModel):
     talent: list[RecOut] = []
     talent_limit: int = 0
     computed_at: Optional[datetime] = None
+    thresholds: Thresholds = Thresholds()
 
 
 async def _talent_limit(db: AsyncSession, company_id: uuid.UUID) -> int:
@@ -214,11 +239,13 @@ async def job_recommendations(
             evaluations=[EvalOut(req_id=e["req_id"], verdict=e["verdict"],
                                  evidence=evidence.get(e["req_id"]) if visible else None)
                          for e in (rec.req_evals or [])],
-            locked=not visible, feedback=rec.feedback,
+            locked=not visible, feedback=rec.feedback, evaluated=rec.rerank_status == "done",
         )
 
-    applicants = [out(r, f, l) for r, f, l in rows if r.source == "applicant"]
-    talent = [out(r, f, l) for r, f, l in rows if r.source == "talent"][:limit]
+    applicants = evaluated_first([out(r, f, l) for r, f, l in rows if r.source == "applicant"])
+    # El cupo de la Base se corta por puntaje (el mismo orden que usa el aviso a la empresa) y
+    # recién después se reordena.
+    talent = evaluated_first([out(r, f, l) for r, f, l in rows if r.source == "talent"][:limit])
     scored = {r.candidate_id for r, _, _ in rows if r.source == "applicant"}
     unscored = [
         UnscoredOut(candidate_id=cid, application_id=aid, name=f"{first} {last}".strip())
