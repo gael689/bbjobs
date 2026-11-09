@@ -314,3 +314,25 @@ def test_reasons_are_rebuilt_when_an_evaluation_is_degraded():
     r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
     assert r.degraded == 1
     assert r.reasons == ["Su perfil no dice nada sobre manejo de autoelevador y licencia de conducir."]
+
+
+# --- lugares reservados para la Base de Talento en el rerank (plan final §2.3) --------------
+
+def test_rerank_reserves_slots_for_talent():
+    from app.services.ai.pipeline import RERANK_TOP, RERANK_TOP_APPLICANTS, RERANK_TOP_TALENT, rerank_candidates
+
+    applicants = [f"a{i}" for i in range(62)]     # mediana real de postulantes por búsqueda
+    talent = [f"t{i}" for i in range(30)]
+    pool = rerank_candidates(applicants, talent)
+    assert len(pool) == RERANK_TOP
+    assert pool == set(applicants[:RERANK_TOP_APPLICANTS]) | set(talent[:RERANK_TOP_TALENT])
+
+
+def test_rerank_spare_slots_go_to_the_other_group():
+    from app.services.ai.pipeline import RERANK_TOP, rerank_candidates
+
+    pool = rerank_candidates(["a1", "a2"], [f"t{i}" for i in range(30)])
+    assert len(pool) == RERANK_TOP and {"a1", "a2"} <= pool
+    pool = rerank_candidates([f"a{i}" for i in range(50)], ["t1"])
+    assert len(pool) == RERANK_TOP and "t1" in pool and "a28" in pool and "a29" not in pool
+    assert rerank_candidates([], []) == set()
