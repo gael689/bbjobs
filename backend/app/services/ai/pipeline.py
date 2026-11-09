@@ -45,6 +45,7 @@ from app.models.job import Application, JobPosting, JobPostingSkill
 from app.services.ai import requirements as reqs
 from app.services.ai import rerank, scoring
 from app.services.ai.chunks import CandidateData, Education as EduData, Experience as ExpData, build_ficha
+from app.services import zonas
 from app.services.email.policy import local_day_start
 
 logger = structlog.get_logger("app.services.ai.pipeline")
@@ -382,19 +383,22 @@ async def _compute_recommendations(
     tops: dict[uuid.UUID, dict] = {}
     for cid, (cdata, skill_ids, zone_id, modalities) in data.items():
         months = scoring.experience_months([(e.start, e.end) for e in cdata.experiences])
-        criteria = {
-            "skills_required": scoring.skills_value(skill_ids, ctx.required_skill_ids),
-            "skills_optional": scoring.skills_value(skill_ids, ctx.optional_skill_ids),
-            "experience": scoring.experience_value(months, job.min_experience_years),
-            "education": scoring.education_value([(e.level, e.status) for e in cdata.educations], min_level),
-            "zone": scoring.zone_value(zone_id, job.zone_id, modality),
-            "modality": scoring.modality_value(modalities, modality),
-        }
+        criteria = scoring.job_criteria(
+            candidate_skill_ids=skill_ids, required_skill_ids=ctx.required_skill_ids,
+            optional_skill_ids=ctx.optional_skill_ids,
+            experience_months_=months, min_experience_years=job.min_experience_years,
+            educations=[(e.level, e.status) for e in cdata.educations], min_education_level=min_level,
+            candidate_zone_slug=zone_slugs.get(zone_id) if zone_id else None, job_zone_slug=job_zone_slug,
+            candidate_modalities=modalities, job_modality=modality,
+        )
         h = scoring.hybrid_score(criteria)
         sem, top = _semantic(ctx, chunks.get(cid, []))
         if sem is not None:
             raw_sem[cid] = sem
         tops[cid] = top
+    # Zonas por slug (la tabla de cercanía, services/zonas.py): el catálogo se lee una vez por corrida.
+    zone_slugs = await zonas.slugs_por_id(db)
+    job_zone_slug = zone_slugs.get(job.zone_id) if job.zone_id else None
         rows[cid] = {"hybrid": h, "source": "applicant" if cid in applicants else "talent"}
 
     pct = scoring.percentiles(raw_sem)

@@ -34,6 +34,16 @@ def test_weekly_score_prefers_zone_and_shared_skills():
     assert cerca > lejos and cerca >= 3 > lejos
 
 
+def test_weekly_score_uses_zone_proximity_not_exact_zone():
+    z_norte, z_suarez = uuid.uuid4(), uuid.uuid4()
+    slugs = {Z1: "bahia-blanca", z_norte: "zona-norte", z_suarez: "coronel-suarez"}
+    exacta = score_for_candidate(_job(), set(), set(), Z1, {"onsite"}, slugs)
+    vecina = score_for_candidate(_job(), set(), set(), z_norte, {"onsite"}, slugs)
+    lejana = score_for_candidate(_job(), set(), set(), z_suarez, {"onsite"}, slugs)
+    assert exacta == vecina == 3 and lejana == 1.5
+    assert score_for_candidate(_job(), set(), set(), None, {"onsite"}, slugs) == 1
+
+
 def test_remote_jobs_count_as_close_for_everyone():
     assert score_for_candidate(_job(modality="remoto"), set(), set(), Z2, set()) >= 3
 
