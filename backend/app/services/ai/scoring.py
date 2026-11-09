@@ -21,7 +21,7 @@ from app.services.zonas import proximidad
 
 # Cambiarla deja constancia en cada fila recalculada (`job_recommendations.weights_version`); la
 # vuelta de la noche recalcula todo con el híbrido y reutiliza lo que ya evaluó la IA.
-WEIGHTS_VERSION = "2026-11-09"  # zona por cercanía y fuera lo que la búsqueda no pide (plan final §2.1-2.2)
+WEIGHTS_VERSION = "2026-11-09b"  # zona por cercanía y fuera lo que la búsqueda no pide (plan final §2.1-2.2)
 
 # Pesos del puntaje híbrido. Son el punto de partida y se calibran con el etiquetado de Eugenia
 # (auditoría R13). Sólo cuentan los criterios que la búsqueda declara y de los que hay dato.
@@ -37,9 +37,10 @@ DEFAULT_WEIGHTS: dict[str, float] = {
 EDUCATION_ORDER = {"secundario": 1, "terciario": 2, "universitario": 3, "posgrado": 4}
 
 RECOMMENDED_THRESHOLD = 70
-NEW_FIT_THRESHOLD = 80
+NEW_FIT_THRESHOLD = 82  # 80 → 82 el 09/11: con los arreglos de 2.1-2.2 los puntajes suben; mantiene la proporción de avisos
 NEW_FIT_MIN_COVERAGE = 0.5
 EXCLUDING_FAIL_CAP = 49
+MIN_APPLICABLE_WEIGHT = 60  # ver hybrid_score
 
 
 def experience_months(intervals: Iterable[tuple[date | None, date | None]], today: date | None = None) -> int | None:
@@ -165,7 +166,10 @@ def hybrid_score(criteria: dict[str, float | None], weights: dict[str, float] | 
     weights = weights or DEFAULT_WEIGHTS
     applicable = {k: w for k, w in weights.items() if k in criteria}
     known = {k: w for k, w in applicable.items() if criteria.get(k) is not None}
-    total_w = sum(applicable.values())
+    # Piso del peso aplicable: una búsqueda que sólo pide zona y modalidad (30 puntos de peso) no
+    # puede dar cobertura total, porque sin IA eso dejaba a medio padrón en "Encaja" (medición del
+    # 09/11/2026: mediana 75 en las búsquedas sin habilidades requeridas).
+    total_w = max(sum(applicable.values()), MIN_APPLICABLE_WEIGHT) if applicable else 0.0
     known_w = sum(known.values())
     fit = sum(criteria[k] * w for k, w in known.items()) / known_w if known_w else 0.0
     return Hybrid(fit=fit, coverage=known_w / total_w if total_w else 0.0, criteria=criteria)

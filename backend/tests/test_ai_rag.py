@@ -336,3 +336,15 @@ def test_rerank_spare_slots_go_to_the_other_group():
     pool = rerank_candidates([f"a{i}" for i in range(50)], ["t1"])
     assert len(pool) == RERANK_TOP and "t1" in pool and "a28" in pool and "a29" not in pool
     assert rerank_candidates([], []) == set()
+
+
+def test_busqueda_que_pide_poco_no_da_cobertura_total():
+    """Sólo zona y modalidad (30 de peso): la cobertura no llega a 1 y el puntaje sin IA no
+    satura en "Encaja" (piso MIN_APPLICABLE_WEIGHT)."""
+    h = scoring.hybrid_score({"zone": 1.0, "modality": 1.0})
+    assert h.fit == 1.0
+    assert h.coverage == 30 / scoring.MIN_APPLICABLE_WEIGHT
+    assert scoring.final_score(h, 0.5, None, False) < scoring.RECOMMENDED_THRESHOLD
+    # Con habilidades requeridas el peso supera el piso y no cambia nada.
+    full = scoring.hybrid_score({"skills_required": 1.0, "zone": 1.0, "modality": 1.0})
+    assert full.coverage == 1.0
