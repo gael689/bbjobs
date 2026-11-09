@@ -1,5 +1,6 @@
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from datetime import date
 from typing import List
 
 class Settings(BaseSettings):
@@ -48,6 +49,8 @@ class Settings(BaseSettings):
     # la empresa veía un precio y se le cobraba otro.
     # Dejar en None en operación normal.
     TALENT_PACK_PRICE: float | None = None
+    # Revisión de CV: precio provisorio de ARS 12.000 en el código hasta que lo defina Eugenia.
+    CV_REVIEW_PRICE: float | None = None
     FEATURED_JOB_PRICE: float | None = None
 
     # A dónde le decimos a Mercado Pago que mande los avisos de pago. Se manda en CADA
@@ -55,6 +58,8 @@ class Settings(BaseSettings):
     # En Railway se deduce sola de RAILWAY_PUBLIC_DOMAIN — está sólo para poder pisarla.
     MP_NOTIFICATION_URL: str | None = None
     RAILWAY_PUBLIC_DOMAIN: str | None = None
+    # URL pública del backend con el prefijo /api/v1 — se usa en los links de baja de los mails.
+    API_PUBLIC_URL: str | None = None
 
     # Aviso a buscadores al publicar/cerrar una búsqueda (services/indexing.py). Sin variable, no
     # se avisa nada. INDEXNOW_KEY: 8–128 caracteres [a-zA-Z0-9-], la MISMA que en Vercel (el
@@ -67,11 +72,110 @@ class Settings(BaseSettings):
     MP_PUBLIC_KEY: str | None = None
     MP_WEBHOOK_SECRET: str | None = None
 
+    # Compuerta de los módulos en desarrollo (mails, IA, Revisión de CV): ver core/features.py.
+    # Apagada por defecto; en producción NO se prende hasta el lanzamiento. En local, `true`
+    # para desarrollar y probar.
+    MODULOS_NUEVOS_ACTIVOS: bool = False
+    # Desde cuándo rige la versión 3.0 de términos y privacidad (la de los módulos nuevos): el día
+    # que se abre la compuerta en producción. Sin valor, se informa la fecha del día. core/legal.py.
+    LEGAL_V3_VIGENTE_DESDE: date | None = None
+
+    # Prospección: secreto compartido con el centro de Gael para firmar los lotes que empuja
+    # (HMAC-SHA256). Sin secreto, el endpoint responde 503.
+    LEADGEN_SYNC_SECRET: str | None = None
+
+    # Mails — Resend. Sin RESEND_API_KEY el sistema funciona igual que antes: los mails se
+    # marcan `skipped` en la cola en vez de quedar pendientes (ver MODULOS-MAILS-IA-PLAN.md §3).
+    RESEND_API_KEY: str | None = None
+    # El dominio del remitente tiene que estar verificado en Resend (SPF/DKIM) o los mails caen
+    # en spam o directamente se rechazan.
+    # Dos remitentes en dos subdominios de la misma cuenta, para que la reputación de los mails
+    # masivos no arrastre a los importantes (el remitente lo elige `catalog.remitente_para`):
+    # - avisos.: cuenta, postulaciones, búsquedas y equipo (lo que la persona espera recibir);
+    # - novedades.: alertas, recordatorios y campañas (volumen, y lo que más bajas y quejas junta).
+    RESEND_FROM_EMAIL: str = "BBJobs <avisos@avisos.bbjobs.com.ar>"
+    RESEND_FROM_EMAIL_NOVEDADES: str = "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
+    RESEND_REPLY_TO: str | None = None
+    # Secret de svix (empieza con `whsec_`) del webhook de eventos de Resend.
+    RESEND_WEBHOOK_SECRET: str | None = None
+    # auto | off | simulate | resend — ver services/email/provider.py. `auto` = resend si hay
+    # key, off si no. `simulate` se elige a mano (desarrollo, vista previa para Eugenia).
+    EMAIL_MODE: str = "auto"
+    # Tope de mails por día (día de Argentina) para el calentamiento del dominio (v3 M3): un
+    # dominio nuevo arranca en ~150/día. Se sube a mano semana a semana; 0 = sin tope. Los de la
+    # categoría `cuenta` (pagos, verificación) salen aunque se haya llegado al tope.
+    EMAIL_DAILY_CAP: int = 150
+
+    # Prospección (mails a empresas que no están en BBJobs): canal SEPARADO de los avisos, con su
+    # propia API key (idealmente otra cuenta de Resend: la política de uso de Resend prohíbe el
+    # mail en frío y una suspensión no puede cortar los avisos del portal) y su subdominio.
+    # PROSPECT_MODE: auto (resend si hay key, off si no) | off | simulate | resend.
+    PROSPECT_MODE: str = "auto"
+    PROSPECT_RESEND_API_KEY: str | None = None
+    PROSPECT_FROM_EMAIL: str = "Talency · BBJobs <contacto@contacto.bbjobs.com.ar>"
+    PROSPECT_REPLY_TO: str | None = None
+    PROSPECT_RESEND_WEBHOOK_SECRET: str | None = None
+    # Mails de prospección por día hábil (calentamiento propio; arranca bajo).
+    PROSPECT_DAILY_CAP: int = 20
+
+    # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
+    # rota, y de esa manera cambiarlos no necesita un deploy de código.
+    GEMINI_API_KEY: str | None = None
+    # `gemini-2.5-*` quedó legado. 3.5 Flash-Lite: el de menor costo de la familia actual
+    # (USD 0,30 entrada / 2,50 salida por millón, verificado el 04/10/2026).
+    GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
+    # `-001` y no `-2` por precio (auditoría P11). Se apaga el 14/05/2028; los vectores de uno y
+    # otro no son comparables, así que cambiarlo obliga a reindexar todo.
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    # Reproducibilidad del rerank (auditoría R17): misma semilla y pensamiento mínimo.
+    GEMINI_THINKING_LEVEL: str = "minimal"
+    GEMINI_SEED: int = 20261004
+    # El modelo de embeddings permite truncar la dimensión. 768 pesa 4 veces menos que los 3072
+    # nativos con una pérdida de calidad que no se nota para ranking de perfiles.
+    GEMINI_EMBEDDING_DIM: int = 768
+    # Techos duros por corrida de las tareas programadas: si un bug las mete en un bucle, esto
+    # es lo que evita que se coman el presupuesto de la cuenta de Google.
+    AI_MAX_EMBEDDINGS_PER_RUN: int = 500
+    AI_MAX_RERANKS_PER_RUN: int = 50
+    # Cuántos candidatos de la Base de Talento (que no se postularon) ve una empresa en las
+    # recomendaciones. El resto se muestra tapado, como incentivo al pack de créditos.
+    RECS_TALENT_FREE_COUNT: int = 3
+    # Con un pack de la Base de Talento activo, la empresa ve más perfiles ciegos por búsqueda.
+    RECS_TALENT_PACK_COUNT: int = 10
+    # Refrescos manuales de recomendados por empresa y por día (auditoría LLM10).
+    RECS_REFRESH_PER_DAY: int = 10
+    # Tope de gasto diario en IA (USD). Al pasarlo, la IA se apaga sola hasta mañana y los
+    # recomendados siguen con el puntaje híbrido (regla R13). ~USD 30/mes = 1/día.
+    AI_DAILY_BUDGET_USD: float = 1.0
+    # WhatsApp de Talency para el renglón de ayuda de los mails de empresas (PDF de Eugenia,
+    # 19/10/2026). El link lo arma el render desde acá, nunca desde texto de un usuario. El
+    # mismo número está en el frontend (contacto y ConsultaSeleccion).
+    TALENCY_WHATSAPP: str = "5492915362225"
+    TALENCY_WHATSAPP_DISPLAY: str = "291 536-2225"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def migrations_database_url(self) -> str:
         return self.MIGRATIONS_DATABASE_URL or self.DATABASE_URL
+
+    @property
+    def public_api_base_url(self) -> str:
+        """Dónde nos pueden llamar desde afuera (links de baja de un click, webhooks). En Railway
+        sale sola del dominio público; en local cae a localhost."""
+        if self.API_PUBLIC_URL:
+            return self.API_PUBLIC_URL.rstrip("/")
+        if self.RAILWAY_PUBLIC_DOMAIN:
+            return f"https://{self.RAILWAY_PUBLIC_DOMAIN}/api/v1"
+        return "http://localhost:8000/api/v1"
+
+    @property
+    def email_provider_configured(self) -> bool:
+        return bool(self.RESEND_API_KEY)
+
+    @property
+    def ai_provider_configured(self) -> bool:
+        return bool(self.GEMINI_API_KEY)
 
     @property
     def cors_origins(self) -> List[str]:

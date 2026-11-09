@@ -4,8 +4,8 @@ import Link from "next/link";
 import { PhoneIcon, ChatBubbleLeftRightIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import ContactForm from "@/components/contact/ContactForm";
 
-const WHATSAPP_NUMBER = "5492915089353"; // 291 508-9353 (Bahía Blanca)
-const PHONE_DISPLAY = "+54 9 291 508-9353";
+const WHATSAPP_NUMBER = "5492915362225"; // 291 536-2225 (Bahía Blanca)
+const PHONE_DISPLAY = "+54 9 291 536-2225";
 
 export const metadata: Metadata = metaPagina({
   title: "Contacto | BBJobs, empleos en Bahía Blanca",

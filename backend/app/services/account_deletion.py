@@ -39,16 +39,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations import cloudinary_client
 from app.integrations.clerk_client import delete_clerk_user, set_public_metadata
-from app.models.alerts import AuditLog, JobAlert, Notification
+from app.models.alerts import AuditLog, CandidateJobMatch, JobAlert, Notification
 from app.models.candidate import CandidateProfile, CandidateSkill, Education, Experience, Language
 from app.models.company import CompanyProfile, CompanyVerificationDocument, VerificationStatus
 from app.models.core import User, UserRole
-from app.models.history import CandidateActivityLog
+from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
+from app.models.ai import AiActivityLog
+from app.models.email import EmailOutbox, EmailStatus
 from app.models.legal import LegalAcceptance
-from app.models.payment import Payment, TalentCreditPack, TalentPackStatus, TalentUnlock
+from app.models.payment import (
+    CvReviewOrder, CvReviewStatus, Payment, TalentCreditPack,
+    TalentPackStatus, TalentUnlock,
+)
 from app.models.tests import TestSubmission
 from app.services.job_features import end_active_feature_for_job
+from app.services.ai.opt_out import purge_candidate_ai
 
 logger = structlog.get_logger("app.services.account_deletion")
 
@@ -127,7 +133,14 @@ async def preview_deletion(db: AsyncSession, user: User) -> DeletionPreview:
                 Application.candidate_id == profile.id))
             counts["desbloqueos"] = await _count(db, select(func.count()).select_from(TalentUnlock).where(
                 TalentUnlock.candidate_id == profile.id))
-        has_history = counts["postulaciones"] or counts["desbloqueos"]
+            # Revisión de CV: órdenes y pagos son contables (RESTRICT). Cualquier orden, aun
+            # sin pagar, deja la cuenta en lápida. Sólo aparece en el conteo si hay alguna, para
+            # no mostrar nada del módulo mientras esté en desarrollo.
+            revisiones = await _count(db, select(func.count()).select_from(CvReviewOrder).where(
+                CvReviewOrder.candidate_id == profile.id))
+            if revisiones:
+                counts["revisiones_cv"] = revisiones
+        has_history = counts["postulaciones"] or counts["desbloqueos"] or counts.get("revisiones_cv")
     else:
         raise AccountDeletionError("Las cuentas de administrador no se eliminan por acá.", 403)
 
@@ -172,12 +185,38 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
         # Se va todo lo que describe a la persona. Se queda la fila (y sus postulaciones y
         # desbloqueos) para que la empresa vea "Candidato eliminado" en su historial y no
         # recupere un crédito que ya usó.
-        for model in (Experience, Education, Language, CandidateSkill, JobAlert, TestSubmission, CandidateActivityLog):
+        for model in (Experience, Education, Language, CandidateSkill, JobAlert, CandidateJobMatch, TestSubmission,
+                      CandidateActivityLog):
             await db.execute(delete(model).where(model.candidate_id == p.id))
         await db.execute(
             Application.__table__.update().where(Application.candidate_id == p.id).values(
                 # Las estrellas son un juicio sobre la persona: se van con ella.
                 cover_letter=None, company_starred_at=None, admin_starred_at=None, admin_starred_by=None))
+        # Observaciones de las empresas sobre la persona: hablan de ella. Se vacía el texto
+        # (como cover_letter) y las etiquetas, y queda la fila, para que la empresa vea que hubo
+        # una observación.
+        await db.execute(
+            ApplicationNote.__table__.update().where(
+                ApplicationNote.candidate_id == p.id
+            ).values(body=None, tags=[]))
+        # IA: fragmentos, texto del CV, índice y recomendaciones. En la lápida la fila del
+        # candidato sobrevive, así que el CASCADE no corre: se borran a mano.
+        await purge_candidate_ai(db, p.id)
+        # Registro de actividad de la IA (Centro de IA): sólo conteos, pero apuntaba a la persona.
+        # Queda como estadística sin dueño (en el borrado total lo hace la FK con SET NULL).
+        await db.execute(
+            AiActivityLog.__table__.update().where(AiActivityLog.candidate_id == p.id).values(candidate_id=None))
+        # Revisión de CV: queda el registro contable, se va todo dato de contacto. Una orden
+        # sin pagar se cancela; una pagada queda como está para que Talency decida la devolución.
+        await db.execute(
+            CvReviewOrder.__table__.update().where(CvReviewOrder.candidate_id == p.id).values(
+                contact_value=None, objective=None, admin_note=None, cv_file_url_snapshot=None,
+            ))
+        await db.execute(
+            CvReviewOrder.__table__.update().where(
+                CvReviewOrder.candidate_id == p.id,
+                CvReviewOrder.status == CvReviewStatus.pending_payment.value,
+            ).values(status=CvReviewStatus.canceled.value, canceled_at=now))
         p.first_name = "Candidato"
         p.last_name = "eliminado"
         p.phone = ""
@@ -239,6 +278,10 @@ async def _tombstone_company(db: AsyncSession, user: User, now: datetime) -> Non
             pack.status = TalentPackStatus.canceled
 
         await db.execute(delete(CompanyVerificationDocument).where(CompanyVerificationDocument.company_id == c.id))
+
+        # Observaciones de la empresa: la fila de la empresa sobrevive (lápida), así que el
+        # CASCADE de application_notes no corre. Son todas privadas y las escribió ella: se borran.
+        await db.execute(delete(ApplicationNote).where(ApplicationNote.company_id == c.id))
     await db.execute(delete(Notification).where(Notification.user_id == user.id))
     await _tombstone_user(user, now)
 
@@ -294,6 +337,15 @@ async def delete_account(
     ))
 
     try:
+        # La cola de mails guarda la dirección: se vacía en los dos modos (con borrado total la
+        # fila sobrevive con user_id NULL para las métricas de campañas). Lo pendiente se cancela.
+        await db.execute(
+            EmailOutbox.__table__.update().where(
+                EmailOutbox.user_id == user.id, EmailOutbox.status == EmailStatus.pending.value
+            ).values(status=EmailStatus.canceled.value))
+        await db.execute(
+            EmailOutbox.__table__.update().where(EmailOutbox.user_id == user.id).values(
+                to_email="eliminado@bbjobs.invalid", html="", text=None))
         # Qué versión de los términos aceptó queda como prueba; la IP y el navegador, no. En el
         # borrado completo las filas caen por CASCADE.
         await db.execute(

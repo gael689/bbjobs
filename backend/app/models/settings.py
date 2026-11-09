@@ -18,12 +18,47 @@ class SettingKey(str, enum.Enum):
     # ¿La home muestra el bloque público de estadísticas del mercado?
     stats_visibles_en_landing = "stats_visibles_en_landing"
 
+    # Interruptores de los módulos de mails e IA (MODULOS-MAILS-IA-PLAN.md §3). Apagados hasta
+    # que existan las cuentas de Resend / Gemini y Talency decida salir: así se puede deployar el
+    # código sin que cambie nada de lo que ve nadie.
+    emails_automaticos_activos = "emails_automaticos_activos"
+    ia_recomendaciones_activas = "ia_recomendaciones_activas"
+    # Venta de la Revisión de CV (v4 §6, riesgo "cobrar sin poder atender"): se apaga si
+    # Talency no da abasto.
+    revision_cv_activa = "revision_cv_activa"
+    # Buscador inteligente de /empleos (Frente 5.2): Gemini traduce la frase a filtros del
+    # catálogo. Apagado, el buscador sigue funcionando sin IA.
+    busqueda_ia_activa = "busqueda_ia_activa"
+    # Asistentes con IA (Frente 6, puntos 3 y 5): redactar la búsqueda (empresas) y sugerir
+    # habilidades del catálogo a partir del CV (candidatos). Apagado, las pantallas son las de hoy.
+    asistente_ia_activo = "asistente_ia_activo"
+    # Aviso a la empresa de que la persona está En proceso o Seleccionada en otra empresa
+    # (services/other_processes.py). Interruptor de producto, no de módulo nuevo: apagado hasta
+    # que la política de privacidad lo mencione y el candidato pueda oponerse.
+    aviso_otros_procesos_activo = "aviso_otros_procesos_activo"
+
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
 SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.stats_visibles_para_candidatos: False,
     SettingKey.stats_visibles_en_landing: False,
+    SettingKey.emails_automaticos_activos: False,
+    SettingKey.ia_recomendaciones_activas: False,
+    SettingKey.revision_cv_activa: False,
+    SettingKey.busqueda_ia_activa: False,
+    SettingKey.asistente_ia_activo: False,
+    SettingKey.aviso_otros_procesos_activo: False,
 }
+
+# Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no
+# se muestran en el panel de admin ni se pueden cambiar (core/features.py).
+NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
+    SettingKey.emails_automaticos_activos,
+    SettingKey.ia_recomendaciones_activas,
+    SettingKey.revision_cv_activa,
+    SettingKey.busqueda_ia_activa,
+    SettingKey.asistente_ia_activo,
+})
 
 
 class SiteSetting(UUIDMixin, Base):

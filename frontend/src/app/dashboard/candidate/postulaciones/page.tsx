@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import {
+  PaperAirplaneIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, ChartBarIcon,
+} from "@heroicons/react/24/outline";
 import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import { APP_STATUS, type Application, type ApplicationHistoryItem, type Job } from "../types";
 import type { ApplicantStats } from "@/app/dashboard/company/types";
@@ -111,7 +113,7 @@ export default function CandidatePostulacionesPage() {
                       ) : (
                         <div className="pt-2 space-y-2">
                           {(history[app.id] || []).map(h => {
-                            const label = APP_STATUS[h.to_status]?.label || h.to_status;
+                            const label = (h.to_status && APP_STATUS[h.to_status]?.label) || h.to_status;
                             return (
                               <div key={h.id} className="flex items-center gap-2 text-xs text-[#64748B]">
                                 <ClockIcon className="w-3.5 h-3.5 text-[#9ED4DF] shrink-0" />

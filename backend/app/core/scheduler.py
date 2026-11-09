@@ -11,6 +11,7 @@ from app.models.job import JobPosting, JobPostingStatus
 from app.services.notifications import create_notification
 from app.services.job_features import end_active_feature_for_job
 from app.services import indexing
+from app.services.email.copy import dias_texto
 from app.services.profile_completion import (
     compute_profile_completion_bulk, should_send_completion_reminder,
 )
@@ -21,6 +22,13 @@ scheduler = AsyncIOScheduler()
 
 # Aviso "vence pronto" — se manda una única vez por búsqueda, cuando entra en esta ventana.
 EXPIRING_SOON_WINDOW_DAYS = 3
+
+
+def days_until(expires_at: datetime.datetime, now: datetime.datetime) -> int:
+    """Días que faltan para que venza, redondeando para arriba: a 2 días y 20 horas son "3 días",
+    no "2". Nunca menos de 1 (el aviso sólo sale para búsquedas todavía vigentes)."""
+    seconds = (expires_at - now).total_seconds()
+    return max(1, -int(-seconds // 86400))
 
 # El destacado ya no vence por su propio timer (ver services/job_features.py) — se apaga como
 # consecuencia directa de que la búsqueda deja de estar activa, dentro de expire_jobs() (acá
@@ -59,6 +67,8 @@ async def expire_jobs():
                         title="Tu búsqueda venció",
                         body=f"La búsqueda '{job.title}' llegó a su plazo máximo de {job.duration_days} días y dejó de estar visible en el portal.",
                         link="/dashboard/company/estadisticas",
+                        # E13: la duración real de la búsqueda (20 días como máximo), no 30 (P8).
+                        email_vars={"puesto": job.title, "dias": dias_texto(job.duration_days)},
                     )
 
         if expired_jobs:
@@ -94,7 +104,7 @@ async def notify_expiring_soon():
                 )
                 company = res_company.scalar_one_or_none()
                 if company:
-                    days_left = max(0, (job.expires_at - now).days)
+                    days_left = days_until(job.expires_at, now)
                     await create_notification(
                         db,
                         user_id=company.user_id,
@@ -102,6 +112,8 @@ async def notify_expiring_soon():
                         title="Tu búsqueda está por vencer",
                         body=f"'{job.title}' se va a dar de baja en {days_left} día{'s' if days_left != 1 else ''} por llegar a su plazo máximo. Revisá el estado de tus búsquedas desde tu panel.",
                         link="/dashboard/company/estadisticas",
+                        # E12: los días que faltan de verdad, no "3" fijo (P8).
+                        email_vars={"puesto": job.title, "dias": dias_texto(days_left)},
                     )
 
         if jobs_expiring_soon:
@@ -134,12 +146,14 @@ async def send_profile_reminders():
                     db,
                     user_id=candidate.user_id,
                     type="profile_incomplete",
-                    title="Tu perfil está incompleto",
+                    title="Tu experiencia merece un perfil completo",
                     body=(
                         f"Tu perfil está {completion.percent}% completo. Las empresas ven que te falta "
                         "cargar datos — completalo para destacar frente a otros candidatos."
                     ),
                     link="/dashboard/candidate/perfil",
+                    ref_id=candidate.id,   # tope de 3 mails sin cambios en el perfil (catálogo)
+                    email_vars={"porcentaje": completion.percent},
                 )
                 candidate.last_completion_reminder_at = datetime.datetime.now(datetime.timezone.utc)
                 sent += 1
@@ -148,6 +162,103 @@ async def send_profile_reminders():
             logger.info("profile_reminders_sent", count=sent)
             await db.commit()
 
+
+async def cv_review_housekeeping():
+    """Revisión de CV: vence las órdenes sin pagar y avisa de las pagadas sin tomar."""
+    from app.services.cv_review import housekeeping
+    try:
+        async with async_session_maker() as db:
+            stats = await housekeeping(db)
+            if any(stats.values()):
+                logger.info("cv_review_housekeeping", **stats)
+                await db.commit()
+    except Exception as exc:
+        logger.error("cv_review_housekeeping_error", error=str(exc)[:300])
+
+
+async def ai_index_tick():
+    from app.services.ai.jobs import index_tick
+    try:
+        await index_tick()
+    except Exception as exc:
+        logger.error("ai_index_tick_error", error=str(exc)[:300])
+
+
+async def ai_nightly():
+    from app.services.ai.jobs import nightly
+    try:
+        await nightly()
+    except Exception as exc:
+        logger.error("ai_nightly_error", error=str(exc)[:300])
+
+
+async def email_digests():
+    from app.services.email.digests import tick
+    try:
+        async with async_session_maker() as db:
+            result = await tick(db)
+            await db.commit()
+            if any(vars(result).values()):
+                logger.info("email_digests", **vars(result))
+    except Exception as exc:
+        logger.error("email_digests_error", error=str(exc)[:300])
+
+
+async def campaigns_tick():
+    """Campañas aprobadas a la cola, despacho de prospección, borradores mensual y semanal."""
+    from app.services.email.campaigns import materialize_due
+    from app.services.email.monthly import prepare_monthly_draft, prepare_weekly_draft
+    from app.services.email.prospect_dispatch import dispatch_prospects
+    try:
+        async with async_session_maker() as db:
+            await materialize_due(db)
+            await prepare_monthly_draft(db)
+            await prepare_weekly_draft(db)   # lunes 09:00: siempre en borrador
+            await db.commit()
+        await dispatch_prospects()
+    except Exception as exc:
+        logger.error("campaigns_tick_error", error=str(exc)[:300])
+
+
+async def campaigns_conversions():
+    from sqlalchemy import select as _select
+    from app.models.email import EmailCampaign, CampaignStatus
+    from app.services.email.campaigns import measure_conversions
+    try:
+        async with async_session_maker() as db:
+            sent = (await db.execute(_select(EmailCampaign).where(
+                EmailCampaign.status == CampaignStatus.sent.value,
+                EmailCampaign.sent_at >= datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=15),
+            ))).scalars().all()
+            for c in sent:
+                await measure_conversions(db, c)
+            # Retención: contenido de mails de más de 90 días (M11).
+            from app.services.email.retention import purge_old_content
+            await purge_old_content(db)
+            await db.commit()
+    except Exception as exc:
+        logger.error("campaigns_conversions_error", error=str(exc)[:300])
+
+
+async def lifecycle_daily():
+    """Guía de arranque, búsquedas sin postulaciones y reactivaciones (una vez por día)."""
+    from app.services.lifecycle import daily
+    try:
+        async with async_session_maker() as db:
+            stats = await daily(db)
+            await db.commit()
+            if any(stats.values()):
+                logger.info("lifecycle_daily", **stats)
+    except Exception as exc:
+        logger.error("lifecycle_daily_error", error=str(exc)[:300])
+
+
+async def dispatch_emails():
+    from app.services.email.dispatcher import dispatch_due
+    try:
+        await dispatch_due()
+    except Exception as exc:  # una vuelta fallida no puede tumbar el scheduler
+        logger.error("email_dispatch_error", error=str(exc)[:300])
 
 async def purge_site_events():
     """Retención de la medición propia: se borran los eventos de más de 13 meses."""
@@ -158,10 +269,39 @@ async def purge_site_events():
             logger.info("site_events_purged", count=res.rowcount)
 
 
+async def purge_ai_activity():
+    """Retención del registro de actividad de la IA (Centro de IA): 13 meses, como la medición."""
+    from app.models.ai import AiActivityLog
+    try:
+        async with async_session_maker() as db:
+            res = await db.execute(delete(AiActivityLog).where(AiActivityLog.created_at < retention_cutoff()))
+            await db.commit()
+            if res.rowcount:
+                logger.info("ai_activity_purged", count=res.rowcount)
+    except Exception as exc:
+        logger.error("ai_activity_purge_error", error=str(exc)[:300])
+
+
 def start_scheduler():
     scheduler.add_job(expire_jobs, "interval", hours=1)
     scheduler.add_job(notify_expiring_soon, "interval", hours=1)
     scheduler.add_job(send_profile_reminders, "interval", hours=24)
+    # Cola de mails: cada 60 s. Con EMAIL_MODE=off no hace casi nada (una consulta vacía).
+    # max_instances=1: si una vuelta tarda más de un minuto, la siguiente espera.
+    from app.core.features import new_modules_enabled
+    if new_modules_enabled():  # módulos en desarrollo: en producción no se agregan
+        scheduler.add_job(dispatch_emails, "interval", seconds=60, max_instances=1, coalesce=True)
+        scheduler.add_job(email_digests, "interval", minutes=15, max_instances=1, coalesce=True)
+        scheduler.add_job(campaigns_tick, "interval", minutes=5, max_instances=1, coalesce=True)
+        # 10:00 de Argentina (13:00 UTC): dentro de la franja de envío.
+        scheduler.add_job(lifecycle_daily, "cron", hour=13, minute=0, timezone="UTC", max_instances=1, coalesce=True)
+        scheduler.add_job(campaigns_conversions, "cron", hour=7, minute=0, timezone="UTC", max_instances=1, coalesce=True)
+        scheduler.add_job(cv_review_housekeeping, "interval", hours=1, max_instances=1, coalesce=True)
+        # IA: indexación cada 10 min y barrido nocturno a las 03:00 de Argentina (06:00 UTC).
+        scheduler.add_job(ai_index_tick, "interval", minutes=10, max_instances=1, coalesce=True)
+        scheduler.add_job(ai_nightly, "cron", hour=6, minute=0, timezone="UTC", max_instances=1, coalesce=True)
+        scheduler.add_job(purge_ai_activity, "interval", hours=24, max_instances=1, coalesce=True)
+
     scheduler.add_job(purge_site_events, "interval", hours=24)
     scheduler.start()
     logger.info("scheduler_started")

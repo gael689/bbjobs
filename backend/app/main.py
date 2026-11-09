@@ -16,7 +16,8 @@ from app.core.limiter import limiter
 from app.api.v1 import (
     health, companies, candidates, skills, catalogs,
     jobs, applications, tests, plans, subscriptions, payments, talent, webhooks,
-    admin, notifications, account, me, onboarding, contact, landing, metrics
+    admin, notifications, account, me, onboarding, contact, landing, emails, cv_review, prospects, recommendations, campaigns,
+    ai_assist, metrics, admin_ai,
 )
 
 setup_logging()
@@ -94,4 +95,12 @@ app.include_router(me.router, prefix="/api/v1", tags=["me"])
 app.include_router(onboarding.router, prefix="/api/v1", tags=["onboarding"])
 app.include_router(contact.router, prefix="/api/v1", tags=["contact"])
 app.include_router(landing.router, prefix="/api/v1", tags=["landing"])
+app.include_router(emails.router, prefix="/api/v1", tags=["emails"])
+app.include_router(cv_review.router, prefix="/api/v1", tags=["cv_review"])
+app.include_router(prospects.router, prefix="/api/v1", tags=["prospects"])
+app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendations"])
+app.include_router(campaigns.router, prefix="/api/v1", tags=["campaigns"])
+app.include_router(ai_assist.router, prefix="/api/v1", tags=["ai_assist"])
+app.include_router(admin_ai.router, prefix="/api/v1", tags=["admin_ai"])
+
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])

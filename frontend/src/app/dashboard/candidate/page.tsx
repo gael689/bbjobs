@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import { APP_STATUS, type CandidateProfile, type Application } from "./types";
+import { jobUrl } from "@/lib/seo/urls";
 
 interface RecentJob {
   id: string;
@@ -48,7 +49,7 @@ export default function CandidateInicioPage() {
   // decidieron (en el registro o acá) lo gestionan desde su perfil.
   const showTalentPrompt = !!profile && !profile.talent_pool_asked_at;
 
-  const activeApps = applications.filter(a => a.status !== "discarded");
+  const activeApps = applications.filter(a => a.status !== "discarded" && a.status !== "discarded_interview");
   const seenApps = applications.filter(a => ["seen", "in_process", "contacted"].includes(a.status));
 
   async function decideTalentPool(accepted: boolean) {
@@ -302,7 +303,7 @@ export default function CandidateInicioPage() {
               {recentJobs.slice(0, 4).map(job => (
                 <Link
                   key={job.id}
-                  href={`/empleos/${job.id}`}
+                  href={jobUrl(job)}
                   className="flex items-center gap-3 py-2.5 border-b border-[#DDE3EC] last:border-0 group"
                 >
                   <div className="w-9 h-9 rounded-lg bg-[#E6F4F7] flex items-center justify-center shrink-0">

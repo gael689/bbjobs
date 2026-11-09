@@ -22,7 +22,12 @@ dependencies = [
     "clerk-backend-api>=6.0.1",
     "svix>=1.96.1",
     "httpx>=0.27.0",
+    "google-genai>=2.25",
+    "numpy>=2.0",
+    "pypdf>=5.0",
+    "pgvector>=0.4",
     # Firma del JWT de la cuenta de servicio para la Google Indexing API (services/indexing.py).
+    # Ya venía como dependencia de google-genai; se declara porque se importa directo.
     "google-auth>=2.0"
 ]
 

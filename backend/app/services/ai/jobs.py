@@ -1,0 +1,286 @@
+"""Tareas programadas de la IA (las agrega el scheduler sólo con la compuerta abierta).
+
+- **Cada 10 minutos:** extrae y redacta los CV nuevos o cambiados y reindexa las fichas que
+  cambiaron (auditoría R19: alguien que se registra y se postula el mismo día no espera a la
+  noche). Si un CV recién leído muestra habilidades del catálogo, aviso sólo en la web al
+  candidato (`automations.notify_skill_suggestions`, interruptor `asistente_ia_activo`).
+- **De noche (03:00 de Argentina):** recalcula los recomendados de las búsquedas activas **sólo
+  con el puntaje híbrido** (decisión P2: así el costo queda en lo prometido a Eugenia), avisa a
+  cada empresa de los candidatos nuevos que encajan (v4 §4.4) y deja listos los resúmenes de 3
+  líneas de los mejores recomendados (`automations.nightly_summaries`).
+
+Las dos se apagan solas si el interruptor `ia_recomendaciones_activas` está apagado o no hay
+cuenta de Gemini.
+"""
+from __future__ import annotations
+
+import hashlib
+from datetime import datetime, timedelta, timezone
+
+import httpx
+import structlog
+from sqlalchemy import func, or_, select
+
+from app.core.config import settings
+from app.db.session import async_session_maker
+from app.integrations import cloudinary_client
+from app.integrations.gemini_client import AIError, AIUnavailable, get_provider
+from app.models.ai import CandidateCvText, JobRecommendation
+from app.models.candidate import CandidateProfile
+from app.models.company import CompanyProfile
+from app.models.core import User
+from app.models.job import JobModerationStatus, JobPosting, JobPostingStatus
+from app.models.settings import SettingKey
+from app.services.ai import pipeline, scoring
+from app.services.ai.ingest import MAX_PDF_BYTES
+from app.services.notifications import create_notification, notify_all_admins
+from app.services.settings import get_setting
+
+logger = structlog.get_logger("app.services.ai.jobs")
+
+INDEX_BATCH = 200
+NEW_FIT_PER_JOB_PER_WEEK = 3
+JOB_MIN_AGE = timedelta(days=3)
+
+
+async def fetch_cv(stored_url: str) -> bytes:
+    """Descarga el PDF privado con un link firmado de vida corta, con tope de tamaño."""
+    url = cloudinary_client.signed_document_url(stored_url)
+    if not url:
+        raise ValueError("URL de CV no reconocida")
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+        async with client.stream("GET", url) as resp:
+            resp.raise_for_status()
+            data = bytearray()
+            async for chunk in resp.aiter_bytes():
+                data += chunk
+                if len(data) > MAX_PDF_BYTES:
+                    raise ValueError("CV demasiado grande")
+            return bytes(data)
+
+
+async def _ready(db):
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return None
+    try:
+        return get_provider()
+    except AIUnavailable:
+        return None
+
+
+async def index_tick() -> dict:
+    """Indexa lo que cambió y después recalcula las búsquedas marcadas "al instante" (aprobadas o
+    con postulaciones nuevas, ver `realtime.py`): primero el índice, así la ficha de quien se
+    acaba de postular ya tiene vectores cuando se recalcula. Al final, vectores de los avisos para
+    la moderación (baratos: sólo los que faltan o cambiaron)."""
+    from app.services.ai import moderation, realtime
+
+    async with async_session_maker() as db:
+        provider = await _ready(db)
+        if provider is None:
+            return {}
+        stats = await _index_changed(db, provider)
+        stats["cola"] = await realtime.process_queue(db, provider)
+        try:
+            stats["avisos"] = await moderation.embed_missing(db, provider)
+            await db.commit()
+        except AIError as exc:
+            await db.rollback()
+            logger.warning("ai_job_vectors_fallo", error=str(exc)[:200])
+        return stats
+
+
+async def _index_changed(db, provider) -> dict:
+    ids = await pipeline.candidates_needing_index(db, INDEX_BATCH)
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(CandidateProfile, User.email).join(User, User.id == CandidateProfile.user_id)
+        .where(CandidateProfile.id.in_(ids))
+    )).all()
+    prev_cv = dict((await db.execute(
+        select(CandidateCvText.candidate_id, CandidateCvText.source_hash).where(CandidateCvText.candidate_id.in_(ids))
+    )).all())
+    fresh_cvs = []   # CV leídos recién en esta vuelta (para las habilidades sugeridas)
+    for profile, email in rows:
+        try:
+            async with db.begin_nested():   # un CV que no se puede guardar no frena la tanda
+                status = await pipeline.refresh_cv_text(db, profile, email, fetch_cv)
+        except Exception as exc:
+            logger.error("ai_cv_text_error", candidate_id=str(profile.id), error=f"{type(exc).__name__}: {str(exc)[:150]}")
+            continue
+        if status == "ok" and profile.cv_file_url and \
+                prev_cv.get(profile.id) != hashlib.sha256(profile.cv_file_url.encode()).hexdigest():
+            fresh_cvs.append(profile.id)
+    await db.flush()
+    try:
+        stats = await pipeline.index_candidates(db, provider, ids)
+    except AIError as exc:
+        await db.rollback()
+        logger.warning("ai_index_tick_fallo", error=str(exc)[:200])
+        return {}
+    await db.commit()
+    if stats.get("reindexados"):
+        logger.info("ai_index_tick", **stats)
+    if fresh_cvs:
+        # Habilidades del catálogo que muestra el CV: aviso sólo en la web (automations.py).
+        from app.services.ai.automations import notify_skill_suggestions
+
+        stats["avisos_habilidades"] = await notify_skill_suggestions(db, provider, fresh_cvs)
+    return stats
+
+
+async def nightly(now: datetime | None = None) -> dict:
+    now = now or datetime.now(timezone.utc)
+    async with async_session_maker() as db:
+        provider = await _ready(db)
+        if provider is None:
+            return {}
+        # Se recorren ids y cada búsqueda se vuelve a leer: después de un rollback (una búsqueda
+        # que falló) los objetos cargados quedan vencidos y leerlos en async rompe la vuelta.
+        job_ids = (await db.execute(
+            select(JobPosting.id).where(
+                JobPosting.status == JobPostingStatus.active, JobPosting.deleted_at.is_(None),
+                JobPosting.moderation_status == JobModerationStatus.approved,
+            )
+        )).scalars().all()
+        total = {"busquedas": 0, "avisos": 0}
+        for job_id in job_ids:
+            try:
+                job = await db.get(JobPosting, job_id)
+                if job is None:
+                    continue
+                await pipeline.compute_recommendations(db, provider, job, rerank_enabled=False, reason="noche")
+                await db.commit()
+                total["busquedas"] += 1
+            except Exception as exc:
+                await db.rollback()
+                logger.error("ai_nightly_job_error", job_id=str(job_id), error=str(exc)[:200])
+        total["avisos"] = await notify_new_fits(db, now)
+        await db.commit()
+        # Resúmenes de 3 líneas de los mejores recomendados, listos para la mañana (con caché y
+        # dentro del tope de llamadas y del tope diario en USD).
+        from app.services.ai.automations import nightly_summaries
+
+        try:
+            total["resumenes"] = (await nightly_summaries(db, provider, now))["generados"]
+        except Exception as exc:
+            await db.rollback()
+            logger.error("ai_nightly_summaries_error", error=str(exc)[:200])
+        logger.info("ai_nightly", **total)
+        return total
+
+
+def recommended_email_vars(titles: list[str], count: int) -> dict:
+    """Variables de E20 (copy.py). Su texto es por búsqueda; como sale uno por empresa por
+    noche, con varias búsquedas o con un solo perfil van las variantes propuestas (P10)."""
+    if len(titles) > 1:
+        return {"variante": "varias", "cantidad": count, "puestos": ", ".join(titles)}
+    puesto = titles[0] if titles else ""
+    if count == 1:
+        return {"variante": "uno", "puesto": puesto}
+    return {"cantidad": count, "puesto": puesto}
+
+
+async def notify_new_fits(db, now: datetime) -> int:
+    """Una notificación por empresa por noche con los candidatos nuevos que encajan:
+    puntaje ≥ 80 evaluado por la IA y cobertura ≥ 50 %, búsqueda activa y aprobada con 3 días o más, como mucho 3 por
+    búsqueda por semana, y nunca dos veces el mismo candidato para la misma búsqueda. No se avisa
+    de un perfil que la empresa marcó 👎 ni de uno de la Base de Talento que queda fuera de lo que
+    la empresa ve (su cupo de perfiles por búsqueda)."""
+    from app.models.payment import TalentCreditPack, TalentPackStatus
+
+    week_ago = now - timedelta(days=7)
+    # Puesto de cada perfil de la Base dentro de su búsqueda: la pantalla muestra sólo los primeros.
+    ranked = select(
+        JobRecommendation.id.label("rec_id"),
+        func.row_number().over(
+            partition_by=(JobRecommendation.job_id, JobRecommendation.source),
+            order_by=(JobRecommendation.final_score.desc(), JobRecommendation.computed_at),
+        ).label("pos"),
+    ).subquery()
+    candidates = (await db.execute(
+        select(JobRecommendation, JobPosting, CompanyProfile.user_id, ranked.c.pos)
+        .join(JobPosting, JobPosting.id == JobRecommendation.job_id)
+        .join(CompanyProfile, CompanyProfile.id == JobPosting.company_id)
+        .join(ranked, ranked.c.rec_id == JobRecommendation.id)
+        .where(
+            JobRecommendation.notified_at.is_(None),
+            JobRecommendation.final_score >= scoring.NEW_FIT_THRESHOLD,
+            JobRecommendation.coverage >= scoring.NEW_FIT_MIN_COVERAGE,
+            # Sólo puntajes que evaluó la IA (plan final §2.4): sin evaluación la fórmula es otra
+            # (0,75·híbrido + 0,25·semántica) y no es comparable con el umbral.
+            JobRecommendation.rerank_status == "done",
+            or_(JobRecommendation.feedback.is_(None), JobRecommendation.feedback != -1),
+            JobPosting.status == JobPostingStatus.active,
+            JobPosting.moderation_status == JobModerationStatus.approved,
+            JobPosting.deleted_at.is_(None),
+            JobPosting.published_at.is_not(None),
+            JobPosting.published_at <= now - JOB_MIN_AGE,
+        )
+        .order_by(JobRecommendation.final_score.desc())
+    )).all()
+    if not candidates:
+        return 0
+    job_ids = {job.id for _, job, _, _ in candidates}
+    already = dict((await db.execute(
+        select(JobRecommendation.job_id, func.count())
+        .where(JobRecommendation.job_id.in_(job_ids), JobRecommendation.notified_at >= week_ago)
+        .group_by(JobRecommendation.job_id)
+    )).all())
+    with_pack = set((await db.execute(
+        select(TalentCreditPack.company_id).where(
+            TalentCreditPack.company_id.in_({job.company_id for _, job, _, _ in candidates}),
+            TalentCreditPack.status == TalentPackStatus.active.value)
+    )).scalars().all())
+
+    by_company: dict = {}
+    for rec, job, user_id, pos in candidates:
+        if rec.source == "talent":
+            limit = settings.RECS_TALENT_PACK_COUNT if job.company_id in with_pack else settings.RECS_TALENT_FREE_COUNT
+            if pos > limit:
+                continue
+        bucket = by_company.setdefault(job.company_id, {"jobs": {}, "count": 0, "user_id": user_id})
+        per_job = bucket["jobs"].setdefault(job.id, {"title": job.title, "n": already.get(job.id, 0), "new": 0})
+        if per_job["n"] >= NEW_FIT_PER_JOB_PER_WEEK:
+            continue
+        per_job["n"] += 1
+        per_job["new"] += 1
+        rec.notified_at = now
+        bucket["count"] += 1
+
+    sent = 0
+    total_fits = total_jobs = 0
+    for company_id, bucket in by_company.items():
+        if not bucket["count"]:
+            continue
+        user_id = bucket["user_id"]
+        # Sólo las búsquedas que suman perfiles hoy (las que ya llegaron al tope semanal, no).
+        jobs_today = [j for j in bucket["jobs"].values() if j["new"]]
+        # Poco texto (Gael, 28/10/2026): el panel lo muestra como un cartel emergente.
+        await create_notification(
+            db, user_id=user_id, type="recommended_candidates_new",
+            title=fits_title(bucket["count"]), body=f"Para {_join_titles([j['title'] for j in jobs_today])}.",
+            link="/dashboard/company/recomendados",
+            email_vars=recommended_email_vars([j["title"] for j in jobs_today], bucket["count"]),
+        )
+        sent += 1
+        total_fits += bucket["count"]
+        total_jobs += len(jobs_today)
+    if sent:
+        # Talency ve lo mismo que las empresas, en un solo aviso por noche (sólo en la web).
+        await notify_all_admins(
+            db, type="admin_ai_new_fits", title=f"La IA encontró {fits_title(total_fits).lower()}",
+            body=(f"En {total_jobs} {'búsqueda' if total_jobs == 1 else 'búsquedas'} de "
+                  f"{sent} {'empresa' if sent == 1 else 'empresas'}."),
+            link="/dashboard/admin/ia",
+        )
+    return sent
+
+
+def fits_title(count: int) -> str:
+    return "1 candidato que encaja" if count == 1 else f"{count} candidatos que encajan"
+
+
+def _join_titles(titles: list[str]) -> str:
+    return titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " y " + titles[-1]

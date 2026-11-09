@@ -631,6 +631,13 @@ async def unlock_talent_profile(
     if usados_por_pack.get(elegido.id, 0) + 1 >= elegido.credits_total:
         elegido.status = TalentPackStatus.exhausted
 
+    # Avisos nuevos (sólo con la compuerta abierta): al postulante, que una empresa vio su
+    # perfil; a la empresa, si le quedan pocos contactos.
+    from app.services.lifecycle import on_pack_consumed, on_talent_unlocked
+    await db.flush()
+    await on_talent_unlocked(db, profile, company)
+    await on_pack_consumed(db, company)
+
     await db.commit()
     return await _armar_perfil(db, profile, unlocked=True)
 
@@ -772,10 +779,12 @@ async def admin_grant_talent_pack(
         )
     )
     await create_notification(
-        db, user_id=company.user_id, type="talent_pack_active",
+        # Regalo de Talency: su propio aviso, sin "Se acreditó tu pago" (P9).
+        db, user_id=company.user_id, type="talent_pack_granted",
         title="Te asignamos acceso a la Base de Talento",
         body=f"Tenés {payload.credits} desbloqueos para usar con los perfiles que quieras.",
         link="/dashboard/company/talento",
+        email_vars={"cantidad_contactos": payload.credits},
     )
 
     await db.commit()

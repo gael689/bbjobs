@@ -68,10 +68,13 @@ export interface Application {
   created_at: string;
 }
 
+/** Línea de tiempo de una postulación: cambios de estado. Las observaciones de la empresa son
+ *  privadas y nunca llegan acá. */
 export interface ApplicationHistoryItem {
   id: string;
-  from_status?: string;
-  to_status: string;
+  kind?: "status";
+  from_status?: string | null;
+  to_status?: string | null;
   created_at: string;
 }
 
@@ -160,7 +163,8 @@ export const APP_STATUS: Record<string, { label: string; cls: string }> = {
   in_process: { label: "En proceso", cls: "bg-purple-100 text-purple-700" },
   finalist: { label: "Finalista", cls: "bg-[#E6F4F7] text-[#187B8E]" },
   selected: { label: "Seleccionado", cls: "bg-[#D4B7A2]/30 text-[#8A6A54]" },
-  discarded: { label: "No avanza", cls: "bg-red-100 text-red-700" },
+  discarded: { label: "No avanza – revisión de perfil", cls: "bg-red-100 text-red-700" },
+  discarded_interview: { label: "No avanza – después de entrevistas", cls: "bg-red-100 text-red-700" },
 };
 
 export type EducationStatus = "graduado" | "en_curso" | "abandonado";

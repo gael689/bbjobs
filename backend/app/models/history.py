@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, CheckConstraint, Index, String, DateTime, ForeignKey, Text, false
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.models.base import Base, UUIDMixin
@@ -19,7 +20,51 @@ class ApplicationStatusHistory(UUIDMixin, Base):
     changed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # True cuando el cambio lo hizo la plataforma sola: hoy, el paso a "Perfil revisado" al
+    # abrir la empresa el perfil o el CV (services/application_events.py::mark_seen).
+    automatico: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ApplicationNote(UUIDMixin, Base):
+    """Observación privada de una empresa sobre una persona (Eugenia, 22/10/2026).
+
+    **Siempre privada**: no hay versión visible para el postulante. Eugenia no puede controlar
+    lo que escriben las empresas (edad, sexo) y no quiere que le llegue al candidato; tampoco
+    sabe que existe el apartado. Se muestra sólo a la empresa que la escribió y al equipo de
+    Talency (sólo lectura, con registro de cada lectura: `GET /admin/candidates/{id}/notes`).
+
+    Queda asociada a la **persona dentro de la empresa** (`candidate_id`): se ve en cualquier
+    búsqueda futura de esa misma empresa. `application_id` sólo dice de qué búsqueda salió.
+    No se edita ni vence (se deja el historial); sólo se borra (lógico)."""
+    __tablename__ = "application_notes"
+    __table_args__ = (
+        CheckConstraint("body IS NULL OR char_length(body) <= 1000", name="ck_application_notes_body_len"),
+        Index("ix_application_notes_company_candidate", "company_id", "candidate_id", "created_at"),
+    )
+
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # La búsqueda donde se escribió, si hubo (no hay desde la Base de Talento).
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("applications.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Redundante con la búsqueda a propósito: el filtro por empresa no depende de un JOIN.
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("company_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # NULL sólo después del borrado de cuenta del candidato (services/account_deletion.py).
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Etiquetas rápidas de una lista cerrada (`schemas/application.py::NOTE_TAGS`).
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String(30)), default=list, server_default="{}", nullable=False)
+    # El estado con el que se escribió, si fue junto a un cambio de estado.
+    status_at_time: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CandidateActivityLog(UUIDMixin, Base):

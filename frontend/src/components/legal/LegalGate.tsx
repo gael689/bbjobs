@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { api } from "@/lib/api";
-import { LEGAL_VERSION, LEGAL_VIGENTE_DESDE } from "@/lib/legal";
+import { LEGAL_ENCABEZADO } from "@/lib/legal";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 // Pide aceptar la versión vigente de los términos y la privacidad a quien todavía no la aceptó
 // (todas las cuentas creadas antes de la 2.0, y quien se registre con un formulario viejo). El
@@ -45,14 +46,25 @@ export default function LegalGate() {
           Actualizamos los términos y la política de privacidad
         </h2>
         <p className="text-sm text-[#64748B] mb-3">
-          Versión {LEGAL_VERSION}, vigente desde el {LEGAL_VIGENTE_DESDE}. Ahora describen todo lo que hace BBJobs:
+          {LEGAL_ENCABEZADO}. Ahora describen todo lo que hace BBJobs:
         </p>
-        <ul className="list-disc pl-5 text-sm text-[#1C2230] space-y-1 mb-4">
-          <li>Cómo funciona la Base de Talento y quién puede ver tu perfil.</li>
-          <li>Los servicios pagos, Mercado Pago y el botón de arrepentimiento.</li>
-          <li>Qué proveedores procesan datos y en qué países.</li>
-          <li>Tus derechos sobre tus datos y en qué plazos te respondemos.</li>
-        </ul>
+        {MODULOS_NUEVOS_VISIBLES ? (
+          // 3.0: lo nuevo. La IA y el aviso de otro proceso sólo se aplican a quien la acepta.
+          <ul className="list-disc pl-5 text-sm text-[#1C2230] space-y-1 mb-4">
+            <li>Recomendaciones con inteligencia artificial: siempre decide una persona, tu CV se procesa sin tus datos personales y te podés oponer desde Mi cuenta.</li>
+            <li>Los avisos por mail y cómo darte de baja.</li>
+            <li>La Revisión de CV.</li>
+            <li>Las observaciones internas de las empresas y el aviso de que estás en otro proceso.</li>
+            <li>Los proveedores nuevos que procesan datos (Resend y Google).</li>
+          </ul>
+        ) : (
+          <ul className="list-disc pl-5 text-sm text-[#1C2230] space-y-1 mb-4">
+            <li>Cómo funciona la Base de Talento y quién puede ver tu perfil.</li>
+            <li>Los servicios pagos, Mercado Pago y el botón de arrepentimiento.</li>
+            <li>Qué proveedores procesan datos y en qué países.</li>
+            <li>Tus derechos sobre tus datos y en qué plazos te respondemos.</li>
+          </ul>
+        )}
         <p className="text-sm text-[#64748B] mb-5">
           Leé los{" "}
           <Link href="/terminos" target="_blank" className="text-[#1E8EA3] font-bold hover:underline">términos</Link> y la{" "}

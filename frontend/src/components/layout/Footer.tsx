@@ -134,6 +134,16 @@ export default function Footer() {
         <Link prefetch={false} href="/arrepentimiento" className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2">
           Botón de arrepentimiento
         </Link>
+        {/* Res. SCI 1033/2021: quien vende por internet muestra el acceso a la Ventanilla Única Federal
+            de reclamos, con esta leyenda. Hay servicios pagos (destacados, packs): va siempre. */}
+        <a
+          href="https://www.argentina.gob.ar/produccion/defensadelconsumidor/formulario"
+          target="_blank"
+          rel="noopener"
+          className="font-bold text-[#64748B] hover:text-[#1E8EA3] underline underline-offset-2 text-center"
+        >
+          Defensa de las y los consumidores. Para reclamos ingrese aquí
+        </a>
         {/* El crédito va al lado en desktop y debajo en mobile, sin partir la frase. */}
         <div className="flex flex-col sm:flex-row items-center gap-x-2 gap-y-1 text-center">
           <p>Hecho con ♥ para el mercado laboral local</p>

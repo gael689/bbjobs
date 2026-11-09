@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, Numeric, UniqueConstraint
+from sqlalchemy import String, Boolean, CheckConstraint, DateTime, ForeignKey, Text, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -147,15 +147,80 @@ class TalentUnlock(UUIDMixin, Base):
     unlocked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class CvReviewStatus(str, enum.Enum):
+    """Ver MODULOS-V4-REGLAS-Y-REVISION-CV-PLAN.md §6.3. `paid` = en la cola de Talency."""
+    pending_payment = "pending_payment"
+    paid = "paid"
+    in_progress = "in_progress"
+    delivered = "delivered"
+    refunded = "refunded"
+    canceled = "canceled"
+
+
+CV_REVIEW_OPEN_STATUSES = (CvReviewStatus.pending_payment, CvReviewStatus.paid, CvReviewStatus.in_progress)
+
+# Transiciones que puede hacer el admin a mano (C11). `pending_payment → paid` sólo lo hace el
+# webhook de Mercado Pago; `pending_payment → canceled` lo hace el reloj (C10).
+CV_REVIEW_ADMIN_TRANSITIONS: dict[CvReviewStatus, frozenset[CvReviewStatus]] = {
+    CvReviewStatus.paid: frozenset({CvReviewStatus.in_progress, CvReviewStatus.refunded}),
+    CvReviewStatus.in_progress: frozenset({CvReviewStatus.delivered, CvReviewStatus.refunded}),
+    CvReviewStatus.delivered: frozenset({CvReviewStatus.refunded}),
+}
+
+
+class CvReviewOrder(UUIDMixin, Base):
+    """Una revisión de CV pagada por un postulante. La plataforma sólo cobra, avisa y registra:
+    el contacto y la devolución los hace Talency por fuera (WhatsApp o mail)."""
+
+    __tablename__ = "cv_review_orders"
+
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default=CvReviewStatus.pending_payment.value)
+
+    # El CV que se pagó (C4): si el candidato lo cambia después, el admin lo ve.
+    cv_file_url_snapshot: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    cv_uploaded_at_snapshot: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    objective: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contact_channel: Mapped[str] = mapped_column(String(20), nullable=False)  # whatsapp | email
+    contact_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contact_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="ARS")
+
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    taken_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reminder_24h_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reminder_48h_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class PaymentType(str, enum.Enum):
     subscription = "subscription"
     job_feature = "job_feature"
     talent_pack = "talent_pack"
+    cv_review = "cv_review"
 
 class Payment(UUIDMixin, Base):
     __tablename__ = "payments"
 
-    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("company_profiles.id", ondelete="RESTRICT"), nullable=False)
+    # Un pago es de una empresa O de un candidato (ck_payments_one_payer). Los candidatos pagan
+    # la Revisión de CV; todo lo demás lo pagan empresas.
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_profiles.id", ondelete="RESTRICT"), nullable=True)
+    candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="RESTRICT", name="fk_payments_candidate_id"),
+        nullable=True, index=True,
+    )
     type: Mapped[PaymentType] = mapped_column(String(50), nullable=False)
     
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
@@ -172,8 +237,17 @@ class Payment(UUIDMixin, Base):
         nullable=True,
     )
     
+    related_cv_review_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cv_review_orders.id", ondelete="SET NULL", use_alter=True, name="fk_payments_cv_review_id"),
+        nullable=True,
+    )
+
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("num_nonnulls(company_id, candidate_id) = 1", name="ck_payments_one_payer"),
+    )
 
 class MercadoPagoWebhookEvent(UUIDMixin, Base):
     __tablename__ = "mp_webhook_events"

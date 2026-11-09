@@ -2,8 +2,8 @@ import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
 import ContactForm from "@/components/contact/ContactForm";
 
 // Mismo número que /contacto: Talency responde por WhatsApp.
-const WHATSAPP_NUMBER = "5492915089353";
-const PHONE_DISPLAY = "+54 9 291 508-9353";
+const WHATSAPP_NUMBER = "5492915362225";
+const PHONE_DISPLAY = "+54 9 291 536-2225";
 
 // Formulario de consulta por el servicio de selección (ancla #consulta). Usa el formulario de
 // contacto con el tema "seleccion": llega al panel de mensajes del admin y dispara generate_lead.

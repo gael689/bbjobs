@@ -8,7 +8,7 @@ from typing import Optional
 import uuid
 
 from app.api.deps import get_db, get_clerk_identity, get_current_user, ClerkIdentity
-from app.core.legal import LEGAL_VERSION, LEGAL_VIGENTE_DESDE
+from app.core.legal import current_version, current_vigente_desde
 from app.models.core import User, UserRole
 from app.models.company import CompanyProfile, VerificationStatus
 from app.services.legal import pending_acceptance, record_acceptance
@@ -27,7 +27,7 @@ async def get_legal_status(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return LegalStatus(version=LEGAL_VERSION, vigente_desde=LEGAL_VIGENTE_DESDE,
+    return LegalStatus(version=current_version(), vigente_desde=current_vigente_desde(),
                        pendiente=await pending_acceptance(db, user))
 
 
@@ -39,7 +39,7 @@ async def accept_legal(
 ):
     await record_acceptance(db, user, request)
     await db.commit()
-    return LegalStatus(version=LEGAL_VERSION, vigente_desde=LEGAL_VIGENTE_DESDE, pendiente=False)
+    return LegalStatus(version=current_version(), vigente_desde=current_vigente_desde(), pendiente=False)
 
 
 class MeResponse(BaseModel):

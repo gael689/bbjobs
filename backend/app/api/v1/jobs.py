@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, func
@@ -20,6 +20,9 @@ from app.services.job_features import end_active_feature_for_job
 from app.services.job_status import can_transition
 from app.services import job_search
 from app.services import indexing
+from app.services.ai import search_interpret
+from app.services.ai.search_interpret import InterpretResponse
+from app.core.features import new_modules_enabled, require_new_modules
 from app.core.limiter import limiter
 
 router = APIRouter()
@@ -67,6 +70,7 @@ _EDUCATION_RANK = {
 @router.post("/me/company/jobs", response_model=JobPostingCompanyResponse)
 async def create_job_posting(
     payload: JobPostingCreate,
+    background: BackgroundTasks,
     company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -123,7 +127,18 @@ async def create_job_posting(
 
     await db.commit()
     await db.refresh(job)
+    _precompute_moderation(background, job)
     return job
+
+
+def _precompute_moderation(background: BackgroundTasks, job: JobPosting) -> None:
+    """Moderación al publicar (IA): vector del aviso y chequeos de duplicado/sector, en segundo
+    plano y después del commit — nunca frena ni rompe el pedido de la empresa. Ver
+    `services/ai/moderation.precompute_after_publish`."""
+    if new_modules_enabled() and job.moderation_status == JobModerationStatus.pending_review:
+        from app.services.ai.moderation import precompute_after_publish
+
+        background.add_task(precompute_after_publish, job.id)
 
 @router.get("/me/company/jobs", response_model=List[JobPostingCompanyResponse])
 async def list_my_job_postings(
@@ -139,6 +154,7 @@ async def list_my_job_postings(
 async def update_job_posting(
     id: uuid.UUID,
     payload: JobPostingUpdate,
+    background: BackgroundTasks,
     company: CompanyProfile = Depends(require_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -187,6 +203,7 @@ async def update_job_posting(
     await db.commit()
     await db.refresh(job)
     indexing.notify(cambio)
+    _precompute_moderation(background, job)
     return job
 
 @router.get("/jobs", response_model=PaginatedJobsResponse)
@@ -277,6 +294,21 @@ async def suggest_jobs(
 ):
     # Sin tildes y por palabras (job_search.suggest): "tecnico" sugiere "Técnico electricista".
     return [JobSuggestion(label=label, type=kind) for label, kind in await job_search.suggest(db, q, limit)]
+
+
+@router.get("/jobs/interpret", response_model=InterpretResponse, response_model_exclude_none=True,
+            dependencies=[Depends(require_new_modules)])
+@limiter.limit("20/minute")
+async def interpret_job_search(
+    request: Request,
+    q: str = Query(..., min_length=1),
+    db: AsyncSession = Depends(get_db),
+):
+    """Búsqueda inteligente (Frente 5.2): traduce una frase en lenguaje natural a filtros del
+    catálogo con Gemini. Detrás de la compuerta (404 cerrada) y del interruptor
+    `busqueda_ia_activa`. Si no hay IA, se pasó el tope de gasto o la frase es corta, responde
+    `{available: false}` y el frontend sigue con la búsqueda normal. Nunca genera SQL."""
+    return await search_interpret.interpret(db, q)
 
 
 @router.get("/jobs/{id}", response_model=JobPostingPublicResponse)

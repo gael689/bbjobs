@@ -70,6 +70,12 @@ class CandidateProfile(UUIDMixin, Base):
     talent_pool_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     talent_pool_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Oposición a la IA (política de privacidad 3.0, §7): con fecha, el perfil no se indexa, no
+    # se puntúa ni se resume, y al pedirlo se borra lo que ya había (services/ai/opt_out.py).
+    ai_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Oposición a que otras empresas sepan que está avanzado en un proceso (services/other_processes.py).
+    other_processes_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Throttle del recordatorio "completá tu perfil" — evita mandar la notificación de nuevo
     # antes de que pase el intervalo mínimo (ver services/profile_completion.py).
     last_completion_reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

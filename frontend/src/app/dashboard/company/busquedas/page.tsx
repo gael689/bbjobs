@@ -5,11 +5,13 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import {
   CheckCircleIcon, XCircleIcon, BoltIcon, PencilIcon, PauseIcon, PlayIcon,
-  UserCircleIcon, XMarkIcon, ArrowRightIcon,
+  UserCircleIcon, XMarkIcon, ArrowRightIcon, ChatBubbleLeftEllipsisIcon,
 } from "@heroicons/react/24/outline";
 import ExpiryBadge from "@/components/ui/ExpiryBadge";
 import { useListaPaginada } from "@/hooks/useListaPaginada";
 import CandidateProfileModal, { type CandidateProfileModalData } from "@/components/dashboard/CandidateProfileModal";
+import { AvisoOtrosProcesos, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
   type Application, type JobPosting,
@@ -38,6 +40,8 @@ export default function CompanyBusquedasPage() {
 
   const [viewProfile, setViewProfile] = useState<CandidateProfileModalData | null>(null);
   const [loadingViewProfile, setLoadingViewProfile] = useState(false);
+  // La postulación desde la que se abrió la ficha ("Vieron tu CV" y sus notas).
+  const [perfilAppId, setPerfilAppId] = useState<string | null>(null);
 
   const toast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
@@ -121,12 +125,13 @@ export default function CompanyBusquedasPage() {
     }
   }
 
-  async function openCandidateProfile(candidateId: string, applicationId: string) {
+  async function openCandidateProfile(candidateId: string, appId: string) {
     setLoadingViewProfile(true);
     setViewProfile(null);
+    setPerfilAppId(appId);
     try {
-      // `application_id`: abrir la ficha marca esa postulación como vista (sin aviso).
-      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: applicationId } });
+      // `application_id`: abrir la ficha marca esa postulación como vista.
+      const r = await api.get(`/me/company/candidates/${candidateId}`, { params: { application_id: appId } });
       setViewProfile(r.data);
     } catch {
       toast("Error al cargar el perfil del candidato", "error");
@@ -479,8 +484,22 @@ export default function CompanyBusquedasPage() {
                           <UserCircleIcon className="w-8 h-8 text-[#DDE3EC]" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-[13.5px] text-[#1C2230] truncate">
-                            {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                          <p className="font-bold text-[13.5px] text-[#1C2230] flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">
+                              {app.candidate ? `${app.candidate.first_name} ${app.candidate.last_name}` : "Candidato"}
+                            </span>
+                            {/* Mismo ícono que Postulaciones: la empresa ya anotó algo sobre esta persona. */}
+                            {MODULOS_NUEVOS_VISIBLES && !!app.notes_count && (
+                              <span
+                                title={`Tiene observaciones (${app.notes_count})`}
+                                aria-label={`Tiene observaciones: ${app.notes_count}`}
+                                role="img"
+                                className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-bold text-[#8A6A54] bg-[#D4B7A2]/20 border border-[#D4B7A2]/60 px-1.5 py-0.5 rounded-full"
+                              >
+                                <ChatBubbleLeftEllipsisIcon className="w-3 h-3" aria-hidden />
+                                {app.notes_count}
+                              </span>
+                            )}
                           </p>
                           <p className="text-[11.5px] text-[#64748B] truncate">
                             {app.candidate?.age && `${app.candidate.age} años · `}
@@ -508,8 +527,18 @@ export default function CompanyBusquedasPage() {
       <CandidateProfileModal
         profile={viewProfile}
         loading={loadingViewProfile}
-        onClose={() => setViewProfile(null)}
-        cvLinkEndpoint={viewProfile ? `/me/company/candidates/${viewProfile.id}/cv/link` : undefined}
+        onClose={() => { setViewProfile(null); setPerfilAppId(null); }}
+        cvLinkEndpoint={viewProfile
+          ? `/me/company/candidates/${viewProfile.id}/cv/link${perfilAppId ? `?application_id=${perfilAppId}` : ""}`
+          : undefined}
+        footer={viewProfile && (
+          <>
+            {perfilAppId && <AvisoOtrosProcesos key={perfilAppId} applicationId={perfilAppId} />}
+            {MODULOS_NUEVOS_VISIBLES && (
+              <NotasPostulacion key={viewProfile.id} candidateId={viewProfile.id} applicationId={perfilAppId} />
+            )}
+          </>
+        )}
       />
     </div>
   );

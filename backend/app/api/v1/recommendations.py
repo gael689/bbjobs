@@ -1,0 +1,542 @@
+"""Candidatos recomendados con IA (módulo en desarrollo, detrás de la compuerta).
+
+Aislamiento sin RLS: **toda consulta de empresa filtra por su `company_id`** (la búsqueda tiene
+que ser suya; si no, 404), y lo prueba un test de acceso cruzado.
+
+Lo que ve la empresa:
+- **Todos** sus postulantes, ordenados, con puntaje, motivos y la tabla de requisitos con la
+  evidencia citada. Ordenar no es descartar.
+- Hasta 3 perfiles **ciegos** de la Base de Talento por búsqueda (10 con un pack activo). La
+  evidencia de un perfil ciego se muestra tapada hasta que lo desbloquea, como hoy.
+- Siempre la aclaración: "orientativo, decide la empresa" (política de Google para empleo).
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
+
+import structlog
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_db, require_role, require_verified_company
+from app.core.config import settings
+from app.core.features import require_new_modules
+from app.db.session import async_session_maker
+from app.integrations.gemini_client import AIUnavailable, get_provider
+from app.models.ai import (
+    AiUsageLog, CandidateAiIndex, CandidateChunk, CandidateCvText, JobAiProfile, JobRecommendation,
+    RecommendationRefresh,
+)
+from app.models.candidate import CandidateProfile
+from app.models.company import CompanyProfile
+from app.models.core import User, UserRole
+from app.models.job import Application, JobModerationStatus, JobPosting, JobPostingStatus
+from app.models.payment import TalentCreditPack, TalentPackStatus, TalentUnlock
+from app.models.settings import SettingKey
+from app.services.ai import pendientes, pipeline
+from app.services.email.policy import local_day_start
+from app.services.settings import get_setting
+
+logger = structlog.get_logger("app.api.recommendations")
+router = APIRouter(dependencies=[Depends(require_new_modules)])
+
+DISCLAIMER = ("Orden orientativo calculado con los datos del perfil y del CV. La decisión es siempre "
+              "de la empresa. No se usan edad, género, foto ni estado civil.")
+
+
+def provider_or_none():
+    try:
+        return get_provider()
+    except AIUnavailable:
+        return None
+
+
+# Búsquedas que se están recalculando en este proceso. La pantalla de la empresa pregunta cada 5 s
+# mientras dice "calculando": sin esto, cada pregunta lanzaba otro cálculo con IA de la misma búsqueda.
+_INFLIGHT: set[uuid.UUID] = set()
+
+
+def _is_live(job: JobPosting) -> bool:
+    return (job.deleted_at is None and job.status == JobPostingStatus.active
+            and job.moderation_status == JobModerationStatus.approved)
+
+
+async def recompute_job(job_id: uuid.UUID, *, rerank_enabled: bool, reason: str = "empresa") -> None:
+    """Corre en segundo plano con sesión propia (no la del pedido, que ya se cerró). Una a la vez
+    por búsqueda, y la IA de texto sólo para búsquedas activas y aprobadas."""
+    if job_id in _INFLIGHT:
+        return
+    _INFLIGHT.add(job_id)
+    try:
+        async with async_session_maker() as db:
+            job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id))).scalar_one_or_none()
+            if job is None:
+                return
+            try:
+                stats = await pipeline.compute_recommendations(
+                    db, provider_or_none(), job, rerank_enabled=rerank_enabled and _is_live(job), reason=reason)
+                await db.commit()
+                logger.info("recs_recalculados", job_id=str(job_id), **stats)
+            except Exception as exc:
+                await db.rollback()
+                logger.error("recs_error", job_id=str(job_id), error=str(exc)[:300])
+    finally:
+        _INFLIGHT.discard(job_id)
+
+
+def candidate_ref(company_id: uuid.UUID, candidate_id: uuid.UUID) -> str:
+    """Referencia opaca de un candidato para una empresa (HMAC con SECRET_KEY). No sale del UUID
+    real: un perfil ciego no se puede cruzar con otros listados ni entre empresas."""
+    digest = hmac.new(settings.SECRET_KEY.encode(), f"rec:{company_id}:{candidate_id}".encode(), hashlib.sha256)
+    return "#" + digest.hexdigest()[:8].upper()
+
+
+async def _own_job(db: AsyncSession, company: CompanyProfile, job_id: uuid.UUID) -> JobPosting:
+    job = (await db.execute(
+        select(JobPosting).where(JobPosting.id == job_id, JobPosting.company_id == company.id,
+                                 JobPosting.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return job
+
+
+# ── Empresa ─────────────────────────────────────────────────────────────────────────────
+
+class RequirementOut(BaseModel):
+    id: str
+    texto: str
+    tipo: str
+
+
+class EvalOut(BaseModel):
+    req_id: str
+    verdict: str
+    evidence: Optional[str] = None
+
+
+class Thresholds(BaseModel):
+    """Umbrales del puntaje, en un solo lugar (`services/ai/scoring.py`): la pantalla los lee de
+    acá en vez de tener 70 y 80 escritos a mano (plan final §2.5)."""
+    recommended: int = pipeline.scoring.RECOMMENDED_THRESHOLD
+    strong: int = pipeline.scoring.NEW_FIT_THRESHOLD
+
+
+def score_level(score: int) -> int:
+    """2 = encaja muy bien, 1 = encaja, 0 = encaja poco. Los mismos cortes que muestra la pantalla."""
+    if score >= pipeline.scoring.NEW_FIT_THRESHOLD:
+        return 2
+    return 1 if score >= pipeline.scoring.RECOMMENDED_THRESHOLD else 0
+
+
+def evaluated_first(items: list, *, score=lambda x: x.score, evaluated=lambda x: x.evaluated) -> list:
+    """Orden de la lista (plan final §2.4): por nivel; dentro del mismo nivel, primero los que
+    evaluó la IA y después los "sin evaluar" (la fórmula sin IA no es comparable del todo); y
+    dentro de cada grupo, por puntaje. Estable: los empates quedan como venían."""
+    return sorted(items, key=lambda x: (-score_level(score(x)), not evaluated(x), -score(x)))
+
+
+class RecOut(BaseModel):
+    candidate_ref: str
+    candidate_id: Optional[uuid.UUID] = None     # sólo postulantes y perfiles desbloqueados
+    application_id: Optional[uuid.UUID] = None
+    name: Optional[str] = None
+    source: Literal["applicant", "talent"]
+    score: int
+    recommended: bool
+    coverage: float
+    reasons: list[str]
+    evaluations: list[EvalOut]
+    locked: bool
+    feedback: Optional[int] = None
+    # False = el puntaje sale sólo de los datos del perfil, sin la evaluación de la IA requisito
+    # por requisito: la pantalla lo marca "sin evaluar".
+    evaluated: bool = False
+
+
+class UnscoredOut(BaseModel):
+    """Postulante sin puntaje: pidió que su perfil no se use en recomendaciones, o todavía no se
+    calculó. La empresa lo ve igual (privacidad 3.0, §7: la oposición no lo perjudica)."""
+    candidate_id: uuid.UUID
+    application_id: uuid.UUID
+    name: str
+
+
+class RecsResponse(BaseModel):
+    enabled: bool
+    status: Literal["ok", "calculando", "apagado"]
+    disclaimer: str
+    requirements: list[RequirementOut] = []
+    discarded_requirements: list[dict] = []
+    applicants: list[RecOut] = []
+    unscored_applicants: list[UnscoredOut] = []
+    talent: list[RecOut] = []
+    talent_limit: int = 0
+    computed_at: Optional[datetime] = None
+    thresholds: Thresholds = Thresholds()
+
+
+async def _talent_limit(db: AsyncSession, company_id: uuid.UUID) -> int:
+    has_pack = (await db.execute(
+        select(func.count()).select_from(TalentCreditPack).where(
+            TalentCreditPack.company_id == company_id, TalentCreditPack.status == TalentPackStatus.active.value)
+    )).scalar_one()
+    return settings.RECS_TALENT_PACK_COUNT if has_pack else settings.RECS_TALENT_FREE_COUNT
+
+
+@router.get("/me/company/jobs/{job_id}/recommendations", response_model=RecsResponse)
+async def job_recommendations(
+    job_id: uuid.UUID, background: BackgroundTasks,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _own_job(db, company, job_id)
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return RecsResponse(enabled=False, status="apagado", disclaimer=DISCLAIMER)
+
+    profile = (await db.execute(select(JobAiProfile).where(JobAiProfile.job_id == job.id))).scalar_one_or_none()
+    rows = (await db.execute(
+        select(JobRecommendation, CandidateProfile.first_name, CandidateProfile.last_name)
+        .join(CandidateProfile, CandidateProfile.id == JobRecommendation.candidate_id)
+        .where(JobRecommendation.job_id == job.id)
+        .order_by(JobRecommendation.final_score.desc(), JobRecommendation.computed_at)
+    )).all()
+    # Sin filas y nunca calculada: se calcula (una vez). Si ya se calculó y no hay nadie (sin
+    # postulantes, o todos se opusieron a la IA) o la búsqueda no está activa, no hay nada que
+    # esperar: se responde vacío en vez de dejar la pantalla en "calculando" para siempre.
+    if not rows and profile is None and _is_live(job):
+        if job.id not in _INFLIGHT:
+            background.add_task(recompute_job, job.id, rerank_enabled=True)
+        return RecsResponse(enabled=True, status="calculando", disclaimer=DISCLAIMER)
+
+    apps = dict((await db.execute(
+        select(Application.candidate_id, Application.id).where(Application.job_posting_id == job.id,
+                                                               Application.deleted_at.is_(None))
+    )).all())
+    unlocked = set((await db.execute(
+        select(TalentUnlock.candidate_id).where(TalentUnlock.company_id == company.id)
+    )).scalars().all())
+    limit = await _talent_limit(db, company.id)
+
+    def out(rec: JobRecommendation, first: str, last: str) -> RecOut:
+        is_applicant = rec.source == "applicant"
+        visible = is_applicant or rec.candidate_id in unlocked
+        evidence = rec.evidence or {}
+        return RecOut(
+            candidate_ref=candidate_ref(company.id, rec.candidate_id),
+            candidate_id=rec.candidate_id if visible else None,
+            application_id=apps.get(rec.candidate_id),
+            name=f"{first} {last}".strip() if visible else None,
+            source=rec.source, score=rec.final_score,
+            recommended=rec.final_score >= pipeline.scoring.RECOMMENDED_THRESHOLD,
+            coverage=round(rec.coverage, 2), reasons=list(rec.reasons or []),
+            evaluations=[EvalOut(req_id=e["req_id"], verdict=e["verdict"],
+                                 evidence=evidence.get(e["req_id"]) if visible else None)
+                         for e in (rec.req_evals or [])],
+            locked=not visible, feedback=rec.feedback, evaluated=rec.rerank_status == "done",
+        )
+
+    applicants = evaluated_first([out(r, f, l) for r, f, l in rows if r.source == "applicant"])
+    # El cupo de la Base se corta por puntaje (el mismo orden que usa el aviso a la empresa) y
+    # recién después se reordena.
+    talent = evaluated_first([out(r, f, l) for r, f, l in rows if r.source == "talent"][:limit])
+    # La empresa ya los tiene a la vista: dejan de contar en la bombita y en "Recomendados (N)".
+    # Sólo los que ve (los de la Base fuera de su cupo siguen sin mirar).
+    seen = [r.candidate_id for r, _, _ in rows if r.source == "applicant"] +         [r.candidate_id for r, _, _ in rows if r.source == "talent"][:limit]
+    if any(r.company_viewed_at is None for r, _, _ in rows):
+        await pendientes.mark_viewed(db, job.id, seen)
+        await db.commit()
+    scored = {r.candidate_id for r, _, _ in rows if r.source == "applicant"}
+    unscored = [
+        UnscoredOut(candidate_id=cid, application_id=aid, name=f"{first} {last}".strip())
+        for cid, aid, first, last in (await db.execute(
+            select(Application.candidate_id, Application.id, CandidateProfile.first_name, CandidateProfile.last_name)
+            .join(CandidateProfile, CandidateProfile.id == Application.candidate_id)
+            .where(Application.job_posting_id == job.id, Application.deleted_at.is_(None),
+                   CandidateProfile.deleted_at.is_(None))
+            .order_by(Application.created_at)
+        )).all()
+        if cid not in scored
+    ]
+    return RecsResponse(
+        enabled=True, status="ok", disclaimer=DISCLAIMER,
+        requirements=[RequirementOut(id=r["id"], texto=r["texto"], tipo=r["tipo"]) for r in (profile.requirements if profile else [])],
+        discarded_requirements=profile.discarded if profile else [],
+        applicants=applicants, unscored_applicants=unscored, talent=talent, talent_limit=limit,
+        computed_at=max((r.computed_at for r, _, _ in rows), default=None),
+    )
+
+
+class PendingJobOut(BaseModel):
+    job_id: uuid.UUID
+    title: str
+    count: int
+
+
+class PendingOut(BaseModel):
+    total: int
+    jobs: list[PendingJobOut]
+
+
+async def pending_for_company(db: AsyncSession, company_id: uuid.UUID) -> PendingOut:
+    jobs = [PendingJobOut(**j) for j in await pendientes.pending_by_job(db, company_id)]
+    return PendingOut(total=sum(j.count for j in jobs), jobs=jobs)
+
+
+@router.get("/me/company/recommendations/pending", response_model=PendingOut)
+async def pending_recommendations(
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recomendados ≥ 70 que la empresa todavía no miró, por búsqueda (la bombita del panel).
+    El panel lo recibe también dentro de `/me/notifications/summary`, en el mismo pedido de la
+    campanita."""
+    return await pending_for_company(db, company.id)
+
+
+class RefreshResult(BaseModel):
+    queued: bool
+    remaining_today: int
+
+
+@router.post("/me/company/jobs/{job_id}/recommendations/refresh", response_model=RefreshResult)
+async def refresh_recommendations(
+    job_id: uuid.UUID, background: BackgroundTasks,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _own_job(db, company, job_id)
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        raise HTTPException(status_code=409, detail="Las recomendaciones no están activas")
+    used = (await db.execute(
+        select(func.count()).select_from(RecommendationRefresh).where(
+            RecommendationRefresh.company_id == company.id,
+            RecommendationRefresh.created_at >= local_day_start(datetime.now(timezone.utc)))
+    )).scalar_one()
+    if used >= settings.RECS_REFRESH_PER_DAY:
+        raise HTTPException(status_code=429, detail="Llegaste al máximo de actualizaciones de hoy")
+    db.add(RecommendationRefresh(id=uuid.uuid4(), company_id=company.id, job_id=job.id))
+    await db.commit()
+    background.add_task(recompute_job, job.id, rerank_enabled=True)
+    return RefreshResult(queued=True, remaining_today=settings.RECS_REFRESH_PER_DAY - used - 1)
+
+
+class FeedbackIn(BaseModel):
+    candidate_ref: str
+    value: Literal[-1, 0, 1]
+
+
+@router.post("/me/company/jobs/{job_id}/recommendations/feedback")
+async def recommendation_feedback(
+    job_id: uuid.UUID, payload: FeedbackIn,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """👍/👎 por recomendación: arma el set de evaluación (auditoría R13)."""
+    job = await _own_job(db, company, job_id)
+    recs = (await db.execute(select(JobRecommendation).where(JobRecommendation.job_id == job.id))).scalars().all()
+    target = next((r for r in recs if candidate_ref(company.id, r.candidate_id) == payload.candidate_ref), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    target.feedback = payload.value or None
+    await db.commit()
+    return {"ok": True}
+
+
+# ── Resumen del candidato en 3 líneas (Frente 6.6) ──────────────────────────────────────
+
+SUMMARY_DISCLAIMER = ("Resumen orientativo armado con IA a partir del perfil sin datos personales. "
+                      "Decide la empresa.")
+
+
+class SummaryLineOut(BaseModel):
+    text: str
+    evidence: Optional[str] = None
+
+
+class SummaryResponse(BaseModel):
+    candidate_ref: str
+    lines: list[SummaryLineOut]
+    generated_with_ai: bool
+    disclaimer: str = SUMMARY_DISCLAIMER
+
+
+@router.get("/me/company/jobs/{job_id}/recommendations/{ref}/summary", response_model=SummaryResponse)
+async def recommendation_summary(
+    job_id: uuid.UUID, ref: str,
+    company: CompanyProfile = Depends(require_verified_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Se genera a pedido, cuando la empresa abre el recomendado. Sólo de candidatos que esa
+    empresa ya ve en Recomendados de SU búsqueda: postulantes, o perfiles de la Base de Talento
+    dentro de su cupo (o desbloqueados). Cualquier otro → 404, igual que una búsqueda ajena."""
+    from app.services.ai import summary as summary_svc
+
+    job = await _own_job(db, company, job_id)
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        raise HTTPException(status_code=409, detail="Las recomendaciones no están activas")
+    recs = (await db.execute(
+        select(JobRecommendation).where(JobRecommendation.job_id == job.id)
+        .order_by(JobRecommendation.final_score.desc(), JobRecommendation.computed_at)
+    )).scalars().all()
+    target = next((r for r in recs if candidate_ref(company.id, r.candidate_id) == ref), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    visible = True
+    if target.source == "talent":
+        unlocked = set((await db.execute(
+            select(TalentUnlock.candidate_id).where(TalentUnlock.company_id == company.id)
+        )).scalars().all())
+        shown = [r.candidate_id for r in recs if r.source == "talent"][:await _talent_limit(db, company.id)]
+        if target.candidate_id not in shown and target.candidate_id not in unlocked:
+            raise HTTPException(status_code=404, detail="Not Found")
+        visible = target.candidate_id in unlocked
+
+    profile = (await db.execute(select(JobAiProfile).where(JobAiProfile.job_id == job.id))).scalar_one_or_none()
+    opaque = "#" + hashlib.sha256(f"{job.id}:{target.candidate_id}".encode()).hexdigest()[:6].upper()
+    result = await summary_svc.summarize(
+        db, provider_or_none(), target, requirements=list(profile.requirements) if profile else [],
+        ref=opaque, company_id=company.id,
+    )
+    await db.commit()
+    return SummaryResponse(
+        candidate_ref=ref, generated_with_ai=result.generated_with_ai,
+        # Como la evidencia del detalle: en un perfil ciego la cita se ve al desbloquearlo.
+        lines=[SummaryLineOut(text=l.text, evidence=l.evidence if visible else None) for l in result.lines],
+    )
+
+
+# ── Candidato: "lo que lee la IA de tu CV" (D14) ────────────────────────────────────────
+
+class AiViewChunk(BaseModel):
+    kind: str
+    text: str
+
+
+class AiView(BaseModel):
+    cv_status: Optional[str] = None
+    chunks: list[AiViewChunk]
+    indexed_at: Optional[datetime] = None
+    note: str
+
+
+@router.get("/me/candidate/ai-view", response_model=AiView)
+async def candidate_ai_view(user: User = Depends(require_role([UserRole.candidate])), db: AsyncSession = Depends(get_db)):
+    profile = (await db.execute(
+        select(CandidateProfile).where(CandidateProfile.user_id == user.id, CandidateProfile.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    cv = (await db.execute(select(CandidateCvText.status).where(CandidateCvText.candidate_id == profile.id))).scalar_one_or_none()
+    idx = (await db.execute(select(CandidateAiIndex.indexed_at).where(CandidateAiIndex.candidate_id == profile.id))).scalar_one_or_none()
+    chunks = (await db.execute(
+        select(CandidateChunk.kind, CandidateChunk.text).where(CandidateChunk.candidate_id == profile.id)
+        .order_by(CandidateChunk.kind, CandidateChunk.ordinal)
+    )).all()
+    return AiView(
+        cv_status=cv, indexed_at=idx, chunks=[AiViewChunk(kind=k, text=t) for k, t in chunks],
+        note=("Esto es lo que lee la IA para ordenar perfiles: sin tu nombre, tu contacto, tu edad ni "
+              "tus empleadores. Si ves algún dato personal, avisanos."),
+    )
+
+
+# ── Talency ─────────────────────────────────────────────────────────────────────────────
+
+class UsageRow(BaseModel):
+    key: Optional[str]
+    calls: int
+    cost_usd: float
+
+
+class UsageSummary(BaseModel):
+    today_usd: float
+    daily_budget_usd: float
+    period_usd: float
+    by_feature: list[UsageRow]
+    by_company: list[UsageRow]
+
+
+@router.get("/admin/ai/usage", response_model=UsageSummary)
+async def ai_usage(days: int = Query(default=30, ge=1, le=365),
+                   _: User = Depends(require_role([UserRole.admin])), db: AsyncSession = Depends(get_db)):
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    by_feature = (await db.execute(
+        select(AiUsageLog.feature, func.count(), func.coalesce(func.sum(AiUsageLog.cost_usd), 0))
+        .where(AiUsageLog.created_at >= since).group_by(AiUsageLog.feature)
+    )).all()
+    by_company = (await db.execute(
+        select(CompanyProfile.legal_name, func.count(), func.coalesce(func.sum(AiUsageLog.cost_usd), 0))
+        .outerjoin(CompanyProfile, CompanyProfile.id == AiUsageLog.company_id)
+        .where(AiUsageLog.created_at >= since).group_by(CompanyProfile.legal_name)
+    )).all()
+    return UsageSummary(
+        today_usd=await pipeline.spent_today(db), daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        period_usd=float(sum(c for _, _, c in by_feature)),
+        by_feature=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_feature],
+        by_company=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_company],
+    )
+
+
+class DuplicateOut(BaseModel):
+    job_id: uuid.UUID
+    title: str
+    company: str
+    same_company: bool
+    similarity: float
+
+
+class SectorHintOut(BaseModel):
+    current_industry: Optional[str] = None
+    suggested_industry_id: uuid.UUID
+    suggested_industry: str
+    current_similarity: float
+    suggested_similarity: float
+
+
+class AiChecksOut(BaseModel):
+    enabled: bool
+    available: bool = False
+    duplicates: list[DuplicateOut] = []
+    sector: Optional[SectorHintOut] = None
+    note: Optional[str] = None
+    disclaimer: str = "Señales orientativas para revisar. La IA no aprueba ni rechaza nada."
+
+
+@router.get("/admin/jobs/{job_id}/ai-checks", response_model=AiChecksOut)
+async def admin_job_ai_checks(job_id: uuid.UUID, _: User = Depends(require_role([UserRole.admin])),
+                              db: AsyncSession = Depends(get_db)):
+    """Posible duplicado y sector dudoso, para la ficha de moderación (Frente 6.7)."""
+    from app.services.ai import moderation
+
+    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return AiChecksOut(enabled=False)
+    job = (await db.execute(select(JobPosting).where(JobPosting.id == job_id, JobPosting.deleted_at.is_(None))
+                            )).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    checks = await moderation.checks_for(db, provider_or_none(), job)
+    await db.commit()   # el vector del aviso, si se calculó recién
+    return AiChecksOut(
+        enabled=True, available=checks.available, note=checks.note,
+        duplicates=[DuplicateOut(**d.__dict__) for d in checks.duplicates],
+        sector=SectorHintOut(
+            current_industry=checks.sector.current_industry,
+            suggested_industry_id=checks.sector.suggested_industry_id,
+            suggested_industry=checks.sector.suggested_industry,
+            current_similarity=checks.sector.current_similarity,
+            suggested_similarity=checks.sector.suggested_similarity,
+        ) if checks.sector else None,
+    )
+
+
+@router.post("/admin/ai/jobs/{job_id}/recompute")
+async def admin_recompute(job_id: uuid.UUID, background: BackgroundTasks,
+                          _: User = Depends(require_role([UserRole.admin]))):
+    background.add_task(recompute_job, job_id, rerank_enabled=True, reason="manual")
+    return {"queued": True}

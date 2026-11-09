@@ -5,9 +5,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   UsersIcon, UserCircleIcon, CheckCircleIcon,
-  BriefcaseIcon, ChartBarIcon,
+  BriefcaseIcon, ChartBarIcon, ChatBubbleLeftEllipsisIcon,
 } from "@heroicons/react/24/outline";
 import CandidateProfileModal from "@/components/dashboard/CandidateProfileModal";
+import { AvisoOtrosProcesos, CambioEstadoConNota, NotasPostulacion } from "@/components/dashboard/NotasPostulacion";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import BuscadorPostulantes from "@/components/dashboard/postulantes/BuscadorPostulantes";
 import BotonEstrella from "@/components/dashboard/postulantes/BotonEstrella";
 import {
@@ -18,7 +20,7 @@ import PanelEstadisticas from "@/components/stats/PanelEstadisticas";
 import Paginacion from "@/components/ui/Paginacion";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import {
-  APP_STATUS_LABEL, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
+  APP_STATUS_LABEL, opcionesDeEstado, CANDIDATE_GENDER_LABEL, CANDIDATE_AVAILABILITY_LABEL,
   type Application, type ApplicantStats, type CandidateFullProfile,
   type CompanyProfile, type JobPosting,
 } from "../types";
@@ -50,6 +52,8 @@ function Postulaciones() {
   const [candidateProfile, setCandidateProfile] = useState<CandidateFullProfile | null>(null);
   const [abiertaDesde, setAbiertaDesde] = useState<string | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
+  // Cambio de estado esperando confirmación (con nota opcional). Sólo con los módulos nuevos.
+  const [cambioPendiente, setCambioPendiente] = useState<{ app: Application; status: string } | null>(null);
 
   const isVerified = profile?.verification_status === "verified";
   // La búsqueda elegida se deriva: si la de la lista desapareció (se cerró, se dio de baja),
@@ -112,13 +116,28 @@ function Postulaciones() {
       .catch(() => setStats(prev => ({ ...prev, [selectedJobId]: null })));
   }, [selectedJobId, isVerified, stats]);
 
-  async function handleAppStatus(app: Application, status: string) {
+  function handleAppStatus(app: Application, status: string) {
+    // Con los módulos nuevos, el cambio pasa por un cuadro que deja sumar una nota en el mismo
+    // paso. Sin ellos, se guarda al momento, como siempre.
+    if (MODULOS_NUEVOS_VISIBLES) {
+      setCambioPendiente({ app, status });
+      return;
+    }
+    guardarEstado(app, status);
+  }
+
+  async function guardarEstado(app: Application, status: string, note?: string, noteTags?: string[]) {
     try {
-      await api.patch(`/me/company/applications/${app.id}/status`, { status });
+      await api.patch(`/me/company/applications/${app.id}/status`, {
+        status,
+        ...(note ? { note, note_tags: noteTags ?? [] } : {}),
+      });
+      if (note) toast("Estado y observación guardados. La observación es privada.");
       const vistaAhora = !app.seen_at && status !== "new";
       postulaciones.actualizarItems(prev => prev.map(a => (
         a.id === app.id ? { ...a, status, seen_at: vistaAhora ? new Date().toISOString() : a.seen_at } : a
       )));
+      if (note && app.notes_count != null) fijarCantidadNotas(app.candidate_id, app.notes_count + 1);
       postulaciones.retocarConteos(c => ({
         ...c,
         by_status: {
@@ -131,6 +150,13 @@ function Postulaciones() {
     } catch {
       toast("Error al actualizar estado");
     }
+  }
+
+  /** El ícono "Tiene observaciones" sigue a lo que la empresa anota sin recargar la lista. */
+  function fijarCantidadNotas(candidateId: string, cantidad: number) {
+    postulaciones.actualizarItems(prev => prev.map(a => (
+      a.candidate_id === candidateId && a.notes_count != null ? { ...a, notes_count: cantidad } : a
+    )));
   }
 
   async function alternarEstrella(app: Application) {
@@ -146,6 +172,10 @@ function Postulaciones() {
       const r = await api.get(`/me/company/candidates/${app.candidate_id}`, { params: { application_id: app.id } });
       setCandidateProfile(r.data);
       postulaciones.marcarVista(app.id);
+      // Con los módulos nuevos, abrir la ficha la pasa sola a "Perfil revisado" la primera vez.
+      if (MODULOS_NUEVOS_VISIBLES) {
+        postulaciones.actualizarItems(prev => prev.map(a => (a.id === app.id && a.status === "new" ? { ...a, status: "seen" } : a)));
+      }
     } catch {
       toast("Error al cargar el perfil del candidato");
     } finally {
@@ -274,6 +304,17 @@ function Postulaciones() {
                           {!app.seen_at && (
                             <span className="text-[10px] font-bold text-[#1E8EA3] bg-[#E6F4F7] px-1.5 py-0.5 rounded-full">Sin ver</span>
                           )}
+                          {MODULOS_NUEVOS_VISIBLES && !!app.notes_count && (
+                            <span
+                              title={`Tiene observaciones (${app.notes_count})`}
+                              aria-label={`Tiene observaciones: ${app.notes_count}`}
+                              role="img"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-[#8A6A54] bg-[#D4B7A2]/20 border border-[#D4B7A2]/60 px-1.5 py-0.5 rounded-full"
+                            >
+                              <ChatBubbleLeftEllipsisIcon className="w-3 h-3" aria-hidden />
+                              {app.notes_count}
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-[#64748B]">Postuló el {new Date(app.created_at).toLocaleDateString("es-AR")}</p>
                         {app.match && <p className="text-xs text-[#1C2230] mt-0.5 truncate max-w-md">{app.match}</p>}
@@ -323,8 +364,8 @@ function Postulaciones() {
                         aria-label="Estado de la postulación"
                         className="text-xs border border-[#DDE3EC] rounded-lg px-2 py-1 bg-white text-[#1C2230] focus:outline-none focus:border-[#1E8EA3]"
                       >
-                        {Object.entries(APP_STATUS_LABEL).map(([value, { label }]) => (
-                          <option key={value} value={value}>{label}</option>
+                        {opcionesDeEstado(app.status).map(value => (
+                          <option key={value} value={value}>{APP_STATUS_LABEL[value]?.label ?? value}</option>
                         ))}
                       </select>
                     </div>
@@ -354,7 +395,33 @@ function Postulaciones() {
         cvLinkEndpoint={candidateProfile
           ? `/me/company/candidates/${candidateProfile.id}/cv/link${abiertaDesde ? `?application_id=${abiertaDesde}` : ""}`
           : undefined}
+        footer={candidateProfile && (
+          <>
+            {abiertaDesde && <AvisoOtrosProcesos key={abiertaDesde} applicationId={abiertaDesde} />}
+            {MODULOS_NUEVOS_VISIBLES && (
+              <NotasPostulacion
+                key={candidateProfile.id}
+                candidateId={candidateProfile.id}
+                applicationId={abiertaDesde}
+                onCantidad={n => fijarCantidadNotas(candidateProfile.id, n)}
+              />
+            )}
+          </>
+        )}
       />
+
+      {cambioPendiente && (
+        <CambioEstadoConNota
+          appId={cambioPendiente.app.id}
+          status={cambioPendiente.status}
+          estadoLabel={APP_STATUS_LABEL[cambioPendiente.status]?.label ?? cambioPendiente.status}
+          onCancelar={() => setCambioPendiente(null)}
+          onConfirmar={async (nota, tags) => {
+            await guardarEstado(cambioPendiente.app, cambioPendiente.status, nota, tags);
+            setCambioPendiente(null);
+          }}
+        />
+      )}
     </div>
   );
 }

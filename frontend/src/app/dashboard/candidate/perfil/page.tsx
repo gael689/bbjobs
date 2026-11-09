@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import SkillPicker from "@/components/dashboard/SkillPicker";
+import SugerenciasHabilidades, { type SugerenciaHabilidad } from "@/components/dashboard/SugerenciasHabilidades";
 import MyAccountSection from "@/components/dashboard/MyAccountSection";
 import {
   GENDER_LABEL, AVAILABILITY_LABEL, SUMMARY_MAX_LENGTH, SLUG_IDIOMAS, SLUG_OTRA,
@@ -382,6 +383,25 @@ export default function CandidatePerfilPage() {
       setSkillsError(detalle || "No pudimos guardar tus habilidades.");
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  /** Suma una habilidad sugerida desde el CV (módulo nuevo) y guarda en el momento, con el
+   *  mismo PUT de "Guardar habilidades" (el backend valida el tope de 6 por grupo). */
+  async function addSuggestedSkill(s: SugerenciaHabilidad) {
+    setSkillsError(null);
+    try {
+      const r = await api.put("/me/candidate/skills", {
+        skill_ids: [...selectedSkillIds, s.skill_id],
+        other_skill: otherSkill.trim() || null,
+      });
+      setMySkills(r.data);
+      setOtherSkill(r.data.other_skill || "");
+      refreshProfile();
+      toast(`Sumamos "${s.skill_name}" a tus habilidades`);
+    } catch (e: unknown) {
+      const detalle = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSkillsError(detalle || "No pudimos sumar la habilidad.");
     }
   }
 
@@ -1051,6 +1071,8 @@ export default function CandidatePerfilPage() {
                       );
                     }}
                   />
+
+                  <SugerenciasHabilidades selectedIds={selectedSkillIds} onAdd={addSuggestedSkill} />
 
                   {skillsError && (
                     <p className="text-sm text-red-600 mt-4">{skillsError}</p>

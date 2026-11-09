@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.legal import LEGAL_DOCUMENTS, LEGAL_VERSION
+from app.core.legal import LEGAL_DOCUMENTS, current_version
 from app.models.core import User, UserRole
 from app.models.legal import LegalAcceptance
 
@@ -23,10 +23,11 @@ async def record_acceptance(db: AsyncSession, user: User, request: Request | Non
     """Registra la versión vigente de los dos documentos. Aceptar dos veces no duplica filas."""
     ip = _client_ip(request)
     agent = (request.headers.get("user-agent") or "")[:300] if request else None
+    version = current_version()
     for document in LEGAL_DOCUMENTS:
         await db.execute(
             pg_insert(LegalAcceptance)
-            .values(user_id=user.id, document=document, version=LEGAL_VERSION, ip=ip, user_agent=agent or None)
+            .values(user_id=user.id, document=document, version=version, ip=ip, user_agent=agent or None)
             .on_conflict_do_nothing(constraint="uq_legal_acceptances_user_doc_version")
         )
 
@@ -37,7 +38,7 @@ async def pending_acceptance(db: AsyncSession, user: User) -> bool:
         return False
     accepted = set((await db.execute(
         select(LegalAcceptance.document).where(
-            LegalAcceptance.user_id == user.id, LegalAcceptance.version == LEGAL_VERSION
+            LegalAcceptance.user_id == user.id, LegalAcceptance.version == current_version()
         )
     )).scalars())
     return not set(LEGAL_DOCUMENTS) <= accepted

@@ -36,6 +36,19 @@ def talent_pack_price() -> float:
         return float(settings.TALENT_PACK_PRICE)
     return _TALENT_PACK_PRICE_BASE
 
+# Revisión de CV (v4 §6): pago único de un postulante. **Precio provisorio** hasta que lo
+# defina Eugenia (decisión D15); se pisa con CV_REVIEW_PRICE sin tocar código.
+_CV_REVIEW_PRICE_BASE: float = 12000.0
+CV_REVIEW_CURRENCY: str = "ARS"
+
+
+def cv_review_price() -> float:
+    """Ídem `featured_job_price`, para la Revisión de CV."""
+    if settings.CV_REVIEW_PRICE is not None:
+        return float(settings.CV_REVIEW_PRICE)
+    return _CV_REVIEW_PRICE_BASE
+
+
 class PlanCreate(BaseModel):
     code: str
     name: str

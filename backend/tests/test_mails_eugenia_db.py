@@ -1,0 +1,262 @@
+"""Mails de Eugenia (08/10/2026) contra un Postgres real: estados nuevos, vista previa del mail al
+cambiar el estado y "¿Seguís buscando trabajo?" a la semana sin entrar.
+
+Usa la base descartable de `TEST_DATABASE_URL` y el mundo de prueba de las notas (dos empresas,
+un candidato postulado a las dos). Sin la variable se saltean.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from tests.test_application_notes_db import (  # noqa: F401  (fixtures)
+    NOON,
+    PRIVADA,
+    TEST_DB,
+    VISIBLE,
+    _app,
+    _mails,
+    _notifs,
+    _world,
+    client,
+    maker,
+)
+
+pytestmark = pytest.mark.skipif(not TEST_DB, reason="TEST_DATABASE_URL no definida (base descartable)")
+
+if TEST_DB:
+    from sqlalchemy import select, text
+
+    from app.models.alerts import Notification
+    from app.models.core import User
+    from app.services import lifecycle
+    from app.services.email import dispatcher
+    from app.services.email.provider import SimulatedProvider
+
+
+def _status_url(app_id) -> str:
+    return f"/api/v1/me/company/applications/{app_id}/status"
+
+
+# ── Vista previa del mail al cambiar el estado ────────────────────────────────────────
+
+async def test_preview_shows_the_real_mail_with_name_and_job(client, maker):
+    w = await _world(maker)
+    a = w["a"]
+    client.as_user(a["user"])
+    r = await client.post(f"{_status_url(a['app'].id)}-preview", json={"status": "in_process"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["sends_email"] is True and data["delay_hours"] == 0
+    assert data["subject"] == f"Tu postulación avanzó: {a['job'].title}"
+    assert "¡Hola, Ana!" in data["html"] and "¡Tu postulación avanzó!" in data["html"]
+    # No cambió nada.
+    assert (await _app(maker, a["app"].id)).status == "new"
+    assert await _notifs(maker, w["cand_user"].id) == []
+
+
+async def test_preview_never_includes_notes(client, maker):
+    """Las observaciones son privadas (Eugenia, 22/10/2026): ni siquiera si el cliente manda una."""
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    url = f"{_status_url(w['a']['app'].id)}-preview"
+    data = (await client.post(url, json={"status": "discarded", "note": PRIVADA, "note_visible": True})).json()
+    assert PRIVADA not in data["html"] and PRIVADA not in data["text"]
+    assert "Mensaje de la empresa" not in data["html"]
+    assert data["delay_hours"] == 24
+
+
+async def test_preview_of_new_status_sends_no_email(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    data = (await client.post(f"{_status_url(w['a']['app'].id)}-preview", json={"status": "new"})).json()
+    assert data["sends_email"] is False and data["html"] is None
+
+
+async def test_preview_of_another_company_application_is_404(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    r = await client.post(f"{_status_url(w['b']['app'].id)}-preview", json={"status": "selected"})
+    assert r.status_code == 404
+
+
+async def test_preview_is_404_with_the_gate_closed(client, maker, monkeypatch):
+    from app.core.config import settings
+
+    w = await _world(maker)
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
+    client.as_user(w["a"]["user"])
+    r = await client.post(f"{_status_url(w['a']['app'].id)}-preview", json={"status": "selected"})
+    assert r.status_code == 404
+
+
+# ── Estados ─────────────────────────────────────────────────────────────────────────────
+
+async def test_contacted_and_finalist_can_no_longer_be_chosen(client, maker):
+    w = await _world(maker)
+    client.as_user(w["a"]["user"])
+    for status in ("contacted", "finalist"):
+        r = await client.patch(_status_url(w["a"]["app"].id), json={"status": status})
+        assert r.status_code == 422, status
+    assert (await _app(maker, w["a"]["app"].id)).status == "new"
+
+
+async def test_old_application_in_contacted_can_move_on(client, maker):
+    w = await _world(maker)
+    async with maker() as db:
+        await db.execute(text("UPDATE applications SET status='contacted' WHERE id=:id"), {"id": w["a"]["app"].id})
+        await db.commit()
+    client.as_user(w["a"]["user"])
+    assert (await client.patch(_status_url(w["a"]["app"].id), json={"status": "in_process"})).status_code == 200
+    assert (await _app(maker, w["a"]["app"].id)).status == "in_process"
+
+
+async def test_discarded_after_interview_waits_24h_and_cancels_if_status_changes(client, maker):
+    w = await _world(maker)
+    a = w["a"]
+    client.as_user(a["user"])
+    assert (await client.patch(_status_url(a["app"].id), json={"status": "discarded_interview"})).status_code == 200
+    [mail] = await _mails(maker, w["cand_user"].id, "application_discarded_interview")
+    assert mail.subject == f"Novedades sobre tu postulación a {a['job'].title}"
+    assert "por compartir tu experiencia en las entrevistas" in mail.html
+    assert mail.scheduled_at - mail.created_at >= timedelta(hours=23, minutes=59)
+
+    # La empresa se arrepiente antes de las 24 h: el mail se cancela al revalidar.
+    assert (await client.patch(_status_url(a["app"].id), json={"status": "in_process"})).status_code == 200
+    stats = await dispatcher.dispatch_due(session_maker=maker, provider=SimulatedProvider(),
+                                          now=NOON + timedelta(days=400))
+    async with maker() as db:
+        from app.models.email import EmailOutbox
+
+        estado = (await db.execute(select(EmailOutbox.status).where(EmailOutbox.id == mail.id))).scalar_one()
+    assert estado == "canceled", stats
+
+
+async def test_status_mail_carries_the_job_title(client, maker):
+    w = await _world(maker)
+    a = w["a"]
+    client.as_user(a["user"])
+    await client.patch(_status_url(a["app"].id), json={"status": "selected"})
+    [mail] = await _mails(maker, w["cand_user"].id, "application_selected")
+    assert mail.subject == f"¡Fuiste seleccionado/a para {a['job'].title}!"
+    assert "¡Hola, Ana!" in mail.html
+
+
+# ── "¿Seguís buscando trabajo?" ───────────────────────────────────────────────────────
+
+async def _set_seen(maker, user_id, when):
+    async with maker() as db:
+        await db.execute(text("UPDATE users SET last_seen_at=:t, created_at=:t WHERE id=:id"),
+                         {"t": when, "id": user_id})
+        await db.commit()
+
+
+async def _reactivations(maker, now) -> int:
+    async with maker() as db:
+        n = await lifecycle.reactivations(db, now)
+        await db.commit()
+    return n
+
+
+async def test_reactivation_after_a_week_without_entering(maker):
+    w = await _world(maker)
+    now = datetime.now(timezone.utc)
+    uid = w["cand_user"].id
+    # Las postulaciones del mundo de prueba son de hoy: se las corre al pasado.
+    async with maker() as db:
+        await db.execute(text("UPDATE applications SET created_at=:t"), {"t": now - timedelta(days=30)})
+        await db.commit()
+
+    await _set_seen(maker, uid, now - timedelta(days=3))
+    assert await _reactivations(maker, now) == 0          # entró hace 3 días
+
+    await _set_seen(maker, uid, now - timedelta(days=8))
+    assert await _reactivations(maker, now) == 1          # una semana sin entrar
+    assert await _reactivations(maker, now + timedelta(days=10)) == 0   # como mucho cada 30 días
+
+
+async def test_reactivation_stops_after_three_unanswered(maker):
+    w = await _world(maker)
+    now = datetime.now(timezone.utc)
+    uid = w["cand_user"].id
+    async with maker() as db:
+        await db.execute(text("UPDATE applications SET created_at=:t"), {"t": now - timedelta(days=200)})
+        await db.commit()
+    await _set_seen(maker, uid, now - timedelta(days=200))
+    async with maker() as db:
+        for _ in range(3):
+            db.add(Notification(user_id=uid, type="candidate_reactivation", title="t", body="b"))
+        await db.commit()
+    assert await _reactivations(maker, now) == 0
+
+
+async def test_last_seen_is_touched_at_most_once_per_hour(maker, monkeypatch):
+    from app.api import deps
+
+    w = await _world(maker)
+    monkeypatch.setattr(deps, "AsyncSessionLocal", maker)
+    async with maker() as db:
+        user = (await db.execute(select(User).where(User.id == w["cand_user"].id))).scalar_one()
+    assert user.last_seen_at is None
+    await deps._touch_last_seen(user)
+    async with maker() as db:
+        primero = (await db.execute(select(User.last_seen_at).where(User.id == user.id))).scalar_one()
+    assert primero is not None
+    user.last_seen_at = primero
+    await deps._touch_last_seen(user)
+    async with maker() as db:
+        segundo = (await db.execute(select(User.last_seen_at).where(User.id == user.id))).scalar_one()
+    assert segundo == primero
+
+
+# ── Empresas (E12, E13 y regalos de Talency, 19/10/2026) ──────────────────────────────
+
+async def _job_dates(maker, job_id, *, expires_at, duration_days):
+    async with maker() as db:
+        await db.execute(text("UPDATE job_postings SET expires_at=:e, duration_days=:d WHERE id=:id"),
+                         {"e": expires_at, "d": duration_days, "id": job_id})
+        await db.commit()
+
+
+async def test_expiring_soon_mail_says_the_real_days_left(maker, monkeypatch):
+    from app.core import scheduler
+
+    w = await _world(maker)
+    a = w["a"]
+    monkeypatch.setattr(scheduler, "async_session_maker", maker)
+    await _job_dates(maker, a["job"].id, expires_at=datetime.now(timezone.utc) + timedelta(days=1, hours=20),
+                     duration_days=10)
+    await scheduler.notify_expiring_soon()
+    [mail] = await _mails(maker, a["user"].id, "job_expiring_soon")
+    assert "vencerá en 2 días" in mail.html
+    assert "Hola, R:" in mail.html and "Equipo de BBJobs" in mail.html
+    assert "https://wa.me/5492915362225" in mail.html
+
+
+async def test_expired_mail_says_the_job_duration_not_30(maker, monkeypatch):
+    from app.core import scheduler
+
+    w = await _world(maker)
+    a = w["a"]
+    monkeypatch.setattr(scheduler, "async_session_maker", maker)
+    await _job_dates(maker, a["job"].id, expires_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+                     duration_days=15)
+    await scheduler.expire_jobs()
+    [mail] = await _mails(maker, a["user"].id, "job_expired")
+    assert mail.subject == "Finalizó el plazo de tu publicación en BBJobs"
+    assert "plazo máximo de 15 días" in mail.html
+    assert "30 días" not in mail.html
+
+
+async def test_granted_talent_pack_uses_its_own_notice(client, maker):
+    w = await _world(maker)
+    client.as_user(w["admin"])
+    r = await client.post("/api/v1/admin/talent/packs",
+                          json={"company_id": str(w["a"]["company"].id), "credits": 7})
+    assert r.status_code == 200, r.text
+    uid = w["a"]["user"].id
+    assert [n.type for n in await _notifs(maker, uid)] == ["talent_pack_granted"]
+    [mail] = await _mails(maker, uid, "talent_pack_granted")
+    assert "7 contactos" in mail.html
+    assert "acredit" not in mail.html and "compra" not in mail.html.lower()

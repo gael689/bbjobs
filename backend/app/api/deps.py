@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
 from sqlalchemy.future import select
 from app.db.session import AsyncSessionLocal
 from app.models.core import User, UserRole
@@ -65,6 +67,23 @@ async def get_clerk_identity(
     return ClerkIdentity(clerk_user_id=clerk_user_id)
 
 
+LAST_SEEN_EVERY = timedelta(hours=1)
+
+
+async def _touch_last_seen(user: User) -> None:
+    """`users.last_seen_at`, como mucho una vez por hora y en su propia sesión: no se mezcla con
+    la transacción del pedido ni puede romperlo (para "una semana sin entrar")."""
+    now = datetime.now(timezone.utc)
+    if user.last_seen_at is not None and user.last_seen_at > now - LAST_SEEN_EVERY:
+        return
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(update(User).where(User.id == user.id).values(last_seen_at=now))
+            await session.commit()
+    except Exception as exc:  # nunca frena el pedido
+        logger.warning("last_seen_fallo", error=str(exc)[:200])
+
+
 async def get_current_user(
     identity: ClerkIdentity = Depends(get_clerk_identity),
     db: AsyncSession = Depends(get_db),
@@ -80,6 +99,8 @@ async def get_current_user(
         )
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    await _touch_last_seen(user)
 
     # Setup RLS context for the session
     await set_rls_context(db, user.id, str(user.role))

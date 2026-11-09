@@ -17,15 +17,20 @@ from app.models.contact import ContactMessage
 from app.models.history import ApplicationStatusHistory, CandidateActivityLog
 from app.models.payment import Payment, PaymentType, JobFeature, JobFeatureStatus
 from app.services.notifications import create_notification
+from app.services import application_events
+from app.schemas.application import AdminCandidateNoteResponse
 from app.services.account_deletion import AccountDeletionError, delete_account, preview_deletion
 from app.services.profile_completion import compute_profile_completion_bulk
 from app.services.applicant_stats import (
     ApplicantStats, compute_applicant_stats, get_highest_education_level,
 )
 from app.services.job_features import end_active_feature_for_job
+from app.services import indexing
+from app.core.urls import job_public_path
 from app.services.job_status import can_admin_reopen
-from app.services.settings import get_all_settings, set_setting
-from app.models.settings import SettingKey
+from app.services.settings import get_all_settings, get_setting, set_setting
+from app.models.settings import NEW_MODULE_SETTINGS, SettingKey
+from app.core.features import new_modules_enabled, require_new_modules
 from app.integrations.clerk_client import create_clerk_user
 from app.integrations.cloudinary_client import signed_document_url
 from app.schemas.candidate import calculate_age, CandidateFullProfile
@@ -134,9 +139,26 @@ class JobAdminResponse(BaseModel):
     salary_currency: Optional[str] = None
     salary_visible: bool = False
     benefits: Optional[str] = None
+    # Señales de la IA para la lista de pendientes (sólo con la IA activa y el vector ya
+    # calculado al publicar). Orientativas: la IA no aprueba ni rechaza nada.
+    ai_flags: Optional["JobAiFlags"] = None
 
     class Config:
         from_attributes = True
+
+
+class JobAiFlags(BaseModel):
+    possible_duplicate: bool = False
+    duplicate_count: int = 0
+    duplicate_of: Optional[str] = None          # título de la más parecida
+    duplicate_company: Optional[str] = None
+    duplicate_same_company: bool = False
+    duplicate_similarity: Optional[float] = None
+    sector_current: Optional[str] = None
+    sector_suggested: Optional[str] = None
+
+
+JobAdminResponse.model_rebuild()
 
 
 class ModerateJobPayload(BaseModel):
@@ -348,6 +370,7 @@ async def verify_company(
         title=notif_title,
         body=notif_body,
         link="/dashboard/company",
+        email_vars={"detalle": payload.notes or ""},
     )
 
     # Audit trail
@@ -388,8 +411,11 @@ async def suspend_company(
         )
     )
     active_jobs = active_jobs_result.scalars().all()
+    cambios_indexing = []
     for job in active_jobs:
+        antes = indexing.snapshot(job)
         job.status = JobPostingStatus.paused
+        cambios_indexing.append(indexing.change_for(antes, job))
 
     await create_notification(
         db,
@@ -411,6 +437,7 @@ async def suspend_company(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambios_indexing)
     return {"status": "ok", "verification_status": VerificationStatus.suspended, "jobs_paused": len(active_jobs)}
 
 
@@ -468,8 +495,10 @@ async def takedown_job(
     if job.status == JobPostingStatus.closed:
         raise HTTPException(status_code=400, detail="La búsqueda ya está cerrada")
 
+    antes_indexing = indexing.snapshot(job)
     job.status = JobPostingStatus.closed
     job.closed_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     if job.is_featured:
         await end_active_feature_for_job(db, job)
 
@@ -487,6 +516,7 @@ async def takedown_job(
             title="Búsqueda dada de baja",
             body=f"La búsqueda '{job.title}' fue dada de baja por incumplimiento de las políticas de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title},
         )
 
     # Audit trail
@@ -500,6 +530,7 @@ async def takedown_job(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
     return {"status": "ok", "job_id": job_id}
 
 
@@ -638,6 +669,7 @@ async def list_jobs(
     q = q.order_by(JobPosting.is_featured.desc(), JobPosting.published_at.asc(), JobPosting.id.asc())
     total = await contar(db, q)
     result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    rows = result.all()
     items = [
         JobAdminResponse.model_validate(job, from_attributes=True).model_copy(
             # La columna es String: llega "verified", no el enum. model_copy(update=) no valida,
@@ -645,9 +677,39 @@ async def list_jobs(
             # (500 líneas/seg), tapando los errores de verdad.
             update={"company_verification_status": VerificationStatus(verification_status) if verification_status else None}
         )
-        for job, verification_status in result.all()
+        for job, verification_status in rows
     ]
+    flags = await _pending_ai_flags(db, [job for job, _ in rows])
+    if flags:
+        items = [i.model_copy(update={"ai_flags": flags[i.id]}) if i.id in flags else i for i in items]
     return Paginated(items=items, total=total, page=page, page_size=page_size)
+
+
+async def _pending_ai_flags(db: AsyncSession, jobs: list[JobPosting]) -> dict[uuid.UUID, JobAiFlags]:
+    """Chip de la IA en la lista de pendientes: posible duplicado y sector dudoso, leídos de lo
+    que ya calculó la moderación al publicar. **Nunca llama a Gemini** (sólo vectores guardados).
+    Con la compuerta o el interruptor apagados, no devuelve nada."""
+    pending = [j for j in jobs if j.moderation_status == JobModerationStatus.pending_review]
+    if not pending or not new_modules_enabled() or not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        return {}
+    from app.services.ai import moderation
+
+    try:
+        checks = await moderation.cached_checks(db, pending)
+    except Exception:  # una señal orientativa nunca tumba la lista de moderación
+        return {}
+    out: dict[uuid.UUID, JobAiFlags] = {}
+    for job_id, c in checks.items():
+        top = c.duplicates[0] if c.duplicates else None
+        out[job_id] = JobAiFlags(
+            possible_duplicate=top is not None, duplicate_count=len(c.duplicates),
+            duplicate_of=top.title if top else None, duplicate_company=top.company if top else None,
+            duplicate_same_company=top.same_company if top else False,
+            duplicate_similarity=top.similarity if top else None,
+            sector_current=c.sector.current_industry if c.sector else None,
+            sector_suggested=c.sector.suggested_industry if c.sector else None,
+        )
+    return out
 
 
 # ── Drill-down: empresa → búsquedas → postulaciones, y candidato → perfil completo ────────────
@@ -832,6 +894,36 @@ async def get_candidate_cv_link_admin(
     return SignedDocumentLink(url=url)
 
 
+@router.get(
+    "/admin/candidates/{candidate_id}/notes",
+    response_model=List[AdminCandidateNoteResponse],
+    dependencies=[Depends(require_new_modules)],
+)
+async def admin_candidate_notes(
+    candidate_id: uuid.UUID,
+    admin: User = Depends(require_role([UserRole.admin])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Observaciones privadas de las empresas sobre una persona. Sólo lectura (no hay POST,
+    PATCH ni DELETE de admin) y **cada lectura queda en el registro de auditoría**. Eugenia, el
+    22/10/2026: "solo yo o alguien con usuario de Talency"."""
+    existe = (await db.execute(
+        select(CandidateProfile.id).where(CandidateProfile.id == candidate_id)
+    )).scalar_one_or_none()
+    if existe is None:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    filas = await application_events.admin_candidate_notes(db, admin_user_id=admin.id, candidate_id=candidate_id)
+    await db.commit()
+    return [
+        AdminCandidateNoteResponse(
+            id=n.id, candidate_id=n.candidate_id, application_id=n.application_id, job_title=n.job_title,
+            body=n.body, tags=n.tags or [], status_at_time=n.status_at_time, created_at=n.created_at,
+            company_id=n.company_id, company_name=empresa,
+        )
+        for n, empresa in filas
+    ]
+
+
 @router.get("/admin/candidates/{candidate_id}/activity", response_model=List[CandidateActivityLogResponse])
 async def get_candidate_activity_admin(
     candidate_id: uuid.UUID,
@@ -913,6 +1005,7 @@ async def moderate_job(
     # click de más. Ahora se puede volver a moderar en cualquier momento (aprobar algo que se
     # había rechazado por error, o al revés) — es la misma acción, sólo que ya no es de una
     # sola vez. Ver MODIFICACIONES-EUGENIA-2026-08-14-PLAN.md, A1.
+    antes_indexing = indexing.snapshot(job)
     if payload.action == "approve":
         job.moderation_status = JobModerationStatus.approved
         notif_type, notif_title, notif_body = (
@@ -932,6 +1025,7 @@ async def moderate_job(
     job.moderation_notes = payload.notes
     job.moderated_by_admin_id = admin.id
     job.moderated_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
 
     company_result = await db.execute(select(CompanyProfile).where(CompanyProfile.id == job.company_id))
     company = company_result.scalar_one_or_none()
@@ -943,6 +1037,9 @@ async def moderate_job(
             title=notif_title,
             body=notif_body,
             link="/dashboard/company/estadisticas",
+            # E7: "Ver mi publicación" abre la ficha pública. E8 no lleva el motivo (P11).
+            email_vars={"puesto": job.title, "detalle": payload.notes or "",
+                        **({"enlace": job_public_path(job)} if payload.action == "approve" else {})},
         )
 
     audit = AuditLog(
@@ -955,6 +1052,16 @@ async def moderate_job(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
+    if payload.action == "approve":
+        # Recomendados al instante (módulo en desarrollo): sólo marca la búsqueda; la tarea de
+        # 10 min la recalcula. No frena la aprobación ni falla si la IA está apagada.
+        from app.services.ai.realtime import request_recompute
+        await request_recompute(job.id, "aprobada")
+        # Aviso al candidato "Hay una búsqueda que encaja con tu perfil": sin IA, se anota acá
+        # con el puntaje simple; con IA, al terminar el recálculo (services/email/matches.py).
+        from app.services.email.matches import on_job_approved
+        await on_job_approved(job.id)
     return {"status": "ok", "moderation_status": job.moderation_status}
 
 
@@ -980,8 +1087,10 @@ async def reopen_job(
             detail="Sólo se puede reabrir una búsqueda dada de baja",
         )
 
+    antes_indexing = indexing.snapshot(job)
     job.status = JobPostingStatus.active
     job.closed_at = None
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     now = datetime.now(timezone.utc)
     if not job.expires_at or job.expires_at <= now:
         job.published_at = now
@@ -997,6 +1106,7 @@ async def reopen_job(
             title="Tu búsqueda volvió a estar activa",
             body=f"'{job.title}' fue reactivada por el equipo de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title, "enlace": job_public_path(job)},
         )
 
     audit = AuditLog(
@@ -1010,6 +1120,7 @@ async def reopen_job(
 
     await db.commit()
     await db.refresh(job)
+    indexing.notify(cambio_indexing)
     return {"status": "ok", "job_status": job.status, "expires_at": job.expires_at}
 
 
@@ -1039,6 +1150,7 @@ async def update_job_admin(
 
     update_data = payload.model_dump(exclude_unset=True, exclude={"status"})
     duration_changed = "duration_days" in update_data
+    antes_indexing = indexing.snapshot(job)
     for key, value in update_data.items():
         setattr(job, key, value)
 
@@ -1057,8 +1169,11 @@ async def update_job_admin(
     )
     db.add(audit)
 
+    # Sólo avisa si cambió el título de una búsqueda publicada (la URL lleva el slug del título).
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     await db.commit()
     await db.refresh(job)
+    indexing.notify(cambio_indexing)
     return job
 
 
@@ -1080,7 +1195,9 @@ async def delete_job_admin(
     if not job:
         raise HTTPException(status_code=404, detail="Búsqueda no encontrada")
 
+    antes_indexing = indexing.snapshot(job)
     job.deleted_at = datetime.now(timezone.utc)
+    cambio_indexing = indexing.change_for(antes_indexing, job)
     if job.is_featured:
         await end_active_feature_for_job(db, job)
 
@@ -1094,6 +1211,7 @@ async def delete_job_admin(
             title="Tu búsqueda fue eliminada",
             body=f"'{job.title}' fue eliminada por el equipo de BBJobs.",
             link="/dashboard/company/estadisticas",
+            email_vars={"puesto": job.title},
         )
 
     audit = AuditLog(
@@ -1106,6 +1224,7 @@ async def delete_job_admin(
     db.add(audit)
 
     await db.commit()
+    indexing.notify(cambio_indexing)
     return {"status": "ok"}
 
 
@@ -1212,32 +1331,56 @@ class SiteSettingsResponse(BaseModel):
     volumen los haga significativos, sin tocar código."""
     stats_visibles_para_candidatos: bool
     stats_visibles_en_landing: bool
+    # Módulos en desarrollo: None (y fuera de la respuesta) con la compuerta cerrada.
+    emails_automaticos_activos: Optional[bool] = None
+    ia_recomendaciones_activas: Optional[bool] = None
+    revision_cv_activa: Optional[bool] = None
+    busqueda_ia_activa: Optional[bool] = None
+    asistente_ia_activo: Optional[bool] = None
+    aviso_otros_procesos_activo: Optional[bool] = None
 
 
 class SiteSettingsUpdate(BaseModel):
     stats_visibles_para_candidatos: Optional[bool] = None
     stats_visibles_en_landing: Optional[bool] = None
+    emails_automaticos_activos: Optional[bool] = None
+    ia_recomendaciones_activas: Optional[bool] = None
+    revision_cv_activa: Optional[bool] = None
+    busqueda_ia_activa: Optional[bool] = None
+    asistente_ia_activo: Optional[bool] = None
+    aviso_otros_procesos_activo: Optional[bool] = None
 
 
-@router.get("/admin/settings", response_model=SiteSettingsResponse)
+async def _visible_settings(db: AsyncSession) -> SiteSettingsResponse:
+    valores = await get_all_settings(db)
+    if not new_modules_enabled():
+        for clave in NEW_MODULE_SETTINGS:
+            valores.pop(clave.value, None)
+    return SiteSettingsResponse(**valores)
+
+
+@router.get("/admin/settings", response_model=SiteSettingsResponse, response_model_exclude_none=True)
 async def get_site_settings(
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
-    return SiteSettingsResponse(**await get_all_settings(db))
+    return await _visible_settings(db)
 
 
-@router.patch("/admin/settings", response_model=SiteSettingsResponse)
+@router.patch("/admin/settings", response_model=SiteSettingsResponse, response_model_exclude_none=True)
 async def update_site_settings(
     payload: SiteSettingsUpdate,
     _: User = Depends(require_role([UserRole.admin])),
     db: AsyncSession = Depends(get_db),
 ):
     for clave, valor in payload.model_dump(exclude_unset=True).items():
-        if valor is not None:
-            await set_setting(db, SettingKey(clave), valor)
+        if valor is None:
+            continue
+        if SettingKey(clave) in NEW_MODULE_SETTINGS and not new_modules_enabled():
+            continue  # módulo en desarrollo: no se puede prender desde el panel
+        await set_setting(db, SettingKey(clave), valor)
     await db.commit()
-    return SiteSettingsResponse(**await get_all_settings(db))
+    return await _visible_settings(db)
 
 
 # ── Destacado manual ─────────────────────────────────────────────────────────
@@ -1307,7 +1450,8 @@ async def set_job_featured_admin(
         await create_notification(
             db,
             user_id=company.user_id,
-            type="job_feature_active" if payload.featured else "job_feature_expired",
+            # Destacado a mano = sin cargo: su propio aviso, sin "el servicio que contrataste" (P9).
+            type="job_feature_granted" if payload.featured else "job_feature_expired",
             title="Destacado activado" if payload.featured else "Destacado desactivado",
             body=(
                 f"Talency destacó '{job.title}' en el portal, sin cargo."
@@ -1315,6 +1459,10 @@ async def set_job_featured_admin(
                 else f"'{job.title}' ya no aparece destacada."
             ),
             link="/dashboard/company/busquedas",
+            email_vars={"puesto": job.title,
+                        **({"enlace": job_public_path(job)} if payload.featured
+                           and job.moderation_status == JobModerationStatus.approved
+                           and job.status == JobPostingStatus.active else {})},
         )
 
     await db.commit()

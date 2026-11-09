@@ -97,14 +97,31 @@ class ApplicationStatus(str, enum.Enum):
     La columna es String(50) y no un ENUM de Postgres, así que sumar valores no necesita
     migración de tipo. `finalist` y `selected` se agregaron en agosto/2026; el resto sólo
     cambió de etiqueta en la UI (`seen` pasó a mostrarse como "Perfil revisado" y `discarded`
-    como "No avanza"), sin tocar los datos ya guardados."""
+    como "No avanza"), sin tocar los datos ya guardados.
+
+    Octubre/2026 (Eugenia): `contacted` y `finalist` salen del desplegable de la empresa pero
+    siguen siendo válidos (hay postulaciones viejas en esos estados), y "No avanza" se divide
+    en dos: `discarded` (después de revisar el perfil) y `discarded_interview` (después de
+    entrevistas). Ver SELECTABLE_STATUSES."""
     new = "new"                  # Nueva
     seen = "seen"                # Perfil revisado
-    contacted = "contacted"      # Contactado
+    contacted = "contacted"      # Contactado (ya no se elige)
     in_process = "in_process"    # En proceso
-    finalist = "finalist"        # Finalista
+    finalist = "finalist"        # Finalista (ya no se elige)
     selected = "selected"        # Seleccionado
-    discarded = "discarded"      # No avanza
+    discarded = "discarded"      # No avanza – revisión de perfil
+    discarded_interview = "discarded_interview"  # No avanza – después de entrevistas
+
+
+# Lo que la empresa puede elegir hoy, en el orden del desplegable. Un estado fuera de esta lista
+# sólo puede quedar como estaba (postulaciones viejas).
+SELECTABLE_STATUSES = (
+    ApplicationStatus.new, ApplicationStatus.seen, ApplicationStatus.in_process,
+    ApplicationStatus.selected, ApplicationStatus.discarded, ApplicationStatus.discarded_interview,
+)
+# "No avanza" en cualquiera de sus dos variantes: cuenta como postulación cerrada sin éxito.
+NOT_ADVANCED_STATUSES = (ApplicationStatus.discarded, ApplicationStatus.discarded_interview)
+
 
 class Application(UUIDMixin, Base):
     __tablename__ = "applications"

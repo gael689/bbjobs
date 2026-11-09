@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.api.v1.contact import _ALFABETO, nuevo_codigo
-from app.core.legal import LEGAL_VERSION
+from app.core import legal as legal_core
+from app.core.config import settings
 from app.models.contact import ContactTopic
 from app.schemas.contact import ArrepentimientoCreate, ContactMessageCreate
 from app.schemas.onboarding import CandidateOnboarding
@@ -14,10 +15,21 @@ from app.schemas.onboarding import CandidateOnboarding
 FRONT_LEGAL = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "legal.ts"
 
 
-def test_frontend_and_backend_share_the_legal_version():
+def test_frontend_and_backend_share_the_legal_versions():
     # Si difieren, el cartel del panel pide aceptar una versión distinta de la publicada.
-    m = re.search(r'LEGAL_VERSION\s*=\s*"([^"]+)"', FRONT_LEGAL.read_text(encoding="utf-8"))
-    assert m and m.group(1) == LEGAL_VERSION
+    front = FRONT_LEGAL.read_text(encoding="utf-8")
+    for name, value in (("LEGAL_VERSION_BASE", legal_core.LEGAL_VERSION_BASE),
+                        ("LEGAL_VERSION_MODULOS", legal_core.LEGAL_VERSION_MODULOS)):
+        m = re.search(name + r'\s*=\s*"([^"]+)"', front)
+        assert m and m.group(1) == value, name
+
+
+def test_the_v3_text_only_applies_with_the_gate_open(monkeypatch):
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
+    assert legal_core.current_version() == "2.0"
+    monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
+    assert legal_core.current_version() == "3.0"
+    assert legal_core.current_version() in legal_core.AI_CONSENT_VERSIONS
 
 
 def test_onboarding_accepts_without_the_field_for_old_frontends():

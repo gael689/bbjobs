@@ -8,6 +8,7 @@ import {
   BellIcon,
   UserCircleIcon,
   ClockIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import type { ComponentType, SVGProps } from "react";
 
@@ -58,6 +59,7 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   application_finalist: { ...TEAL, icon: CheckBadgeIcon },
   application_selected: { ...SECONDARY, icon: CheckBadgeIcon },
   application_discarded: MUTED,
+  application_discarded_interview: MUTED,
   job_closed_applied: MUTED,
   // Verificación (positivo)
   company_verified: { ...TEAL, icon: CheckBadgeIcon },
@@ -71,6 +73,9 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   job_feature_active: SECONDARY,
   job_feature_rejected: SECONDARY,
   job_feature_expired: SECONDARY,
+  // Destacado y pack que regala Talency (sin pago)
+  job_feature_granted: SECONDARY,
+  talent_pack_granted: SECONDARY,
   admin_payment_received: SECONDARY,
   // Vencimiento de búsqueda
   job_expiring_soon: WARNING,
@@ -86,6 +91,13 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationTypeConfig> = {
   job_pending_review: { ...TEAL, icon: BellAlertIcon },
   // Perfil del candidato
   profile_incomplete: { ...TEAL, icon: UserCircleIcon },
+  // Habilidades que muestra su CV (IA, sólo en la web)
+  skill_suggestions_ready: { ...TEAL, icon: SparklesIcon },
+  // Borrador semanal de campaña (sólo en la web; nunca sale sin aprobación)
+  admin_campaign_weekly_ready: { ...TEAL, icon: BellAlertIcon },
+  // Recomendaciones de la IA (también salen como cartel emergente, ver AvisoEmergente.tsx)
+  recommended_candidates_new: { ...TEAL, icon: SparklesIcon },
+  admin_ai_new_fits: { ...TEAL, icon: SparklesIcon },
 };
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationTypeConfig = {
