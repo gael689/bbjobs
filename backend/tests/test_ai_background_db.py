@@ -137,7 +137,8 @@ async def _para_vos_world(maker):
         zone = Zone(id=uuid.uuid4(), name=f"Zona {tag}", slug=f"zona-{tag}")
         ct = ContractType(id=uuid.uuid4(), name=f"Efectivo {tag}")
         cu = User(id=uuid.uuid4(), email=f"emp-{tag}@empresa.com", role="company", is_active=True)
-        ku = User(id=uuid.uuid4(), email=f"cand-{tag}@mail.com", role="candidate", is_active=True)
+        ku = User(id=uuid.uuid4(), email=f"cand-{tag}@mail.com", role="candidate", is_active=True,
+                  last_seen_at=MONDAY_9 - timedelta(days=1))
         db.add_all([ind, zone, ct, cu, ku])
         await db.flush()
         company = CompanyProfile(id=uuid.uuid4(), user_id=cu.id, legal_name=f"Empresa {tag}", cuit=f"30-{tag}-9",

@@ -459,6 +459,7 @@ async def test_criteria_only_what_the_job_asks_and_zone_by_proximity(maker):
 
 
 async def test_company_list_flags_unevaluated_and_puts_them_after_same_level(maker, monkeypatch):
+    from app.services.ai import scoring
     from app.main import app
 
     companies, job, people = await _world(maker)
@@ -486,7 +487,7 @@ async def test_company_list_flags_unevaluated_and_puts_them_after_same_level(mak
             data = (await c.get(f"/api/v1/me/company/jobs/{job.id}/recommendations")).json()
     finally:
         app.dependency_overrides.clear()
-    assert data["thresholds"] == {"recommended": 70, "strong": 80}
+    assert data["thresholds"] == {"recommended": scoring.RECOMMENDED_THRESHOLD, "strong": scoring.NEW_FIT_THRESHOLD}
     names = [a["name"] for a in data["applicants"]]
     # Mismo nivel ("Encaja", 70-79): primero el evaluado (72) y después el sin evaluar (76).
     assert names[:2] == ["Flojo Test", "Bueno Test"] and names[-1] == "Tramposo Test"

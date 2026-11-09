@@ -13,6 +13,9 @@ dejan la búsqueda **marcada** en `ai_recompute_queue` y la tarea de 10 minutos 
   próxima vuelta.
 - Si una postulación llega mientras se recalcula, `last_requested_at` cambia y la fila no se
   borra: se vuelve a procesar en la próxima vuelta (barato: todo lo demás está en caché).
+- **Aviso al candidato:** al terminar cada recálculo de una búsqueda recién publicada, se anotan
+  los candidatos que encajan (≥ 70, evaluados por la IA) para el aviso "Hay una búsqueda que
+  encaja con tu perfil" (`services/email/matches.py`). Es una regla en código: la IA sólo puntúa.
 """
 from __future__ import annotations
 
@@ -66,6 +69,17 @@ async def request_recompute(job_id: uuid.UUID, reason: str) -> None:
         logger.warning("ai_recompute_mark_fallo", job_id=str(job_id), error=str(exc)[:200])
 
 
+async def _collect_matches(db: AsyncSession, job: JobPosting, now: datetime) -> None:
+    """Anota a quién avisarle de esta búsqueda. Si falla, no tira abajo el recálculo."""
+    from app.services.email.matches import collect_ai_matches
+
+    try:
+        async with db.begin_nested():
+            await collect_ai_matches(db, job, now)
+    except Exception as exc:
+        logger.warning("aviso_busquedas_fallo", job_id=str(job.id), error=str(exc)[:200])
+
+
 async def process_queue(db: AsyncSession, provider: AIProvider | None, now: datetime | None = None) -> dict:
     """Recalcula las búsquedas marcadas hace más de `DEBOUNCE`. Commitea por búsqueda."""
     now = now or datetime.now(timezone.utc)
@@ -92,6 +106,7 @@ async def process_queue(db: AsyncSession, provider: AIProvider | None, now: date
                 reranks_left -= result["rerank"] + result["fallidos"]
                 stats["rerank"] += result["rerank"]
                 stats["busquedas"] += 1
+                await _collect_matches(db, job, now)
                 if result.get("tope"):
                     # Quedaron fichas sin evaluar por el tope de la corrida: sigue en la cola.
                     await db.commit()

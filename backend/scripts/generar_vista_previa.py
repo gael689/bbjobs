@@ -89,11 +89,11 @@ META: list[tuple[str, str | None, str, str, str, str]] = [
     ("cv_review_delivered", None, "Revisión de CV: terminada", "c_pagos",
      "Cuando Talency marca la revisión como entregada.", "Una vez."),
     ("digest_para_vos", "C11", "Resumen semanal de oportunidades", "c_resumenes",
-     "Los lunes a la mañana: las búsquedas de la semana, primero las que encajan con su perfil.",
+     "Los lunes a la mañana, a quien entró a BBJobs en los últimos 30 días: las búsquedas de la semana, primero las que encajan con su perfil.",
      "Uno por semana. Si no hay búsquedas nuevas, no sale."),
-    ("digest_alertas", None, "Alertas de búsquedas", "c_resumenes",
-     "Cuando se publican búsquedas que coinciden con una alerta que armó la persona.",
-     "Diario o semanal, según elija. Si no hay nada nuevo, no sale."),
+    ("aviso_busquedas", None, "Hay una búsqueda que encaja con tu perfil", "c_resumenes",
+     "Cuando se aprueba una búsqueda nueva y encaja con su perfil (puntaje de 70 o más, que la persona no se haya postulado y que haya entrado a BBJobs en los últimos 30 días). Lo decide una regla, no la IA.",
+     "Como mucho uno cada 24 horas: si en ese lapso aparecen más búsquedas, van juntas en el próximo. Nunca la misma búsqueda dos veces, y el resumen de los lunes no las repite."),
     # ── Empresas ──
     ("welcome_company", "E1", "Registro recibido", "e_registro",
      "Apenas la empresa termina de registrarse.", "Una sola vez."),
@@ -171,7 +171,7 @@ FUERA_DE_LA_VISTA_PREVIA = {"application_contacted", "application_finalist"}
 # El texto de la campanita de cada aviso: (título, cuerpo, link). Es el que escribe el sistema.
 CAMPANITA: dict[str, tuple[str, str, str | None]] = {
     "welcome_candidate": ("Bienvenido/a a BBJobs",
-        "Completá tu perfil y cargá tu CV: es lo primero que miran las empresas. Después podés postularte con un clic y armar alertas para enterarte de las búsquedas nuevas.",
+        "Completá tu perfil y cargá tu CV: es lo primero que miran las empresas. Después podés postularte con un clic. Cuando se publique una búsqueda que encaje con tu perfil, te avisamos.",
         "/dashboard/candidate/perfil"),
     "application_sent": ("Te postulaste", f"Tu postulación a '{JOB}' llegó a la empresa.", "/dashboard/candidate/postulaciones"),
     "application_contacted": ("Una empresa te contactó", f"La empresa de '{JOB}' se va a comunicar con vos.", "/dashboard/candidate/postulaciones"),
@@ -251,12 +251,11 @@ CAMPANITA: dict[str, tuple[str, str, str | None]] = {
 # Los resúmenes: (asunto, título, intro, filas, botón, link). Si el resumen tiene texto en
 # copy.DIGESTS, ése pisa asunto, título, intro y botón.
 RESUMENES: dict[str, tuple[str, str, str, list[EmailItem], str, str]] = {
-    "digest_alertas": ("3 búsquedas nuevas para tu alerta", "Nuevas búsquedas que coinciden con tus alertas",
-        "Estas búsquedas se publicaron en BBJobs y coinciden con lo que estás buscando.",
-        [EmailItem("Operario/a de depósito con autoelevador", "Centro · presencial · Logística Sur", "/empleos/x"),
-         EmailItem("Repositor/a turno mañana", "Norte · presencial · Supermercado Del Puerto", "/empleos/x"),
-         EmailItem("Auxiliar administrativo/a", "Centro · híbrido · Estudio Contable Paz", "/empleos/x")],
-        "Ver todas las búsquedas", "/empleos"),
+    # Con dos búsquedas, para que se vea el asunto en plural (con una: "Hay una búsqueda que…").
+    "aviso_busquedas": ("", "", "",
+        [EmailItem("Operario/a de depósito con autoelevador", "Bahía Blanca", "/empleos/x"),
+         EmailItem("Repositor/a turno mañana", "Zona Norte", "/empleos/x")],
+        "Ver más búsquedas", "/empleos"),
     "digest_para_vos": ("Búsquedas de esta semana que te pueden interesar", "Búsquedas para vos",
         "Se publicaron esta semana y encajan con tu perfil. Postularte lleva un clic.",
         [EmailItem("Chofer de reparto", "Bahía Blanca · presencial · Distribuidora Sur", "/empleos/x"),
@@ -334,7 +333,7 @@ PREGUNTAS = [
      "texto": "Varios mails no tenían asunto. El de «empresa suspendida» no tenía saludo. Y los dos primeros de empresas (registro y verificación) tienen el estilo de los de candidatos, con «¡Hola!» y «BBJobs. El talento de Bahía, más cerca.».",
      "propuesta": "Como asunto usamos el título que escribiste arriba de cada mail (lo vas a ver como «Asunto propuesto»). A «empresa suspendida» le sumamos «Hola, {nombre}:». Los mails de empresas cierran con «Saludos, Equipo de BBJobs, Una iniciativa de Talency» y el WhatsApp; los de candidatos, con su firma de siempre. ¿Dejamos los dos primeros de empresas como los escribiste o los pasamos al estilo de empresas?"},
     {"codigo": "P13", "tema": "Mails", "titulo": "Avisos que todavía no tienen texto tuyo",
-     "texto": "Hay avisos que no estaban en tu PDF: el mensaje de la empresa al postulante, los 4 de la Revisión de CV, las alertas de búsquedas, «quedan pocos contactos», los dos regalos de Talency y los del equipo.",
+     "texto": "Hay avisos que no estaban en tu PDF: el mensaje de la empresa al postulante, los 4 de la Revisión de CV, «Hay una búsqueda que encaja con tu perfil», «quedan pocos contactos», los dos regalos de Talency y los del equipo.",
      "propuesta": "Quedan con el texto propuesto hasta que los revises. ¿Los escribís vos o te quedan bien así?"},
     {"codigo": "P1", "tema": "Mejoras del panel", "titulo": "¿Talency puede leer las notas privadas de las empresas?",
      "texto": "En tu pedido dijiste que con tu usuario general querés ver todo. Hasta ahora habíamos decidido que nadie fuera de la empresa las lea.",
@@ -396,6 +395,7 @@ def resumen(tipo: str, dest: str):
     item_cta = hola = outro = ayuda = None
     voz = "candidato"
     if copia is not None:
+        copia = copia.for_count(len(items))
         asunto, titulo, intro, cta, item_cta = copia.subject, copia.heading, copia.intro, copia.cta_label, copia.item_cta
         voz, outro, ayuda = copia.voice, copia.outro, copia.help_whatsapp
         hola = greeting(NOMBRE[dest], voz)

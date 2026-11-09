@@ -83,7 +83,6 @@ export default function PrivacidadV3() {
               </li>
               <li>Las observaciones internas que registren las empresas sobre sus procesos de selección (punto 5).</li>
               <li>Si compraste la Revisión de CV: lo que nos contaste para la revisión, el canal por el que querés que te contactemos y el estado del servicio.</li>
-              <li>Las alertas de empleo que crees.</li>
             </ul>
             <p className="font-medium text-[#1C2230] pt-2">Si sos empresa:</p>
             <ul className="list-disc pl-5 space-y-1">
@@ -107,7 +106,7 @@ export default function PrivacidadV3() {
               <li>Verificar que las empresas existen y son quienes dicen ser.</li>
               <li>Hacer funcionar la Base de Talento, si la autorizaste.</li>
               <li>Ayudar a las empresas a ordenar postulantes por afinidad con su búsqueda, con inteligencia artificial y siempre con la decisión de una persona (punto 7).</li>
-              <li>Mandarte por mail avisos de tu cuenta, tus postulaciones o tus búsquedas, y las alertas que crees; y, <strong>sólo si lo aceptaste</strong>, novedades de BBJobs y Talency (punto 8).</li>
+              <li>Mandarte por mail avisos de tu cuenta, tus postulaciones o tus búsquedas, y búsquedas que encajan con tu perfil; y, <strong>sólo si lo aceptaste</strong>, novedades de BBJobs y Talency (punto 8).</li>
               <li>Prestarte la Revisión de CV, si la compraste (punto 9).</li>
               <li>Cobrar los servicios pagos y llevar el registro contable.</li>
               <li>Cumplir con la ley y responder a pedidos de autoridades competentes.</li>
@@ -226,7 +225,7 @@ export default function PrivacidadV3() {
               <li><strong>Cuenta y pagos</strong> (verificación de empresa, pagos, Revisión de CV, borrado de cuenta, cambios en esta política): llegan siempre, porque son necesarios para el servicio.</li>
               <li><strong>Postulaciones:</strong> cambios de estado, &quot;Vieron tu CV&quot; y resumen de postulaciones nuevas.</li>
               <li><strong>Búsquedas</strong> (empresas): aprobación y vencimiento.</li>
-              <li><strong>Alertas:</strong> las alertas de empleo que creaste y resúmenes.</li>
+              <li><strong>Búsquedas recomendadas:</strong> búsquedas nuevas que encajan con tu perfil (zona, modalidad, habilidades y, si no te opusiste, la evaluación con IA) y el resumen de los lunes.</li>
               <li><strong>Recordatorios:</strong> perfil incompleto, búsqueda por vencer.</li>
               <li><strong>Novedades:</strong> ofertas y novedades de BBJobs y Talency. A los postulantes, <strong>sólo si lo aceptaron</strong>.</li>
             </ul>
@@ -235,7 +234,7 @@ export default function PrivacidadV3() {
               <li>A los postulantes sólo les mandamos novedades si marcaron la casilla, que viene <strong>destildada</strong>. A las empresas registradas les podemos mandar novedades del servicio, con la baja en cada mail.</li>
               <li>Ningún aviso lo escribe una inteligencia artificial: salen de textos fijos. Los mails de novedades los aprueba una persona de Talency.</li>
               <li>Si un mail rebota o lo marcás como spam, dejamos de escribirte a esa dirección.</li>
-              <li>Si pasan 90 días sin que uses la plataforma, dejamos de mandarte resúmenes; las alertas que creaste siguen.</li>
+              <li>Si pasan 30 días sin que entres a BBJobs, dejamos de mandarte búsquedas recomendadas y resúmenes. Vuelven cuando volvés a entrar.</li>
             </ul>
           </Section>
 

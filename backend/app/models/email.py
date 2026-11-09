@@ -23,7 +23,7 @@ class EmailCategory(str, enum.Enum):
     cuenta = "cuenta"                    # verificación de empresa, pagos — llegan siempre
     postulaciones = "postulaciones"      # estado de postulaciones, postulaciones nuevas
     busquedas = "busquedas"              # ciclo de vida de las búsquedas de una empresa
-    alertas = "alertas"                  # alertas de empleo y resumen semanal
+    alertas = "alertas"                  # "Recibir búsquedas recomendadas": aviso y resumen semanal
     recordatorios = "recordatorios"      # perfil incompleto, búsqueda por vencer
     novedades = "novedades"              # campañas de Talency
     admin = "admin"                      # avisos para el equipo de Talency

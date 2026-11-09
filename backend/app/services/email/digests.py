@@ -1,4 +1,4 @@
-"""Resúmenes por mail (T3): alertas de empleo, "búsquedas para vos", empresa y equipo.
+"""Resúmenes por mail (T3): "búsquedas para vos", aviso de búsquedas que encajan, empresa y equipo.
 
 Van directo a la cola (`email_outbox`) y la política decide al enviar (franja, preferencias,
 supresiones). Reglas de la v4 §2–§3 que se cumplen acá:
@@ -6,12 +6,16 @@ supresiones). Reglas de la v4 §2–§3 que se cumplen acá:
 - **R7, nunca vacío:** un resumen sin ningún ítem real no se encola.
 - **Una vez por período:** `EmailDigestState(user, kind)` dice cuándo salió el último; correr el
   reloj dos veces no duplica nada.
-- **R8, ocaso:** a un candidato sin actividad en 90 días no se le manda "búsquedas para vos" (sus
-  alertas sí: las pidió él).
+- **R8, ocaso:** a un candidato que no entra a BBJobs hace más de 30 días (`users.last_seen_at`)
+  no se le manda "búsquedas para vos" ni el aviso de búsquedas que encajan (Gael, 09/11/2026).
 - **R15:** dentro de un resumen no se vende nada.
 
-Horarios (de Argentina): alertas `instant` cada hora; `daily` y los resúmenes diarios a las
-08:00 (el del equipo 08:30); `weekly` y "búsquedas para vos", los lunes 08:00.
+Horarios (de Argentina): el aviso "Hay una búsqueda que encaja con tu perfil" en cada vuelta
+(como mucho uno cada 24 h por persona, ver `matches.py`); los resúmenes diarios a las 08:00 (el del
+equipo 08:30); "búsquedas para vos", los lunes 08:00.
+
+Las alertas que armaba el candidato (rubro, zona, modalidad) se sacaron el 09/11/2026: BBJobs elige
+qué mandar según el perfil. La tabla `job_alerts` queda sin uso hasta una migración posterior.
 """
 from __future__ import annotations
 
@@ -24,7 +28,6 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alerts import JobAlert, JobAlertNotification
 from app.models.candidate import CandidateProfile, CandidateSkill
 from app.models.catalogs import Zone
 from app.models.company import CompanyProfile, VerificationStatus
@@ -42,7 +45,7 @@ from app.services.zonas import proximidad_ids, slugs_por_id
 
 logger = structlog.get_logger("app.services.email.digests")
 
-INACTIVE_AFTER = timedelta(days=90)
+INACTIVE_AFTER = timedelta(days=30)
 MAX_ITEMS = 10
 PARA_VOS_ITEMS = 5
 
@@ -82,6 +85,7 @@ async def enqueue_digest(
     hello = None
     voice, outro, help_line = "candidato", None, None
     if copy is not None:
+        copy = copy.for_count(min(len(items), MAX_ITEMS))
         subject, heading, intro, cta_label, item_cta = (
             copy.subject, copy.heading, copy.intro, copy.cta_label, copy.item_cta)
         voice, outro, help_line = copy.voice, copy.outro, copy.help_whatsapp
@@ -121,87 +125,7 @@ async def _active_jobs_since(db: AsyncSession, since: datetime | None):
     return (await db.execute(q.order_by(JobPosting.published_at.desc()))).all()
 
 
-# ── Alertas de empleo ───────────────────────────────────────────────────────────────────
-
-def alert_matches(alert: JobAlert, job: JobPosting) -> bool:
-    if alert.industry_id and alert.industry_id != job.industry_id:
-        return False
-    if alert.zone_id and alert.zone_id != job.zone_id:
-        return False
-    if alert.modality and str(getattr(alert.modality, "value", alert.modality)) != str(getattr(job.modality, "value", job.modality)):
-        return False
-    return True
-
-
-async def send_alerts(db: AsyncSession, frequency: str, now: datetime) -> int:
-    """Un solo mail por candidato con todas las búsquedas nuevas que coinciden con sus alertas
-    de esa frecuencia. Cada (alerta, búsqueda) sale una sola vez (`job_alert_notifications`)."""
-    alerts = (await db.execute(
-        select(JobAlert, CandidateProfile, User)
-        .join(CandidateProfile, CandidateProfile.id == JobAlert.candidate_id)
-        .join(User, User.id == CandidateProfile.user_id)
-        .where(JobAlert.is_active.is_(True), JobAlert.frequency == frequency,
-               CandidateProfile.deleted_at.is_(None), User.deleted_at.is_(None))
-    )).all()
-    if not alerts:
-        return 0
-    jobs = await _active_jobs_since(db, now - timedelta(days=14))
-    # Candado por alerta, en la base (sobrevive a un reinicio): instantánea como mucho una por
-    # hora; diaria una vez después de las 08:00; semanal una vez desde el lunes 08:00.
-    not_before = {"instant": now - timedelta(hours=1), "daily": _at_local(now, 8),
-                  "weekly": _this_monday_8(now)}[frequency]
-    by_user: dict = {}
-    for alert, profile, user in alerts:
-        if alert.last_sent_at and alert.last_sent_at >= not_before:
-            continue
-        applied = set((await db.execute(
-            select(Application.job_posting_id).where(Application.candidate_id == profile.id)
-        )).scalars().all())
-        sent = set((await db.execute(
-            select(JobAlertNotification.job_posting_id).where(JobAlertNotification.alert_id == alert.id)
-        )).scalars().all())
-        since = alert.last_sent_at or alert.created_at
-        for job, zone_name in jobs:
-            if job.id in applied or job.id in sent or (job.published_at and since and job.published_at <= since):
-                continue
-            if alert_matches(alert, job):
-                entry = by_user.setdefault(user.id, {"user": user, "jobs": {}, "alerts": set()})
-                entry["jobs"][job.id] = (job, zone_name, alert.id)
-                entry["alerts"].add(alert.id)
-
-    count = 0
-    for entry in by_user.values():
-        user, found = entry["user"], list(entry["jobs"].values())
-        items = [EmailItem(title=j.title, detail=_job_detail(j, z), url=_job_url(j)) for j, z, _ in found]
-        n = len(found)
-        if await enqueue_digest(
-            db, user=user, key="digest_alertas",
-            subject=f"{n} búsqueda{'s' if n != 1 else ''} nueva{'s' if n != 1 else ''} para tu alerta",
-            heading="Nuevas búsquedas que coinciden con tus alertas",
-            intro="Estas búsquedas se publicaron en BBJobs y coinciden con lo que estás buscando.",
-            items=items, cta_label="Ver todas las búsquedas", cta_url="/empleos", now=now,
-        ):
-            count += 1
-            for job, _, alert_id in found:
-                await db.execute(pg_insert(JobAlertNotification).values(id=uuid.uuid4(), alert_id=alert_id,
-                                                                        job_posting_id=job.id)
-                                 .on_conflict_do_nothing(constraint="uq_alert_job_posting"))
-        for alert_id in entry["alerts"]:
-            alert = next(a for a, _, _ in alerts if a.id == alert_id)
-            alert.last_sent_at = now
-    return count
-
-
 # ── "Búsquedas para vos" (lunes) ────────────────────────────────────────────────────────
-
-async def _is_active(db: AsyncSession, profile: CandidateProfile, now: datetime) -> bool:
-    if profile.updated_at and profile.updated_at >= now - INACTIVE_AFTER:
-        return True
-    last_app = (await db.execute(
-        select(func.max(Application.created_at)).where(Application.candidate_id == profile.id)
-    )).scalar_one()
-    return bool(last_app and last_app >= now - INACTIVE_AFTER)
-
 
 def score_for_candidate(job: JobPosting, job_skills: set, cand_skills: set, cand_zone, modalities: set[str],
                         zone_slugs: dict | None = None) -> float:
@@ -293,22 +217,24 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
         job_skills.setdefault(job_id, set()).add(skill_id)
 
     zone_slugs = await slugs_por_id(db)
-    with_alerts = select(JobAlert.candidate_id).where(JobAlert.is_active.is_(True))
+    from app.services.email import matches
+
+    # A todos los que entraron en los últimos 30 días (R8; Gael, 09/11/2026).
     rows = (await db.execute(
         select(CandidateProfile, User).join(User, User.id == CandidateProfile.user_id)
         .where(CandidateProfile.deleted_at.is_(None), User.deleted_at.is_(None), User.is_active.is_(True),
-               CandidateProfile.id.notin_(with_alerts))
+               User.last_seen_at >= now - INACTIVE_AFTER)
     )).all()
     count = 0
     for profile, user in rows:
         last = await _last_sent(db, user.id, "para_vos")
         if last and last >= _this_monday_8(now):
             continue
-        if not await _is_active(db, profile, now):
-            continue
         applied = set((await db.execute(
             select(Application.job_posting_id).where(Application.candidate_id == profile.id)
         )).scalars().all())
+        # No repite lo que ya le llegó en el aviso "Hay una búsqueda que encaja con tu perfil".
+        applied |= await matches.sent_job_ids(db, profile.id)
         skills = set((await db.execute(
             select(CandidateSkill.skill_id).where(CandidateSkill.candidate_id == profile.id)
         )).scalars().all())
@@ -337,6 +263,7 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
             cta_label="Ver todas las búsquedas", cta_url="/empleos", now=now,
         ):
             await _mark_sent(db, user.id, "para_vos", now)
+            await matches.mark_sent_in_digest(db, profile.id, [j.id for j, _ in good], now)
             count += 1
     return count
 
@@ -479,9 +406,7 @@ async def email_health(db: AsyncSession, now: datetime) -> dict:
 
 @dataclass
 class TickResult:
-    alertas_instant: int = 0
-    alertas_daily: int = 0
-    alertas_weekly: int = 0
+    avisos: int = 0
     para_vos: int = 0
     empresas: int = 0
     equipo: int = 0
@@ -493,14 +418,15 @@ async def tick(db: AsyncSession, now: datetime | None = None) -> TickResult:
     result = TickResult()
     if not await emails_enabled(db):
         return result
+    from app.services.email.matches import send_match_alerts
+
     local = now.astimezone(AR_TZ)
-    result.alertas_instant = await send_alerts(db, "instant", now)
     if local.time() >= time(8, 0):
-        result.alertas_daily = await send_alerts(db, "daily", now)
         result.empresas = await send_company_daily(db, now)
         if local.weekday() == 0:
-            result.alertas_weekly = await send_alerts(db, "weekly", now)
+            # Primero el resumen: lo pendiente que entra ahí ya no sale en el aviso.
             result.para_vos = await send_para_vos(db, now)
+    result.avisos = await send_match_alerts(db, now)
     result.equipo = await send_team_daily(db, now)
     return result
 

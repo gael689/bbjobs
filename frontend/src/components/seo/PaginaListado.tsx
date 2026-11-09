@@ -40,10 +40,10 @@ export default function PaginaListado({
   /** Bloque para empresas: publicar gratis o selección de personal por Talency. */
   empresas: { titulo: string; seleccionHref: string };
 }) {
-  // La alerta de empleos es un módulo nuevo (compuerta MODULOS_NUEVOS_ACTIVOS): mientras no se
-  // lance, el CTA lleva a crear la cuenta de candidato.
+  // Con los módulos nuevos (compuerta MODULOS_NUEVOS_ACTIVOS) BBJobs avisa por mail las búsquedas
+  // que encajan con el perfil: ya no hay alertas que armar. Sin la compuerta, el CTA de siempre.
   const cta = MODULOS_NUEVOS_VISIBLES
-    ? { href: "/dashboard/candidate/alertas", texto: "Crear una alerta de empleo", nota: "Te avisamos por mail cuando aparezca una búsqueda que te sirva." }
+    ? { href: "/register?type=candidate", texto: "Cargar mi CV gratis", nota: "Con tu perfil listo, te avisamos por mail cuando aparezca una búsqueda que encaje con vos." }
     : { href: "/register?type=candidate", texto: "Cargar mi CV gratis", nota: "Con tu perfil listo, te postulás con un click apenas aparece una búsqueda." };
 
   return (

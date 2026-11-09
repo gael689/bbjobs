@@ -109,6 +109,9 @@ class JobRecommendation(UUIDMixin, Base):
     feedback: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cuándo la empresa abrió los Recomendados de esta búsqueda con esta fila a la vista. La
+    # "bombita" del panel cuenta las que siguen en NULL (migración e6a8c0d2f4b7).
+    company_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AiUsageLog(UUIDMixin, Base):

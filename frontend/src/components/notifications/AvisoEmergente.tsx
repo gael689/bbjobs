@@ -2,20 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
 import { SparklesIcon, XMarkIcon, ArrowRightIcon } from "@heroicons/react/24/solid";
-import { api, isSessionExpired } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { NotificationItemData } from "@/hooks/useNotifications";
 
 /**
  * Cartel emergente para los avisos que importan (Gael, 28/10/2026: "que cuando te llegue sea un
- * mensaje saliendo en pantalla, estético, poco texto"): candidatos que encajan, el resumen de la
- * IA para Talency y las habilidades sugeridas. El backend elige cuáles (`/me/notifications/highlights`:
- * no leídos, de los últimos 3 días); acá sólo se recuerda cuáles ya se mostraron, para no
- * repetirlos en cada pantalla. Cerrarlo no lo marca como leído: sigue en la campanita.
+ * mensaje saliendo en pantalla, estético, poco texto"): el resumen de la IA para Talency y las
+ * habilidades sugeridas. El backend elige cuáles (no leídos, de los últimos 3 días) y llegan en el
+ * mismo pedido de la campanita (`/me/notifications/summary`, lo hace `DashboardShell`); acá sólo
+ * se recuerda cuáles ya se mostraron, para no repetirlos en cada pantalla. Cerrarlo no lo marca
+ * como leído: sigue en la campanita.
+ *
+ * Los candidatos que encajan con una búsqueda ya no salen de acá: los muestra la bombita de la
+ * empresa (`BombitaRecomendados`), que depende de lo que tiene sin mirar.
  */
-const POLL_MS = 60_000;
-const PRIMERA_VEZ_MS = 2_500;
 const DURACION_MS = 10_000;
 const CLAVE = "bbjobs:avisos-mostrados";
 
@@ -36,40 +37,26 @@ function recordar(id: string) {
   }
 }
 
-export default function AvisoEmergente() {
-  const { isSignedIn } = useAuth();
+export default function AvisoEmergente({ avisos }: { avisos: NotificationItemData[] }) {
   const router = useRouter();
   const [aviso, setAviso] = useState<NotificationItemData | null>(null);
   const [saliendo, setSaliendo] = useState(false);
   const mostradosEnSesion = useRef(new Set<string>());
   const enPantalla = useRef(false);
 
-  const buscar = useCallback(async () => {
-    // Con un cartel abierto no se pregunta: el próximo se busca recién cuando se cierra, así un
-    // aviso que llega mientras tanto no queda marcado como mostrado sin haberse visto.
-    if (enPantalla.current || document.hidden || isSessionExpired()) return;
-    try {
-      const r = await api.get<NotificationItemData[]>("/me/notifications/highlights");
-      const vistos = new Set([...leerMostrados(), ...mostradosEnSesion.current]);
-      const nuevo = r.data.find(n => !vistos.has(n.id));
-      if (nuevo && !enPantalla.current) {
-        enPantalla.current = true;
-        mostradosEnSesion.current.add(nuevo.id);
-        recordar(nuevo.id);
-        setSaliendo(false);
-        setAviso(nuevo);
-      }
-    } catch {
-      // silencioso: el aviso igual está en la campanita
-    }
-  }, []);
-
+  // Con un cartel abierto no se elige otro: el próximo sale con la siguiente respuesta, después
+  // de cerrarlo, así un aviso que llega mientras tanto no queda marcado como mostrado sin verse.
   useEffect(() => {
-    if (!isSignedIn) return;
-    const primera = setTimeout(buscar, PRIMERA_VEZ_MS);
-    const intervalo = setInterval(buscar, POLL_MS);
-    return () => { clearTimeout(primera); clearInterval(intervalo); };
-  }, [isSignedIn, buscar]);
+    if (enPantalla.current || avisos.length === 0) return;
+    const vistos = new Set([...leerMostrados(), ...mostradosEnSesion.current]);
+    const nuevo = avisos.find(n => !vistos.has(n.id));
+    if (!nuevo) return;
+    enPantalla.current = true;
+    mostradosEnSesion.current.add(nuevo.id);
+    recordar(nuevo.id);
+    // Se muestra fuera del render del efecto (regla de React: nada de setState sincrónico acá).
+    setTimeout(() => { setSaliendo(false); setAviso(nuevo); }, 0);
+  }, [avisos]);
 
   const cerrar = useCallback(() => {
     setSaliendo(true);

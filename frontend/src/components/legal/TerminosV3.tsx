@@ -40,7 +40,7 @@ export default function TerminosV3() {
               <li><strong>Base de Talento:</strong> las empresas verificadas pueden encontrar a los postulantes que <strong>lo autorizaron</strong>, aunque no se hayan postulado a su búsqueda.</li>
               <li><strong>Servicios pagos para empresas:</strong> avisos destacados y packs de contactos de la Base de Talento.</li>
               <li><strong>Recomendaciones con inteligencia artificial</strong> para ordenar postulantes (punto 8).</li>
-              <li><strong>Avisos y alertas por mail</strong> (punto 10).</li>
+              <li><strong>Avisos y búsquedas recomendadas por mail</strong> (punto 10).</li>
               <li><strong>Revisión de CV:</strong> un servicio pago para postulantes que presta Talency (punto 11).</li>
             </ul>
             <p>
@@ -187,7 +187,7 @@ export default function TerminosV3() {
           <Section title="10. Mails">
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                Te mandamos mails sobre tu cuenta, tus postulaciones o tus búsquedas, y las alertas que crees. Te podés dar de
+                Te mandamos mails sobre tu cuenta, tus postulaciones o tus búsquedas, y búsquedas que encajan con tu perfil. Te podés dar de
                 baja de cada tipo desde el pie del mail o desde Mi cuenta, <strong>salvo los de cuenta y pagos</strong>, que
                 son necesarios para el servicio.
               </li>

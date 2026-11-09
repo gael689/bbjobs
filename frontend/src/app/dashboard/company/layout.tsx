@@ -19,7 +19,8 @@ const NAV_ITEMS = [
   { href: "/dashboard/company/notificaciones", label: "Notificaciones", icon: BellIcon },
   // Módulos nuevos: ocultos para las empresas hasta el lanzamiento (NEXT_PUBLIC_MODULOS_NUEVOS).
   ...(MODULOS_NUEVOS_VISIBLES ? [
-    { href: "/dashboard/company/recomendados", label: "Candidatos recomendados", icon: SparklesIcon },
+    // "Recomendados (5)": los que todavía no miró (lo cuenta DashboardShell con la campanita).
+    { href: "/dashboard/company/recomendados", label: "Recomendados", icon: SparklesIcon, contador: "recomendados" as const },
   ] : []),
 ];
 

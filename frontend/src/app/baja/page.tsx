@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 const CATEGORIA: Record<string, string> = {
   postulaciones: "los avisos de postulaciones",
   busquedas: "los avisos de tus búsquedas",
-  alertas: "las alertas y resúmenes",
+  alertas: "las búsquedas recomendadas",
   recordatorios: "los recordatorios",
   novedades: "las novedades y ofertas de BBJobs",
   admin: "los avisos del equipo",

@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations import cloudinary_client
 from app.integrations.clerk_client import delete_clerk_user, set_public_metadata
-from app.models.alerts import AuditLog, JobAlert, Notification
+from app.models.alerts import AuditLog, CandidateJobMatch, JobAlert, Notification
 from app.models.candidate import CandidateProfile, CandidateSkill, Education, Experience, Language
 from app.models.company import CompanyProfile, CompanyVerificationDocument, VerificationStatus
 from app.models.core import User, UserRole
@@ -185,7 +185,8 @@ async def _tombstone_candidate(db: AsyncSession, user: User, now: datetime) -> N
         # Se va todo lo que describe a la persona. Se queda la fila (y sus postulaciones y
         # desbloqueos) para que la empresa vea "Candidato eliminado" en su historial y no
         # recupere un crédito que ya usó.
-        for model in (Experience, Education, Language, CandidateSkill, JobAlert, TestSubmission, CandidateActivityLog):
+        for model in (Experience, Education, Language, CandidateSkill, JobAlert, CandidateJobMatch, TestSubmission,
+                      CandidateActivityLog):
             await db.execute(delete(model).where(model.candidate_id == p.id))
         await db.execute(
             Application.__table__.update().where(Application.candidate_id == p.id).values(

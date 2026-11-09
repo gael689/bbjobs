@@ -170,7 +170,14 @@ def test_every_digest_key_used_in_code_has_its_own_rule():
     # exención del tope): pasó con los resúmenes de T3 y no lo detectó ningún otro test.
     source = (Path(__file__).resolve().parents[1] / "app" / "services" / "email" / "digests.py").read_text(encoding="utf-8")
     keys = set(re.findall(r'key="(digest_[a-z_]+)"', source))
-    assert len(keys) == 4, keys
+    assert len(keys) == 3, keys    # sin "digest_alertas": las alertas del candidato se sacaron
     for key in keys:
         assert key in RULES, key
         assert RULES[key].exempt_daily_cap and RULES[key].mode == "digest"
+    # El aviso "Hay una búsqueda que encaja con tu perfil" (matches.py) sí cuenta para el tope de 2
+    # por día y respeta la franja: no es un resumen, aunque agrupe lo de 24 h.
+    from app.services.email.matches import TEMPLATE_KEY
+
+    rule = RULES[TEMPLATE_KEY]
+    assert not rule.exempt_daily_cap and not rule.critical and rule.unsubscribable
+    assert rule.category.value == "alertas"

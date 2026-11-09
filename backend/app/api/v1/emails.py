@@ -45,8 +45,9 @@ CATEGORIES_BY_ROLE: dict[UserRole, list[EmailCategory]] = {
         EmailCategory.recordatorios, EmailCategory.novedades,
     ],
     UserRole.company: [
+        # Sin "alertas": las búsquedas recomendadas son sólo para candidatos.
         EmailCategory.cuenta, EmailCategory.postulaciones, EmailCategory.busquedas,
-        EmailCategory.alertas, EmailCategory.recordatorios, EmailCategory.novedades,
+        EmailCategory.recordatorios, EmailCategory.novedades,
     ],
     UserRole.admin: [EmailCategory.admin],
 }

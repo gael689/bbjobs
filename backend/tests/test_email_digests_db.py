@@ -15,15 +15,16 @@ if TEST_DB:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from app.core.config import settings
-    from app.models.alerts import JobAlert
-    from app.models.candidate import CandidateProfile
-    from app.models.catalogs import ContractType, Industry, Zone
+    from app.models.alerts import CandidateJobMatch
+    from app.models.candidate import CandidateProfile, CandidateSkill
+    from app.models.catalogs import ContractType, Industry, Skill, Zone
     from app.models.company import CompanyProfile
     from app.models.core import User
     from app.models.email import EmailOutbox
-    from app.models.job import Application, JobPosting
+    from app.models.job import Application, JobPosting, JobPostingSkill
+    from app.models.legal import LegalAcceptance
     from app.models.settings import SettingKey, SiteSetting
-    from app.services.email import digests, dispatcher
+    from app.services.email import digests, dispatcher, matches
     from app.services.email.policy import AR_TZ
     from app.services.email.provider import SimulatedProvider
 
@@ -37,7 +38,7 @@ async def maker(monkeypatch):
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as conn:
         await conn.execute(text(
-            "TRUNCATE email_outbox, email_digest_state, job_alert_notifications, job_alerts, applications, "
+            "TRUNCATE email_outbox, email_digest_state, candidate_job_matches, applications, "
             "job_postings, candidate_profiles, company_profiles, site_settings, users RESTART IDENTITY CASCADE"
         ))
     async with session_maker() as db:
@@ -72,11 +73,13 @@ async def _world(maker, published=None):
         db.add(job)
         candidates = []
         for name in ("ana", "beto"):
-            u = User(id=uuid.uuid4(), email=f"{name}-{tag}@mail.com", role="candidate", is_active=True)
+            # Entró hace un día (fecha simulada, 2030): si no, la regla de ocaso (30 días sin entrar)
+            # lo excluye del resumen semanal y del aviso, que es lo correcto.
+            u = User(id=uuid.uuid4(), email=f"{name}-{tag}@mail.com", role="candidate", is_active=True,
+                     last_seen_at=MONDAY_9 - timedelta(days=1))
             db.add(u)
             await db.flush()
-            # updated_at cerca de la fecha simulada (2030): si no, la regla de ocaso (90 días sin
-            # actividad) los excluye del resumen semanal, que es lo correcto.
+            db.add(LegalAcceptance(user_id=u.id, document="privacidad", version="3.0"))
             p = CandidateProfile(id=uuid.uuid4(), user_id=u.id, first_name=name, last_name="T", phone="2915550000",
                                  location_zone_id=zone.id, accepts_onsite=True,
                                  updated_at=MONDAY_9 - timedelta(days=1))
@@ -102,37 +105,13 @@ async def _tick(maker, now):
         return r
 
 
-async def test_daily_alert_sends_once_with_the_new_job(maker):
+async def test_para_vos_goes_to_everyone_seen_in_the_last_30_days(maker):
     ind, zone, company, cu, job, cands = await _world(maker)
-    (ana_u, ana_p), _ = cands
+    (ana_u, _), (beto_u, _) = cands
     async with maker() as db:
-        db.add(JobAlert(id=uuid.uuid4(), candidate_id=ana_p.id, zone_id=zone.id, frequency="daily", is_active=True,
-                        created_at=MONDAY_9 - timedelta(days=3)))
-        await db.commit()
-    first = await _tick(maker, MONDAY_9)
-    again = await _tick(maker, MONDAY_9 + timedelta(minutes=15))
-    assert first.alertas_daily == 1 and again.alertas_daily == 0
-    mails = await _outbox(maker, "digest_alertas")
-    assert len(mails) == 1 and "Soldador" in mails[0].html and mails[0].to_email == ana_u.email
-
-
-async def test_applied_jobs_are_not_alerted(maker):
-    ind, zone, company, cu, job, cands = await _world(maker)
-    (_, ana_p), _ = cands
-    async with maker() as db:
-        db.add(Application(candidate_id=ana_p.id, job_posting_id=job.id))
-        db.add(JobAlert(id=uuid.uuid4(), candidate_id=ana_p.id, zone_id=zone.id, frequency="instant", is_active=True,
-                        created_at=MONDAY_9 - timedelta(days=3)))
-        await db.commit()
-    assert (await _tick(maker, MONDAY_9)).alertas_instant == 0
-
-
-async def test_para_vos_only_for_candidates_without_alerts_and_active(maker):
-    ind, zone, company, cu, job, cands = await _world(maker)
-    (_, ana_p), (beto_u, beto_p) = cands
-    async with maker() as db:
-        db.add(JobAlert(id=uuid.uuid4(), candidate_id=ana_p.id, zone_id=zone.id, frequency="weekly", is_active=True,
-                        created_at=MONDAY_9 - timedelta(days=30)))
+        # Ana actualizó el perfil hace poco pero no entra hace 40 días: cuenta la entrada.
+        await db.execute(text("UPDATE users SET last_seen_at = :t WHERE id = :id"),
+                         {"t": MONDAY_9 - timedelta(days=40), "id": ana_u.id})
         await db.commit()
     r = await _tick(maker, MONDAY_9)
     assert r.para_vos == 1
@@ -144,9 +123,138 @@ async def test_para_vos_only_for_candidates_without_alerts_and_active(maker):
 async def test_inactive_candidates_get_no_weekly_digest(maker):
     ind, zone, company, cu, job, cands = await _world(maker)
     async with maker() as db:
-        await db.execute(text("UPDATE candidate_profiles SET updated_at = :t"), {"t": MONDAY_9 - timedelta(days=200)})
+        # Sólo cuenta la última entrada, no la última edición del perfil.
+        await db.execute(text("UPDATE users SET last_seen_at = NULL WHERE role = 'candidate'"))
         await db.commit()
     assert (await _tick(maker, MONDAY_9)).para_vos == 0
+
+
+# ── Aviso "Hay una búsqueda que encaja con tu perfil" ───────────────────────────────────
+
+async def _add_job(maker, company, ind, zone, title, published):
+    async with maker() as db:
+        ct = ContractType(id=uuid.uuid4(), name=f"Plazo {uuid.uuid4().hex[:6]}")
+        db.add(ct)
+        await db.flush()
+        job = JobPosting(id=uuid.uuid4(), company_id=company.id, company_legal_name_snapshot="Metalúrgica Sur",
+                         title=title, description="x", industry_id=ind.id, zone_id=zone.id,
+                         contract_type_id=ct.id, modality="presencial", status="active", moderation_status="approved",
+                         published_at=published)
+        db.add(job)
+        await db.commit()
+        return job
+
+
+async def _skill_match(maker, job, profiles):
+    """La búsqueda pide una habilidad que tienen estos perfiles: zona + modalidad + 1 = 5 puntos."""
+    async with maker() as db:
+        tag = uuid.uuid4().hex[:6]
+        sk = Skill(id=uuid.uuid4(), name=f"Soldadura {tag}", slug=f"soldadura-{tag}", category="technical")
+        db.add(sk)
+        await db.flush()
+        db.add(JobPostingSkill(job_posting_id=job.id, skill_id=sk.id, is_required=True))
+        for p in profiles:
+            db.add(CandidateSkill(candidate_id=p.id, skill_id=sk.id))
+        await db.commit()
+
+
+async def _collect_simple(maker, job, now):
+    async with maker() as db:
+        j = await db.get(JobPosting, job.id)
+        n = await matches.collect_simple_matches(db, j, now)
+        await db.commit()
+        return n
+
+
+async def test_match_alert_simple_score_groups_and_waits_24h(maker):
+    ind, zone, company, cu, job, cands = await _world(maker)
+    (ana_u, ana_p), (beto_u, beto_p) = cands
+    await _skill_match(maker, job, [ana_p])           # Beto no tiene la habilidad: 3 puntos, no llega
+    assert await _collect_simple(maker, job, MONDAY_9) == 1
+    await _collect_simple(maker, job, MONDAY_9)       # se vuelve a evaluar, pero no duplica
+    async with maker() as db:
+        assert (await db.execute(select(func.count()).select_from(CandidateJobMatch))).scalar_one() == 1
+
+    tuesday = MONDAY_9 + timedelta(days=1)
+    async with maker() as db:
+        assert await matches.send_match_alerts(db, tuesday) == 1
+        await db.commit()
+    mail = (await _outbox(maker, "aviso_busquedas"))[0]
+    assert mail.to_email == ana_u.email and mail.category == "alertas"
+    assert mail.subject == "Hay una búsqueda que encaja con tu perfil"
+    assert "Soldador" in mail.html and "Postularme" in mail.html
+
+    # Dos búsquedas más a las pocas horas: esperan las 24 h y salen juntas en un solo mail.
+    later = [await _add_job(maker, company, ind, zone, t, tuesday) for t in ("Tornero", "Pintor")]
+    for j in later:
+        await _skill_match(maker, j, [ana_p])
+        await _collect_simple(maker, j, tuesday + timedelta(hours=2))
+    async with maker() as db:
+        assert await matches.send_match_alerts(db, tuesday + timedelta(hours=3)) == 0
+        assert await matches.send_match_alerts(db, tuesday + timedelta(hours=25)) == 1
+        await db.commit()
+    mails = sorted(await _outbox(maker, "aviso_busquedas"), key=lambda m: m.created_at)
+    assert len(mails) == 2 and mails[1].subject == "Hay 2 búsquedas que encajan con tu perfil"
+    assert "Tornero" in mails[1].html and "Pintor" in mails[1].html and "Soldador" not in mails[1].html
+
+
+async def test_match_alert_skips_applied_inactive_and_unconsented(maker):
+    ind, zone, company, cu, job, cands = await _world(maker)
+    (ana_u, ana_p), (beto_u, beto_p) = cands
+    async with maker() as db:
+        tag = uuid.uuid4().hex[:6]
+        cu2 = User(id=uuid.uuid4(), email=f"caro-{tag}@mail.com", role="candidate", is_active=True,
+                   last_seen_at=MONDAY_9 - timedelta(days=1))      # sin aceptar la 3.0
+        db.add(cu2)
+        await db.flush()
+        caro = CandidateProfile(id=uuid.uuid4(), user_id=cu2.id, first_name="caro", last_name="T", phone="1",
+                                location_zone_id=zone.id, accepts_onsite=True)
+        db.add(caro)
+        db.add(Application(candidate_id=ana_p.id, job_posting_id=job.id))       # Ana ya se postuló
+        await db.execute(text("UPDATE users SET last_seen_at = :t WHERE id = :id"),
+                         {"t": MONDAY_9 - timedelta(days=31), "id": beto_u.id})  # Beto no entra hace 31 días
+        await db.commit()
+    await _skill_match(maker, job, [ana_p, beto_p, caro])
+    assert await _collect_simple(maker, job, MONDAY_9) == 0
+
+
+async def test_match_alert_rechecks_at_send_time_and_para_vos_does_not_repeat(maker):
+    ind, zone, company, cu, job, cands = await _world(maker)
+    (ana_u, ana_p), (beto_u, beto_p) = cands
+    await _skill_match(maker, job, [ana_p, beto_p])
+    assert await _collect_simple(maker, job, MONDAY_9 - timedelta(hours=5)) == 2
+    async with maker() as db:
+        db.add(Application(candidate_id=beto_p.id, job_posting_id=job.id))      # se postuló antes del mail
+        await db.commit()
+    sunday = MONDAY_9 - timedelta(hours=3)
+    async with maker() as db:
+        assert await matches.send_match_alerts(db, sunday) == 1
+        await db.commit()
+        status = dict((await db.execute(select(CandidateJobMatch.candidate_id, CandidateJobMatch.status))).all())
+    assert status == {ana_p.id: "sent", beto_p.id: "skipped"}
+    # El lunes, "Búsquedas para vos" no le repite a Ana la búsqueda del aviso.
+    other = await _add_job(maker, company, ind, zone, "Electricista", MONDAY_9 - timedelta(days=2))
+    await _tick(maker, MONDAY_9)
+    para_vos = {m.to_email: m for m in await _outbox(maker, "digest_para_vos")}
+    assert "Soldador" not in para_vos[ana_u.email].html and other.title in para_vos[ana_u.email].html
+
+
+async def test_para_vos_marks_pending_matches_as_sent(maker):
+    ind, zone, company, cu, job, cands = await _world(maker)
+    (ana_u, ana_p), _ = cands
+    await _skill_match(maker, job, [ana_p])
+    await _collect_simple(maker, job, MONDAY_9 - timedelta(minutes=30))
+    async with maker() as db:
+        # Ya recibió un aviso hace poco: lo nuevo espera… y entra en el resumen del lunes.
+        await digests._mark_sent(db, ana_u.id, matches.TEMPLATE_KEY, MONDAY_9 - timedelta(hours=1))
+        await db.commit()
+    r = await _tick(maker, MONDAY_9)
+    assert r.para_vos >= 1 and r.avisos == 0
+    async with maker() as db:
+        m = (await db.execute(select(CandidateJobMatch).where(CandidateJobMatch.candidate_id == ana_p.id))).scalar_one()
+    assert m.status == "sent"
+    async with maker() as db:
+        assert await matches.send_match_alerts(db, MONDAY_9 + timedelta(days=1)) == 0
 
 
 async def test_company_daily_digest_lists_new_applications(maker):
