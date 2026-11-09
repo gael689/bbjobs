@@ -14,7 +14,7 @@ import {
 import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobApply";
 import { track } from "@/lib/analytics";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
-import { jobUrl, parseJobParam } from "@/lib/seo/urls";
+import { companyUrl, jobUrl, parseJobParam } from "@/lib/seo/urls";
 
 interface Job {
   id: string;
@@ -236,7 +236,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                   <span className="flex items-center gap-1.5">
                     <BuildingOffice2Icon className="w-4 h-4 text-[#1E8EA3]" />
                     {job.company_id ? (
-                      <Link href={`/empresas/${job.company_id}`} className="font-medium text-[#1C2230] hover:text-[#1E8EA3] hover:underline">
+                      <Link href={companyUrl({ id: job.company_id, legal_name: job.company_legal_name_snapshot })} className="font-medium text-[#1C2230] hover:text-[#1E8EA3] hover:underline">
                         {job.company_legal_name_snapshot}
                       </Link>
                     ) : (

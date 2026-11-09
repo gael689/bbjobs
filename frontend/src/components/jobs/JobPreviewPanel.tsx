@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobApply";
 import VerifiedBadge from "./VerifiedBadge";
-import { jobUrl } from "@/lib/seo/urls";
+import { companyUrl, jobUrl } from "@/lib/seo/urls";
 
 export interface PreviewJob {
   id: string;
@@ -141,7 +141,7 @@ export default function JobPreviewPanel({
                 <span className="flex items-center gap-1.5">
                   <BuildingOffice2Icon className="w-4 h-4 text-[#1E8EA3]" />
                   {job.company_id ? (
-                    <Link href={`/empresas/${job.company_id}`} className="font-medium text-[#1C2230] hover:text-[#1E8EA3] hover:underline">
+                    <Link href={companyUrl({ id: job.company_id, legal_name: job.company_legal_name_snapshot })} className="font-medium text-[#1C2230] hover:text-[#1E8EA3] hover:underline">
                       {job.company_legal_name_snapshot}
                     </Link>
                   ) : (

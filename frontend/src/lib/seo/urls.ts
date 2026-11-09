@@ -39,7 +39,15 @@ export function parseJobParam(param: string): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
-/** Ruta de la ficha pública de una empresa. */
-export function companyUrl(companyId: string): string {
-  return `/empresas/${companyId}`;
+/** Ruta canónica (relativa) de la ficha pública de una empresa: /empresas/<slug-del-nombre>-<uuid>.
+ *  Igual que en los empleos, el uuid es la clave y el slug sólo para la persona y el buscador. La
+ *  forma vieja (/empresas/<uuid>, la única hasta el 09/11/2026) o un nombre desactualizado
+ *  redirigen 308 a ésta desde la misma página (app/empresas/[id]/page.tsx), sin pasar por el proxy. */
+export function companyUrl(company: { id: string; legal_name?: string | null }): string {
+  const slug = company.legal_name ? slugify(company.legal_name) : "";
+  const id = company.id.toLowerCase();
+  return slug ? `/empresas/${slug}-${id}` : `/empresas/${id}`;
 }
+
+/** Extrae el uuid del parámetro de la ficha de una empresa (acepta "<slug>-<uuid>" o "<uuid>"). */
+export const parseCompanyParam = parseJobParam;

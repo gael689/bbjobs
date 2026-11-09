@@ -159,17 +159,21 @@ export function jobPostingSchema(job: PublicJob, cat: Catalogos): Json {
     "@type": "JobPosting",
     title: job.title,
     description: descripcion,
-    datePosted: job.published_at,
+    // datePosted es obligatorio para Google: si por algún motivo falta published_at, la fecha de la
+    // última actualización es la mejor aproximación verdadera que tenemos.
+    datePosted: job.published_at || job.updated_at,
     ...(job.expires_at ? { validThrough: job.expires_at } : {}),
     ...(employmentType ? { employmentType } : {}),
     url: urlAbs(jobUrl(job)),
     identifier: { "@type": "PropertyValue", name: SITIO.nombre, value: job.id },
     directApply: true,
-    ...(rubro ? { industry: rubro.name } : {}),
+    ...(rubro && rubro.slug !== "otro" ? { industry: rubro.name } : {}),
     hiringOrganization: {
       "@type": "Organization",
       name: job.company_legal_name_snapshot,
-      ...(job.company_id ? { sameAs: urlAbs(companyUrl(job.company_id)), url: urlAbs(companyUrl(job.company_id)) } : {}),
+      // `url` es la ficha de la empresa en BBJobs. Sin `sameAs`: esa propiedad es para el sitio o
+      // perfil propio de la empresa, y la ficha de BBJobs no "es la misma" entidad.
+      ...(job.company_id ? { url: urlAbs(companyUrl({ id: job.company_id, legal_name: job.company_legal_name_snapshot })) } : {}),
       ...(job.logo_url ? { logo: job.logo_url } : {}),
     },
     ...(job.modality === "remoto"
@@ -222,7 +226,7 @@ export function jobPostingSchema(job: PublicJob, cat: Catalogos): Json {
 }
 
 export function companySchema(company: PublicCompany, rubro?: string): Json {
-  const url = urlAbs(companyUrl(company.id));
+  const url = urlAbs(companyUrl(company));
   const web = company.website
     ? company.website.startsWith("http") ? company.website : `https://${company.website}`
     : undefined;

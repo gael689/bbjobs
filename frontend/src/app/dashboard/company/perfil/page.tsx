@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { achicarImagen } from "@/lib/imagen";
+import { companyUrl } from "@/lib/seo/urls";
 import { BuildingOffice2Icon, CloudArrowUpIcon, CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { CompanyProfile } from "../types";
 import MyAccountSection from "@/components/dashboard/MyAccountSection";
@@ -200,7 +201,7 @@ export default function CompanyPerfilPage() {
             </div>
             {isVerified && profile && (
               <a
-                href={`/empresas/${profile.id}`}
+                href={companyUrl(profile)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="shrink-0 text-sm font-bold text-[#1E8EA3] hover:underline whitespace-nowrap"

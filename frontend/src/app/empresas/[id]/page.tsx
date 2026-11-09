@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import {
   BuildingOffice2Icon, MapPinIcon, GlobeAltIcon, UsersIcon,
@@ -10,7 +10,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import Migas from "@/components/seo/Migas";
 import { getCatalogos, getCompany, getCompanyJobs, nombrePorId } from "@/lib/seo/datos";
 import { companySchema } from "@/lib/seo/schema";
-import { companyUrl, jobUrl } from "@/lib/seo/urls";
+import { companyUrl, jobUrl, parseCompanyParam } from "@/lib/seo/urls";
 import { SITIO, urlAbs } from "@/lib/seo/sitio";
 
 // ISR: cada empresa se genera la primera vez que alguien la visita y queda cacheada 60 minutos.
@@ -20,8 +20,6 @@ export const revalidate = 3600;
 export async function generateStaticParams() {
   return [];
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const MODALITY_LABEL: Record<string, string> = {
   presencial: "Presencial",
@@ -39,18 +37,19 @@ const EMPLOYEE_LABEL: Record<string, string> = {
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  const company = UUID.test(id) ? await getCompany(id) : null;
+  const { id: param } = await params;
+  const id = parseCompanyParam(param);
+  const company = id ? await getCompany(id) : null;
 
   if (!company) {
     return { title: "Empresa no encontrada — BBJobs", robots: { index: false, follow: true } };
   }
 
-  const title = `${company.legal_name} — Empresa verificada | BBJobs`;
+  const title = `${company.legal_name.trim()} — Empresa verificada | BBJobs`;
   const location = [company.city, company.province].filter(Boolean).join(", ");
   const description = company.description?.replace(/\s+/g, " ").trim().slice(0, 160)
     || `Búsquedas activas de ${company.legal_name}${location ? ` en ${location}` : ""}. Empresa verificada por Talency en BBJobs, el portal de empleos de Bahía Blanca.`;
-  const canonical = urlAbs(companyUrl(company.id));
+  const canonical = urlAbs(companyUrl(company));
 
   return {
     title,
@@ -77,18 +76,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CompanyProfilePage({ params }: Props) {
-  const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  const { id: param } = await params;
+  const id = parseCompanyParam(param);
+  if (!id) notFound();
 
   // Empresas no verificadas o inexistentes: la API devuelve 404 → acá también.
   const [company, jobs, cat] = await Promise.all([getCompany(id), getCompanyJobs(id), getCatalogos()]);
   if (!company) notFound();
 
+  // URL canónica con el nombre (09/11/2026). La forma vieja /empresas/<uuid> —la del sitemap y los
+  // links hasta esa fecha— o un nombre desactualizado redirigen 308 acá mismo, dentro del ISR:
+  // no suma trabajo en src/proxy.ts ni una función por visita.
+  const canonica = companyUrl(company);
+  if (`/empresas/${param}` !== canonica) permanentRedirect(canonica);
+
   const industryName = nombrePorId(cat.rubros, company.industry_id)?.name;
   const migas = [
     { nombre: "Inicio", path: "/" },
     { nombre: "Empresas", path: "/empresas" },
-    { nombre: company.legal_name, path: companyUrl(company.id) },
+    { nombre: company.legal_name, path: canonica },
   ];
 
   return (
