@@ -36,7 +36,7 @@ from app.models.email import (
 )
 from app.models.settings import SettingKey
 from app.services.email import policy
-from app.services.email.catalog import CATEGORY_PRIORITY, rule_for
+from app.services.email.catalog import CATEGORY_PRIORITY, remitente_para, rule_for
 from app.services.email.outbox import template_override
 from app.services.email.provider import EmailProvider, get_email_provider
 from app.services.email.tokens import unsubscribe_api_url
@@ -167,6 +167,7 @@ def _outgoing(row: EmailOutbox, to: str) -> OutgoingEmail:
         headers=headers,
         tags={"tipo": row.template_key, "categoria": row.category},
         idempotency_key=idempotency_key("outbox", row.id),
+        from_email=remitente_para(category),
     )
 
 

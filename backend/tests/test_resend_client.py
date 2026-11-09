@@ -22,7 +22,7 @@ def _mount(monkeypatch, handler):
 @pytest.fixture(autouse=True)
 def _config(monkeypatch):
     monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test")
-    monkeypatch.setattr(settings, "RESEND_FROM_EMAIL", "BBJobs <avisos@bbjobs.com.ar>")
+    monkeypatch.setattr(settings, "RESEND_FROM_EMAIL", "BBJobs <avisos@avisos.bbjobs.com.ar>")
     monkeypatch.setattr(settings, "RESEND_REPLY_TO", None)
 
 
@@ -52,7 +52,7 @@ async def test_send_email_builds_payload_and_returns_id(monkeypatch):
     assert msg_id == "msg_1"
     assert seen["auth"] == "Bearer re_test"
     assert seen["idem"] == "outbox-123"
-    assert seen["body"]["from"] == "BBJobs <avisos@bbjobs.com.ar>"
+    assert seen["body"]["from"] == "BBJobs <avisos@avisos.bbjobs.com.ar>"
     assert seen["body"]["to"] == ["ana@example.com"]
     assert seen["body"]["text"] == "Hola"
     assert seen["body"]["headers"] == {"List-Unsubscribe": "<https://x/baja>"}

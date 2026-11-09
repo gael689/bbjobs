@@ -22,12 +22,26 @@ from typing import Awaitable, Callable, Literal
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.email import ALWAYS_SENT, EmailCategory
 
 logger = structlog.get_logger("app.services.email.catalog")
 
 Mode = Literal["instant", "digest", "none"]
 Validator = Callable[[AsyncSession, uuid.UUID], Awaitable[bool]]
+
+# Categorías que salen por el subdominio de novedades (`RESEND_FROM_EMAIL_NOVEDADES`): son las
+# de volumen y las que más bajas y quejas juntan. Todo lo demás sale por el de avisos. La
+# prospección no pasa por acá: tiene su propio canal y remitente (`PROSPECT_FROM_EMAIL`).
+CATEGORIAS_NOVEDADES = frozenset({EmailCategory.alertas, EmailCategory.recordatorios, EmailCategory.novedades})
+
+
+def remitente_para(category: EmailCategory | str) -> str:
+    """El `from` de un mail de la cola según su categoría. Único lugar que lo decide."""
+    if EmailCategory(category) in CATEGORIAS_NOVEDADES:
+        return settings.RESEND_FROM_EMAIL_NOVEDADES
+    return settings.RESEND_FROM_EMAIL
+
 
 # Orden en que el dispatcher atiende la cola cuando hay tope diario (regla R1). Menor = antes.
 CATEGORY_PRIORITY: dict[EmailCategory, int] = {

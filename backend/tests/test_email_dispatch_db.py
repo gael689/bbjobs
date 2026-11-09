@@ -166,6 +166,22 @@ async def test_dispatch_sends_with_unsubscribe_headers(maker):
     assert msg.idempotency_key == f"outbox/{rid}"
 
 
+async def test_dispatch_picks_the_sender_by_category(maker, monkeypatch):
+    monkeypatch.setattr(settings, "RESEND_FROM_EMAIL", "BBJobs <avisos@avisos.bbjobs.com.ar>")
+    monkeypatch.setattr(settings, "RESEND_FROM_EMAIL_NOVEDADES", "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>")
+    ana = await _user(maker)
+    beto = await _user(maker, email="beto@mail.com")
+    await _row(maker, ana, key="application_selected", category="postulaciones")
+    await _row(maker, beto, to="beto@mail.com", key="candidate_reactivation", category="recordatorios")
+    provider = SimulatedProvider()
+    await dispatcher.dispatch_due(session_maker=maker, provider=provider, now=NOON)
+    by_to = {m.to: m.from_email for m in provider.sent}
+    assert by_to == {
+        "ana@mail.com": "BBJobs <avisos@avisos.bbjobs.com.ar>",
+        "beto@mail.com": "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>",
+    }
+
+
 async def test_account_emails_have_no_unsubscribe_header(maker):
     uid = await _user(maker)
     await _row(maker, uid, category="cuenta", key="company_verified")

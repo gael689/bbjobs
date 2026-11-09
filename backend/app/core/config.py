@@ -89,7 +89,12 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str | None = None
     # El dominio del remitente tiene que estar verificado en Resend (SPF/DKIM) o los mails caen
     # en spam o directamente se rechazan.
-    RESEND_FROM_EMAIL: str = "BBJobs <avisos@bbjobs.com.ar>"
+    # Dos remitentes en dos subdominios de la misma cuenta, para que la reputación de los mails
+    # masivos no arrastre a los importantes (el remitente lo elige `catalog.remitente_para`):
+    # - avisos.: cuenta, postulaciones, búsquedas y equipo (lo que la persona espera recibir);
+    # - novedades.: alertas, recordatorios y campañas (volumen, y lo que más bajas y quejas junta).
+    RESEND_FROM_EMAIL: str = "BBJobs <avisos@avisos.bbjobs.com.ar>"
+    RESEND_FROM_EMAIL_NOVEDADES: str = "BBJobs Empleos <empleos@novedades.bbjobs.com.ar>"
     RESEND_REPLY_TO: str | None = None
     # Secret de svix (empieza con `whsec_`) del webhook de eventos de Resend.
     RESEND_WEBHOOK_SECRET: str | None = None

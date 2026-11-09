@@ -70,6 +70,9 @@ class OutgoingEmail:
     tags: dict[str, str] = field(default_factory=dict)
     reply_to: str | None = None
     idempotency_key: str | None = None
+    # Remitente de este mail (el dispatcher lo elige por categoría: `catalog.remitente_para`).
+    # Sin valor, el de los avisos.
+    from_email: str | None = None
 
 
 def is_configured() -> bool:
@@ -84,7 +87,7 @@ def _make_client() -> httpx.AsyncClient:
 
 def _payload(msg: OutgoingEmail, from_email: str | None = None) -> dict:
     body: dict = {
-        "from": from_email or settings.RESEND_FROM_EMAIL,
+        "from": from_email or msg.from_email or settings.RESEND_FROM_EMAIL,
         "to": [msg.to],
         "subject": msg.subject,
         "html": msg.html,

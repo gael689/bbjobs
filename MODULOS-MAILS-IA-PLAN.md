@@ -646,7 +646,10 @@ Integrada en §4.3, hallazgos M1–M14.
   - Registros SPF, DKIM y DMARC (DMARC arranca en `p=none`).
   - Sumarlos a la zona DNS **sin pisar los de Clerk**.
   - Tracking apagado en `avisos.` y prendido en `novedades.`.
-- [ ] Clave **sólo de envío** → `RESEND_API_KEY`. Remitentes y reply-to real.
+- [ ] Clave **sólo de envío** → `RESEND_API_KEY`. Remitentes y reply-to real:
+      `RESEND_FROM_EMAIL` (`avisos.`: cuenta, postulaciones, búsquedas, equipo) y
+      `RESEND_FROM_EMAIL_NOVEDADES` (`novedades.`: alertas, recordatorios, campañas); el que
+      corresponde lo elige `catalog.remitente_para` por la categoría de la cola.
 - [ ] Webhook creado por API con los eventos de M6 → `RESEND_WEBHOOK_SECRET`.
 - [ ] Calentamiento: 1–2 semanas sólo con transaccionales y `EMAIL_DAILY_CAP` creciente.
 - [ ] Prueba con `delivered@`, `bounced@` y `complained@resend.dev`, y una revisión en
