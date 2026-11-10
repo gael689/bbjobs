@@ -99,6 +99,23 @@ export default function HomeClient({
   const [previewModality, setPreviewModality] = useState("");
   const [resolvedModality, setResolvedModality] = useState<string | null>(initialJobs ? "" : null);
   const loading = resolvedModality !== previewModality;
+  // La home viene cacheada (ISR, hasta 30 min). Apenas hidrata se refrescan los últimos avisos
+  // y el total, así un aviso recién aprobado aparece enseguida y coincide con el contador.
+  const modalidadRef = useRef(previewModality);
+  useEffect(() => { modalidadRef.current = previewModality; }, [previewModality]);
+  useEffect(() => {
+    if (!initialJobs) return;
+    let ignore = false;
+    api.get("/jobs?page=1&page_size=6")
+      .then(r => {
+        if (ignore || modalidadRef.current !== "") return;
+        setPreviewJobs(r.data.items);
+        setTotalActive(r.data.total);
+      })
+      .catch(() => {});
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
   const [landingStats, setLandingStats] = useState<LandingStat[]>([]);
 
