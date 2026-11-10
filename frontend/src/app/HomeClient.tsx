@@ -24,6 +24,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { jobUrl } from "@/lib/seo/urls";
 import { VERSION_ACTUAL } from "@/lib/novedades";
+import { useEncajaConTuPerfil } from "@/hooks/useEncajaConTuPerfil";
+import EncajaChip from "@/components/jobs/EncajaChip";
 
 interface Job extends PreviewJob {
   is_featured?: boolean;
@@ -94,6 +96,8 @@ export default function HomeClient({
   const router = useRouter();
 
   // Vista previa de "Últimos avisos" — ya no precarga todo, trae una página chica.
+  // Chip "Encaja con tu perfil": sólo candidatos logueados y con la compuerta abierta.
+  const encaja = useEncajaConTuPerfil();
   const [previewJobs, setPreviewJobs] = useState<Job[]>(initialJobs ?? []);
   const [totalActive, setTotalActive] = useState(initialJobs ? initialTotal : 0);
   const [previewModality, setPreviewModality] = useState("");
@@ -430,6 +434,7 @@ export default function HomeClient({
                               <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
                             </span>
                           )}
+                          {encaja.has(job.id.toLowerCase()) && <EncajaChip className="py-1" />}
                         </div>
                       </div>
 

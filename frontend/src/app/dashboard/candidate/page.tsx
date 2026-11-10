@@ -11,6 +11,8 @@ import {
 import ProfileCompletionRing from "@/components/ui/ProfileCompletionRing";
 import { APP_STATUS, type CandidateProfile, type Application } from "./types";
 import { jobUrl } from "@/lib/seo/urls";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
+import BusquedasParaVos from "@/components/dashboard/BusquedasParaVos";
 
 interface RecentJob {
   id: string;
@@ -167,6 +169,9 @@ export default function CandidateInicioPage() {
           </div>
         </div>
       )}
+
+      {/* Búsquedas para vos (módulo nuevo): las que encajan con el perfil, con el porqué. */}
+      {MODULOS_NUEVOS_VISIBLES && <BusquedasParaVos />}
 
       {/* Hero — perfil */}
       <Link
