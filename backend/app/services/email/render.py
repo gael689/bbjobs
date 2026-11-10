@@ -46,6 +46,8 @@ class EmailItem:
     title: str
     detail: str | None = None
     url: str | None = None
+    # "Por qué" te la mandamos (aviso de búsquedas que encajan): sólo datos del propio perfil.
+    why: str | None = None
 
 
 @dataclass
@@ -180,6 +182,9 @@ def render_email(
                      f'{e(it.title)}</a>') if link else f'<strong style="color:{TEXT};">{e(it.title)}</strong>'
             detail = (f'<div style="font-size:14px;color:{MUTED};margin-top:2px;">{e(it.detail)}</div>'
                       if it.detail else "")
+            if it.why:
+                detail += (f'<div style="font-size:14px;color:{TEXT};margin-top:2px;">'
+                           f'Por qué: {e(it.why)}</div>')
             if link and item_cta:
                 detail += (f'<div style="margin-top:4px;"><a href="{e(link, quote=True)}" '
                            f'style="font-size:14px;color:{BUTTON};text-decoration:underline;">{e(item_cta)}</a></div>')
@@ -248,6 +253,8 @@ def render_email(
         link = absolute_url(it.url)
         text_parts.append("")
         text_parts.append(f"- {it.title}" + (f" ({it.detail})" if it.detail else ""))
+        if it.why:
+            text_parts.append(f"  Por qué: {it.why}")
         if link:
             text_parts.append(f"  {(item_cta + ': ') if item_cta else ''}{link}")
     if outro:

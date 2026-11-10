@@ -69,3 +69,55 @@ export const ETIQUETAS_STATS: Record<string, string> = {
 
 export const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—";
+
+/**
+ * Mail de presentación a empresas (prospección), listo para usar. Texto plano, institucional, sin
+ * firma con logo: sale como un mail escrito a mano (igual que la presentación de MBK). Sólo dice lo
+ * que BBJobs ya publica de sí mismo (portal de Talency, empresas verificadas a mano, publicar es
+ * gratis, cómo es la selección) y nada del negocio del otro: el rubro viene de Google y suele estar
+ * mal. El link de baja lo agrega el sistema al pie. Los seguimientos cuentan desde el mail anterior.
+ */
+export const PLANTILLA_PROSPECCION = {
+  nombre: "Presentación de BBJobs y Talency",
+  producto: "seleccion_personal",
+  asunto: "BBJobs, el portal de empleos de Bahía Blanca",
+  cuerpo: `Hola, ¿cómo están?
+
+Les escribimos desde Talency, la consultora de recursos humanos de Bahía Blanca que lleva adelante BBJobs, el portal de empleos de Bahía Blanca y la región.
+
+En BBJobs las empresas publican sus búsquedas gratis y reciben postulaciones de candidatos de la zona. Cada empresa se verifica a mano antes de publicar, así quien se postula sabe que el aviso es real.
+
+Si prefieren delegar la búsqueda, en Talency hacemos la selección completa: definimos el perfil con ustedes, publicamos, filtramos, entrevistamos y les presentamos a los candidatos que mejor encajan.
+
+Pueden conocer el portal acá: https://www.bbjobs.com.ar/publicar-empleo
+
+Cuando necesiten sumar a alguien al equipo, respondan este mail y lo vemos juntos.
+
+Saludos,
+Equipo de Talency
+BBJobs · www.bbjobs.com.ar`,
+  seguimientos: [
+    {
+      after_days: 7,
+      subject: "Re: BBJobs, el portal de empleos de Bahía Blanca",
+      body: `Hola, ¿cómo va?
+
+Les escribimos la semana pasada para contarles de BBJobs. Por si les sirve, publicar una búsqueda es gratis: https://www.bbjobs.com.ar/publicar-empleo
+
+Y si prefieren que nos ocupemos de toda la búsqueda, así trabajamos la selección de personal: https://www.bbjobs.com.ar/seleccion-de-personal
+
+Saludos,
+Equipo de Talency`,
+    },
+    {
+      after_days: 14,
+      subject: "Re: BBJobs, el portal de empleos de Bahía Blanca",
+      body: `Hola,
+
+Les escribimos por última vez, no queremos llenarles la casilla. Cuando necesiten sumar a alguien al equipo, nos encuentran respondiendo este mail o en www.bbjobs.com.ar.
+
+¡Éxitos!
+Equipo de Talency`,
+    },
+  ] as Seguimiento[],
+};

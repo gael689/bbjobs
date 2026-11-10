@@ -173,17 +173,47 @@ async def on_job_approved(job_id: uuid.UUID) -> None:
 
 # ── Envío ───────────────────────────────────────────────────────────────────────────────
 
+_MODALIDAD_TEXTO = {"presencial": "Presencial", "híbrido": "Híbrido", "remoto": "Remoto"}
+
+
 def _detail(job: JobPosting, zone_name: str | None) -> str | None:
+    """Empresa · zona · modalidad, para decidir sin abrir el aviso."""
     modality = str(getattr(job.modality, "value", job.modality))
-    if modality == "remoto":
-        return "Remoto"
-    return zone_name
+    zona = None if modality == "remoto" else zone_name
+    return " · ".join(x for x in (job.company_legal_name_snapshot, zona, _MODALIDAD_TEXTO.get(modality)) if x) or None
+
+
+async def _why_by_job(db: AsyncSession, profile: CandidateProfile, jobs: list[JobPosting], zone_slugs: dict) -> dict:
+    """El mismo "por qué" del panel (Búsquedas para vos), sin el nivel de la IA: zona,
+    modalidad y habilidades técnicas en común. Sólo afirma lo que sale del perfil del candidato."""
+    from app.models.catalogs import Skill, SkillCategory
+    from app.services.busquedas_para_vos import _modalities, build_reasons
+    from app.services.zonas import proximidad_ids
+
+    technical = {sid: name for sid, name, cat in (await db.execute(
+        select(Skill.id, Skill.name, Skill.category).join(CandidateSkill, CandidateSkill.skill_id == Skill.id)
+        .where(CandidateSkill.candidate_id == profile.id))).all()
+        if str(getattr(cat, "value", cat)) == SkillCategory.technical.value}
+    job_skills: dict = {}
+    for job_id, skill_id in (await db.execute(
+        select(JobPostingSkill.job_posting_id, JobPostingSkill.skill_id)
+        .where(JobPostingSkill.job_posting_id.in_([j.id for j in jobs])))).all():
+        job_skills.setdefault(job_id, set()).add(skill_id)
+    modalities = _modalities(profile)
+    out = {}
+    for job in jobs:
+        common = sorted(technical[s] for s in job_skills.get(job.id, set()) & technical.keys())
+        reasons = build_reasons(job, proximity=proximidad_ids(profile.location_zone_id, job.zone_id, zone_slugs),
+                                modalities=modalities, common_technical=common, ai_level=None)
+        out[job.id] = " · ".join(reasons) or None
+    return out
 
 
 async def send_match_alerts(db: AsyncSession, now: datetime) -> int:
     """Un mail por candidato con lo pendiente, como mucho uno cada 24 h. No commitea."""
     from app.services.email.digests import _job_url, _last_sent, _mark_sent, enqueue_digest
     from app.services.email.render import EmailItem
+    from app.services.zonas import slugs_por_id
 
     rows = (await db.execute(
         select(CandidateJobMatch, JobPosting, Zone.name, CandidateProfile, User)
@@ -199,6 +229,7 @@ async def send_match_alerts(db: AsyncSession, now: datetime) -> int:
         by_user.setdefault(user.id, (user, profile, []))[2].append((match, job, zone_name))
 
     count = 0
+    zone_slugs = None
     for user, profile, found in by_user.values():
         last = await _last_sent(db, user.id, TEMPLATE_KEY)
         if last and last > now - EVERY:
@@ -218,11 +249,16 @@ async def send_match_alerts(db: AsyncSession, now: datetime) -> int:
         valid = valid[:MAX_PER_MAIL]    # lo que sobra queda para el próximo
         if not valid:
             continue
-        items = [EmailItem(title=job.title, detail=_detail(job, zone_name), url=_job_url(job))
+        if zone_slugs is None:
+            zone_slugs = await slugs_por_id(db)
+        why = await _why_by_job(db, profile, [job for _, job, _ in valid], zone_slugs)
+        items = [EmailItem(title=job.title, detail=_detail(job, zone_name), url=_job_url(job), why=why.get(job.id))
                  for _, job, zone_name in valid]
+        # El botón final lleva al panel: ahí están todas las que le encajan, no sólo las nuevas.
         if await enqueue_digest(
             db, user=user, key=TEMPLATE_KEY, subject="Hay una búsqueda que encaja con tu perfil",
-            heading="", intro="", items=items, cta_label="Ver más búsquedas", cta_url="/empleos", now=now,
+            heading="", intro="", items=items, cta_label="Ver mis búsquedas para vos",
+            cta_url="/dashboard/candidate", now=now,
         ):
             for match, _, _ in valid:
                 match.status, match.sent_at = "sent", now

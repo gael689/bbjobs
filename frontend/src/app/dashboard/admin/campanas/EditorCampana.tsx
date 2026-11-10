@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { detalleError } from "@/hooks/useModulo";
 import { SparklesIcon, PaperAirplaneIcon, CheckCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { PRODUCTOS, type Audiencia, type Campana, type Destino, type Opcion, type Seguimiento } from "./tipos";
+import { PLANTILLA_PROSPECCION, PRODUCTOS, type Audiencia, type Campana, type Destino, type Opcion, type Seguimiento } from "./tipos";
 
 interface Props {
   campana: Campana | null;          // null = nueva
@@ -319,14 +319,38 @@ export default function EditorCampana({ campana, seleccionProspectos = null, onC
         </div>
 
         <div className="space-y-4">
+          {destino === "prospects" && (
+            <div className="bg-[#E6F4F7] rounded-xl px-3 py-2 text-sm text-[#1C2230] space-y-2">
+              <p>
+                A las empresas el mail sale <strong>en texto plano</strong>, como uno escrito a mano: sin diseño, sin logo y sin
+                seguimiento. Las respuestas llegan al buzón de Talency y el link de baja lo agrega el sistema.
+              </p>
+              <button type="button" className={btnSec} onClick={() => {
+                const p = PLANTILLA_PROSPECCION;
+                if ((asunto || cuerpo) && !window.confirm("Se reemplaza el texto que escribiste. ¿Seguir?")) return;
+                if (!nombre) setNombre(p.nombre);
+                setProducto(p.producto);
+                setAsunto(p.asunto);
+                setPreheader("");
+                setCuerpo(p.cuerpo);
+                setCtaLabel("");
+                setCtaUrl("");
+                setSeguimientos(p.seguimientos.map(x => ({ ...x })));
+              }}>
+                Usar la presentación de BBJobs y Talency (3 mails)
+              </button>
+            </div>
+          )}
           <div>
             <label className={label}>Asunto</label>
             <input className={input} value={asunto} onChange={e => setAsunto(e.target.value)} maxLength={300} />
           </div>
-          <div>
-            <label className={label}>Preheader (texto que se ve al lado del asunto)</label>
-            <input className={input} value={preheader} onChange={e => setPreheader(e.target.value)} maxLength={300} />
-          </div>
+          {destino !== "prospects" && (
+            <div>
+              <label className={label}>Preheader (texto que se ve al lado del asunto)</label>
+              <input className={input} value={preheader} onChange={e => setPreheader(e.target.value)} maxLength={300} />
+            </div>
+          )}
           <div>
             <label className={label}>Texto</label>
             <textarea className={`${input} min-h-[180px]`} value={cuerpo} onChange={e => setCuerpo(e.target.value)} maxLength={10000} />
@@ -336,11 +360,11 @@ export default function EditorCampana({ campana, seleccionProspectos = null, onC
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={label}>Texto del botón</label>
+              <label className={label}>{destino === "prospects" ? "Texto antes del link (opcional)" : "Texto del botón"}</label>
               <input className={input} value={ctaLabel} onChange={e => setCtaLabel(e.target.value)} maxLength={80} />
             </div>
             <div>
-              <label className={label}>Link del botón</label>
+              <label className={label}>{destino === "prospects" ? "Link al final (opcional)" : "Link del botón"}</label>
               <input className={input} value={ctaUrl} onChange={e => setCtaUrl(e.target.value)} placeholder="/empleos" maxLength={500} />
             </div>
           </div>

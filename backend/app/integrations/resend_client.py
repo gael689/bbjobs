@@ -90,8 +90,10 @@ def _payload(msg: OutgoingEmail, from_email: str | None = None) -> dict:
         "from": from_email or msg.from_email or settings.RESEND_FROM_EMAIL,
         "to": [msg.to],
         "subject": msg.subject,
-        "html": msg.html,
     }
+    # Sin html viaja sólo el texto (los mails de prospección, escritos como de persona a persona).
+    if msg.html:
+        body["html"] = msg.html
     if msg.text:
         body["text"] = msg.text
     if msg.headers:

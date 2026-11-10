@@ -13,6 +13,7 @@ clic (RFC 8058).
 from __future__ import annotations
 
 import asyncio
+import html
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -29,7 +30,7 @@ from app.integrations.resend_client import EmailSendError, OutgoingEmail, idempo
 from app.models.email import EmailCampaign, EmailCategory, EmailOutbox, EmailStatus, EmailSuppression
 from app.models.prospect import Prospect, ProspectEvent, ProspectStage
 from app.services.email.policy import AR_TZ, local_day_start
-from app.services.email.render import render_email, substitute
+from app.services.email.render import RenderedEmail, absolute_url, substitute
 from app.services.email.tokens import prospect_unsubscribe_api_url, prospect_unsubscribe_page_url
 
 logger = structlog.get_logger("app.services.email.prospect_dispatch")
@@ -48,7 +49,7 @@ class ProspectSender(ABC):
 
 class ResendProspectSender(ProspectSender):
     async def send(self, msg: OutgoingEmail) -> str:
-        return await resend_client.send_email(msg, api_key=settings.PROSPECT_RESEND_API_KEY,
+        return await resend_client.send_email(msg, api_key=prospect_api_key(),
                                               from_email=settings.PROSPECT_FROM_EMAIL)
 
 
@@ -61,11 +62,22 @@ class SimulatedProspectSender(ProspectSender):
         return f"sim_{uuid.uuid4().hex}"
 
 
+def prospect_api_key() -> str | None:
+    """La key de prospección. Sin una propia, la misma cuenta de Resend que los avisos (decisión de
+    Gael, 10/11/2026): el aislamiento lo da el subdominio `contacto.`, que tiene su reputación."""
+    return settings.PROSPECT_RESEND_API_KEY or settings.RESEND_API_KEY
+
+
 def get_prospect_sender() -> ProspectSender | None:
     mode = (settings.PROSPECT_MODE or "auto").lower()
     if mode == "auto":
-        mode = "resend" if settings.PROSPECT_RESEND_API_KEY else "off"
-    if mode == "resend" and settings.PROSPECT_RESEND_API_KEY:
+        mode = "resend" if prospect_api_key() else "off"
+    if mode == "resend" and prospect_api_key():
+        if not settings.PROSPECT_REPLY_TO:
+            # Sin buzón de respuesta, lo que conteste una empresa iría a `contacto@contacto.`,
+            # que no recibe: mejor no mandar nada.
+            logger.warning("prospect_sender_sin_reply_to")
+            return None
         return ResendProspectSender()
     if mode == "simulate":
         return SimulatedProspectSender()
@@ -78,14 +90,24 @@ def in_window(now: datetime) -> bool:
 
 
 def render_for_prospect(prospect: Prospect, *, subject: str, body: str, cta_label: str | None, cta_url: str | None):
+    """Mail de prospección en **texto plano**, como uno escrito a mano (igual que la presentación
+    de MBK): sin diseño, sin logo, sin imágenes y sin seguimiento. Llega mejor a la bandeja de
+    entrada y no parece publicidad. El `html` que se guarda es sólo el mismo texto, para la vista
+    previa del panel; al enviar viaja únicamente el texto (`dispatch_prospects`)."""
     variables = {"empresa": prospect.name, "localidad": prospect.locality or "Bahía Blanca"}
-    rendered = render_email(
-        heading=substitute(subject, variables), body=substitute(body, variables),
-        cta_label=cta_label if cta_url else None, cta_url=cta_url,
-        unsubscribe_url=prospect_unsubscribe_page_url(prospect.id),
-        footer_note="Te escribimos porque los datos de contacto de tu empresa están publicados.",
-    )
-    return substitute(subject, variables)[:500], rendered
+    partes = [substitute(body, variables).strip()]
+    link = absolute_url(cta_url)
+    if link:
+        partes.append(f"{cta_label.strip()}: {link}" if cta_label and cta_label.strip() else link)
+    partes.append("--\n" + PIE_PROSPECCION.format(baja=prospect_unsubscribe_page_url(prospect.id)))
+    text = "\n\n".join(p for p in partes if p)
+    html_preview = ('<div style="white-space:pre-wrap;font-family:Arial,sans-serif;font-size:14px;'
+                    f'line-height:1.5;color:#1C2230">{html.escape(text)}</div>')
+    return substitute(subject, variables)[:500], RenderedEmail(html=html_preview, text=text)
+
+
+PIE_PROSPECCION = ("Les escribimos porque los datos de contacto de su empresa están publicados.\n"
+                   "Para no recibir más mails nuestros: {baja}")
 
 
 @dataclass
@@ -163,7 +185,7 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
             if i:
                 await asyncio.sleep(REQUEST_INTERVAL_SECONDS)
             msg = OutgoingEmail(
-                to=row.to_email, subject=row.subject, html=row.html, text=row.text,
+                to=row.to_email, subject=row.subject, html="", text=row.text,  # sólo texto
                 headers={"List-Unsubscribe": f"<{prospect_unsubscribe_api_url(prospect.id)}>",
                          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
                 tags={"tipo": "prospeccion", "toque": str(row.touch)},
