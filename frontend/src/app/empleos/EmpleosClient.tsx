@@ -177,7 +177,7 @@ export default function EmpleosClient({
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-[#1E8EA3] font-bold text-sm uppercase tracking-wider mb-3">Portal de empleos</p>
           <h1 className="text-4xl font-display font-extrabold text-[#1C2230] mb-3">
-            Encontrá tu próximo trabajo en Bahía Blanca
+            Empleos en Bahía Blanca
           </h1>
           <p className="text-[#64748B] text-lg mb-8">
             Empresas verificadas, búsquedas reales, postulaciones con un click.
