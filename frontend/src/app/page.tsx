@@ -24,6 +24,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { jobUrl } from "@/lib/seo/urls";
 import { VERSION_ACTUAL } from "@/lib/novedades";
+import { useEncajaConTuPerfil } from "@/hooks/useEncajaConTuPerfil";
+import EncajaChip from "@/components/jobs/EncajaChip";
 
 interface Job extends PreviewJob {
   is_featured?: boolean;
@@ -88,6 +90,8 @@ export default function Home() {
   const [resolvedModality, setResolvedModality] = useState<string | null>(null);
   const loading = resolvedModality !== previewModality;
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
+  // Chip "Encaja con tu perfil": sólo candidatos logueados y con la compuerta abierta.
+  const encaja = useEncajaConTuPerfil();
   const [landingStats, setLandingStats] = useState<LandingStat[]>([]);
 
   // Si venimos de vuelta de /login?redirect_url=/?job=... reabrimos la misma vista previa.
@@ -415,6 +419,7 @@ export default function Home() {
                             <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
                           </span>
                         )}
+                        {encaja.has(job.id.toLowerCase()) && <EncajaChip className="py-1" />}
                       </div>
                     </div>
 

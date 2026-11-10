@@ -12,6 +12,8 @@ import JobPreviewPanel, { type PreviewJob } from "@/components/jobs/JobPreviewPa
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 import { jobUrl } from "@/lib/seo/urls";
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
+import { useEncajaConTuPerfil } from "@/hooks/useEncajaConTuPerfil";
+import EncajaChip from "@/components/jobs/EncajaChip";
 
 interface Job extends PreviewJob {
   zone_id?: string;
@@ -68,6 +70,8 @@ export default function EmpleosPage() {
   const [resolvedFiltersKey, setResolvedFiltersKey] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
+  // Chip "Encaja con tu perfil": sólo candidatos logueados y con la compuerta abierta.
+  const encaja = useEncajaConTuPerfil();
 
   // Si venimos de vuelta de /login?redirect_url=/empleos?job=... (ej. tras postularse sin
   // sesión), reabrimos la misma vista previa en vez de dejar al usuario en la lista pelada.
@@ -414,6 +418,7 @@ export default function EmpleosPage() {
                           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${MODALITY_CLS[job.modality] || "bg-gray-100 text-gray-600"}`}>
                             {MODALITY_LABEL[job.modality] || job.modality}
                           </span>
+                          {encaja.has(job.id.toLowerCase()) && <EncajaChip />}
                           {job.published_at && (
                             <span className="text-xs text-[#64748B]">{new Date(job.published_at).toLocaleDateString("es-AR")}</span>
                           )}

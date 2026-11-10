@@ -106,6 +106,7 @@ export default function PrivacidadV3() {
               <li>Verificar que las empresas existen y son quienes dicen ser.</li>
               <li>Hacer funcionar la Base de Talento, si la autorizaste.</li>
               <li>Ayudar a las empresas a ordenar postulantes por afinidad con su búsqueda, con inteligencia artificial y siempre con la decisión de una persona (punto 7).</li>
+              <li>Mostrarte en tu panel y en el listado de empleos las búsquedas que encajan con tu perfil (zona, modalidad, habilidades y, si no te opusiste, la evaluación con IA), con el motivo. Sólo las ves vos.</li>
               <li>Mandarte por mail avisos de tu cuenta, tus postulaciones o tus búsquedas, y búsquedas que encajan con tu perfil; y, <strong>sólo si lo aceptaste</strong>, novedades de BBJobs y Talency (punto 8).</li>
               <li>Prestarte la Revisión de CV, si la compraste (punto 9).</li>
               <li>Cobrar los servicios pagos y llevar el registro contable.</li>
