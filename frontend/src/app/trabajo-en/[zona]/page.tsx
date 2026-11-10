@@ -4,7 +4,7 @@ import PaginaListado from "@/components/seo/PaginaListado";
 import { ZONAS, getZona } from "@/lib/seo/zonas";
 import { RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 import { getActiveJobs, getCatalogos, idsPorSlug } from "@/lib/seo/datos";
-import { SITIO, urlAbs } from "@/lib/seo/sitio";
+import { metaPagina } from "@/lib/seo/meta";
 
 // /trabajo-en/<zona>: sólo las zonas de lib/seo/zonas.ts (cualquier otra → 404). Se regenera
 // cada 30 minutos (eran 15 hasta el 19/10/2026, ver app/empleos-de/[rubro]/page.tsx). Sin
@@ -31,22 +31,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { zona: slug } = await params;
   const d = await datos(slug);
   if (!d) return {};
-  const url = urlAbs(`/trabajo-en/${slug}`);
-  return {
+  return metaPagina({
     title: d.zona.title,
     description: d.zona.description,
-    alternates: { canonical: url },
-    robots: d.jobs.length > 0 ? { index: true, follow: true } : { index: false, follow: true },
-    openGraph: {
-      title: d.zona.title,
-      description: d.zona.description,
-      url,
-      type: "website",
-      siteName: SITIO.nombre,
-      locale: "es_AR",
-      images: [{ url: SITIO.ogImage, width: 1200, height: 630 }],
-    },
-  };
+    path: `/trabajo-en/${slug}`,
+    indexable: d.jobs.length > 0,
+  });
 }
 
 export default async function TrabajoEnZonaPage({ params }: Props) {
@@ -67,7 +57,7 @@ export default async function TrabajoEnZonaPage({ params }: Props) {
       otrosTitulo="Trabajo en otras zonas"
       otros={ZONAS_INDICE.filter((z) => z.slug !== slug).map((z) => ({ href: `/trabajo-en/${z.slug}`, nombre: `Trabajo en ${z.nombre}` }))}
       cruzadosTitulo="Empleos por sector"
-      cruzados={RUBROS_INDICE.map((r) => ({ href: `/empleos-de/${r.slug}`, nombre: r.nombre }))}
+      cruzados={RUBROS_INDICE.map((r) => ({ href: `/empleos-de/${r.slug}`, nombre: `Empleos de ${r.nombre.toLowerCase()}` }))}
       filtroEmpleos="/empleos"
       empresas={{ titulo: `¿Buscás personal en ${d.zona.nombre}?`, seleccionHref: "/seleccion-de-personal" }}
     />

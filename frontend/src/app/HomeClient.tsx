@@ -255,7 +255,7 @@ export default function HomeClient({
           </div>
 
           <h1 className="font-display font-extrabold text-5xl md:text-[64px] text-[#1C2230] leading-[1.1] tracking-tight mb-6">
-            El trabajo que buscás<br />
+            El trabajo que buscás{" "}<br />
             está en{" "}
             <span className="text-[#1E8EA3] relative inline-block">
               Bahía Blanca
@@ -387,62 +387,63 @@ export default function HomeClient({
                 <p className="text-sm text-[#64748B]">Probá con otra modalidad.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <ul className="space-y-3">
                 {previewJobs.map(job => (
-                  <a
-                    key={job.id}
-                    href={jobUrl(job)}
-                    onClick={e => { e.preventDefault(); openPreview(job); }}
-                    className={`group relative overflow-hidden rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4 ${
-                      job.is_featured
-                        ? "bg-gradient-to-br from-red-50 to-white border-2 border-red-200 hover:border-red-400 hover:shadow-md"
-                        : "bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm"
-                    }`}
-                  >
-                    {job.is_featured && (
-                      <div className="absolute -right-10 top-4 w-36 rotate-45 bg-red-600 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
-                        Destacado
-                      </div>
-                    )}
-                    {/* Avatar empresa */}
-                    <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
-                      {job.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={job.logo_url} alt={job.company_legal_name_snapshot} className="max-h-full max-w-full object-contain" />
-                      ) : (
-                        <span className="font-display font-extrabold text-[#1E8EA3] text-lg">
-                          {job.company_legal_name_snapshot?.[0] || "?"}
-                        </span>
+                  <li key={job.id}>
+                    <a
+                      href={jobUrl(job)}
+                      onClick={e => { e.preventDefault(); openPreview(job); }}
+                      className={`group relative overflow-hidden rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center gap-4 ${
+                        job.is_featured
+                          ? "bg-gradient-to-br from-red-50 to-white border-2 border-red-200 hover:border-red-400 hover:shadow-md"
+                          : "bg-white border border-[#DDE3EC] hover:border-[#1E8EA3]/40 hover:shadow-sm"
+                      }`}
+                    >
+                      {job.is_featured && (
+                        <div className="absolute -right-10 top-4 w-36 rotate-45 bg-red-600 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                          Destacado
+                        </div>
                       )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
-                        {job.title}
-                      </p>
-                      <p className="text-sm text-[#64748B] font-medium mt-0.5 flex items-center flex-wrap gap-x-1.5 gap-y-1">
-                        {job.company_legal_name_snapshot}
-                        <VerifiedBadge />
-                      </p>
-                      <div className="flex flex-wrap gap-2 mt-2.5">
-                        {job.modality && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
-                            <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
+                      {/* Avatar empresa */}
+                      <div className="w-12 h-12 rounded-xl bg-[#E6F4F7] flex items-center justify-center shrink-0 border border-[#9ED4DF] overflow-hidden">
+                        {job.logo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={job.logo_url} alt={job.company_legal_name_snapshot} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <span className="font-display font-extrabold text-[#1E8EA3] text-lg">
+                            {job.company_legal_name_snapshot?.[0] || "?"}
                           </span>
                         )}
                       </div>
-                    </div>
 
-                    <div className="flex flex-col items-end gap-3 shrink-0">
-                      {/* El HTML se genera en el servidor (ISR) y el "hace X" puede diferir unos minutos al hidratar. */}
-                      {job.published_at && <span suppressHydrationWarning className="text-xs text-[#94A3B8] font-medium">{timeAgo(job.published_at)}</span>}
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full group-hover:bg-[#1E8EA3] group-hover:text-white group-hover:border-[#1E8EA3] transition-all">
-                        Postularme <ChevronRightIcon className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </a>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-display font-bold text-lg text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors line-clamp-1">
+                          {job.title}
+                        </h3>
+                        <p className="text-sm text-[#64748B] font-medium mt-0.5 flex items-center flex-wrap gap-x-1.5 gap-y-1">
+                          {job.company_legal_name_snapshot}
+                          <VerifiedBadge />
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-2.5">
+                          {job.modality && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#F1F5F9] text-[#64748B] px-2.5 py-1 rounded-full">
+                              <BriefcaseIcon className="w-3.5 h-3.5" />{job.modality}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        {/* El HTML se genera en el servidor (ISR) y el "hace X" puede diferir unos minutos al hidratar. */}
+                        {job.published_at && <time dateTime={job.published_at} suppressHydrationWarning className="text-xs text-[#94A3B8] font-medium">{timeAgo(job.published_at)}</time>}
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1E8EA3] border border-[#9ED4DF] px-3 py-1.5 rounded-full group-hover:bg-[#1E8EA3] group-hover:text-white group-hover:border-[#1E8EA3] transition-all">
+                          Postularme <ChevronRightIcon className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </a>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
 
             {totalActive > previewJobs.length && (

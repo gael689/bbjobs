@@ -7,12 +7,19 @@ import { SITIO, urlAbs } from "./sitio";
 // entero, con og:url apuntando a la home, y una que no declara `title` hereda el de la home. Así
 // estaban /empresas, /nosotros, /contacto y las legales: el mismo título que la home y sin
 // canónica, que para Google es "otra copia de la home".
-export function metaPagina({ title, description, path }: { title: string; description: string; path: string }): Metadata {
+//
+// Las páginas de zona, de sector y /empleos también la usan (09/11/2026): antes armaban su
+// Open Graph a mano, sin twitter card ni og:image:alt. `indexable` se usa en las de zona y sector,
+// que quedan noindex,follow mientras no tengan búsquedas activas.
+export function metaPagina({
+  title, description, path, indexable,
+}: { title: string; description: string; path: string; indexable?: boolean }): Metadata {
   const url = urlAbs(path);
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...(indexable === undefined ? {} : { robots: indexable ? { index: true, follow: true } : { index: false, follow: true } }),
     openGraph: {
       title,
       description,

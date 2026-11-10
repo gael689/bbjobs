@@ -26,6 +26,8 @@ export default function Footer() {
   // de pie de página que casi nadie aprieta; sin prefetch la navegación sigue siendo del lado del
   // cliente, sólo que se pide al hacer click. Ver también lib/rutas-sesion.ts.
 
+  // Los títulos de columna son h2 (eran h4, 09/11/2026): el footer es un landmark propio y saltar
+  // de h2 a h4 rompía el orden de títulos en todas las páginas. El tamaño lo da la clase, no la etiqueta.
   return (
     <footer className="bg-white border-t border-[#DDE3EC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-10">
@@ -49,11 +51,11 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Plataforma</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Plataforma</h2>
           <ul className="space-y-3 text-sm">
             {[
-              { href: "/empleos", label: "Ver avisos" },
-              { href: "/register?type=candidate", label: "Cargar mi cv" },
+              { href: "/empleos", label: "Empleos en Bahía Blanca" },
+              { href: "/register?type=candidate", label: "Cargar mi CV" },
             ].map(({ href, label }) => (
               <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
@@ -61,7 +63,7 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Para empresas</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Para empresas</h2>
           <ul className="space-y-3 text-sm">
             {[
               { href: "/publicar-empleo", label: "Publicar un empleo" },
@@ -74,7 +76,7 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Legal</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Legal</h2>
           <ul className="space-y-3 text-sm">
             {[
               { href: "/terminos", label: "Términos de uso" },
@@ -98,7 +100,7 @@ export default function Footer() {
       {/* Enlaces a las páginas de zona y de sector (SEO local, ver lib/seo/indice.ts). */}
       <nav aria-label="Empleos por zona y por sector, y selección de personal por sector" className="border-t border-[#DDE3EC] max-w-7xl mx-auto px-4 sm:px-6 py-8 grid grid-cols-1 md:grid-cols-5 gap-8">
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por zona</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por zona</h2>
           <ul className="space-y-2 text-sm">
             {ZONAS_INDICE.map((z) => (
               <li key={z.slug}><Link prefetch={false} href={`/trabajo-en/${z.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Trabajo en {z.nombre}</Link></li>
@@ -106,7 +108,7 @@ export default function Footer() {
           </ul>
         </div>
         <div className="md:col-span-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por sector</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Empleos por sector</h2>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {RUBROS_INDICE.map((r) => (
               <li key={r.slug}><Link prefetch={false} href={`/empleos-de/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{r.nombre}</Link></li>
@@ -114,7 +116,7 @@ export default function Footer() {
           </ul>
         </div>
         <div className="md:col-span-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Selección de personal por sector</h4>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-4">Selección de personal por sector</h2>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {RUBROS_INDICE.filter((r) => SELECCION_INDICE.includes(r.slug)).map((r) => (
               <li key={r.slug}><Link prefetch={false} href={`/seleccion-de-personal/${r.slug}`} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">Selección en {r.nombre}</Link></li>

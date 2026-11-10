@@ -15,7 +15,10 @@ export const SITIO = {
     "Portal de empleos local de Bahía Blanca y la región. Empresas verificadas por Talency, postulación con un click y búsquedas de la zona en un solo lugar.",
   logo: `${SITE_URL}/logo.png`,
   ogImage: `${SITE_URL}/og-image.png`,
-  talency: { nombre: "Talency", url: "https://talency.com.ar" },
+  /** Casilla general que publican los términos de uso. */
+  email: "info@bbjobs.com.ar",
+  // www: talency.com.ar redirige (307) a www.talency.com.ar, que es el host que sirve el sitio.
+  talency: { nombre: "Talency", url: "https://www.talency.com.ar" },
 } as const;
 
 /** URL absoluta en el dominio canónico. `path` empieza con "/". */

@@ -164,7 +164,7 @@ export default async function CompanyProfilePage({ params }: Props) {
         </div>
 
         {/* Búsquedas activas */}
-        <div>
+        <section>
           <h2 className="font-display font-bold text-xl text-[#1C2230] mb-4">
             Búsquedas activas {jobs.length > 0 && `(${jobs.length})`}
           </h2>
@@ -174,25 +174,26 @@ export default async function CompanyProfilePage({ params }: Props) {
               <p className="text-sm text-[#64748B]">Esta empresa no tiene búsquedas activas en este momento.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <ul className="space-y-3">
               {jobs.map(job => (
-                <Link
-                  key={job.id}
-                  href={jobUrl(job)}
-                  className="group flex items-center justify-between gap-4 bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] rounded-2xl p-5 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="font-display font-bold text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors">{job.title}</p>
-                    <span className="text-xs font-semibold text-[#64748B]">{MODALITY_LABEL[job.modality] || job.modality}</span>
-                  </div>
-                  <span className="shrink-0 inline-flex items-center gap-1 text-sm font-bold text-[#1E8EA3]">
-                    Ver aviso <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                  </span>
-                </Link>
+                <li key={job.id}>
+                  <Link
+                    href={jobUrl(job)}
+                    className="group flex items-center justify-between gap-4 bg-white border border-[#DDE3EC] hover:border-[#1E8EA3] rounded-2xl p-5 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <h3 className="font-display font-bold text-[#1C2230] group-hover:text-[#1E8EA3] transition-colors">{job.title}</h3>
+                      <span className="text-xs font-semibold text-[#64748B]">{MODALITY_LABEL[job.modality] || job.modality}</span>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 text-sm font-bold text-[#1E8EA3]">
+                      Ver aviso <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

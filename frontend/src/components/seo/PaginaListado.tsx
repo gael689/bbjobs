@@ -5,7 +5,7 @@ import {
 import JsonLd from "./JsonLd";
 import Migas from "./Migas";
 import BloqueEmpresas from "./BloqueEmpresas";
-import { faqSchema, type Miga } from "@/lib/seo/schema";
+import { coleccionSchema, faqSchema, type Miga } from "@/lib/seo/schema";
 import type { PaginaSeo } from "@/lib/seo/tipos";
 import type { Catalogos, PublicJob } from "@/lib/seo/datos";
 import { etiquetasJob } from "@/lib/seo/datos";
@@ -51,6 +51,16 @@ export default function PaginaListado({
       <JsonLd data={faqSchema(contenido.preguntas)} />
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <Migas migas={migas} className="mb-8" />
+        {/* CollectionPage + ItemList: la página es el índice de estas búsquedas (09/11/2026). */}
+        <JsonLd
+          data={coleccionSchema({
+            path: migas[migas.length - 1].path,
+            nombre: contenido.h1,
+            descripcion: contenido.description,
+            items: jobs.map((j) => ({ url: jobUrl(j), nombre: j.title })),
+            conMigas: true,
+          })}
+        />
 
         {/* Hero */}
         <header className="mb-10">

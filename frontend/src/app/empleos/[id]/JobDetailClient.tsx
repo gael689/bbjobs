@@ -205,9 +205,10 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        <div className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
+        {/* article + header + time (09/11/2026): el aviso es una pieza que se entiende sola. */}
+        <article className="bg-white border border-[#DDE3EC] rounded-2xl overflow-hidden">
           {/* Job header */}
-          <div className="px-8 py-8 border-b border-[#DDE3EC] bg-gradient-to-r from-[#E6F4F7]/40 to-white">
+          <header className="px-8 py-8 border-b border-[#DDE3EC] bg-gradient-to-r from-[#E6F4F7]/40 to-white">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-2">
@@ -224,11 +225,12 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                     </span>
                   )}
                   {job.published_at && (
-                    <span className="text-xs text-[#64748B] flex items-center gap-1">
-                      <CalendarIcon className="w-3.5 h-3.5" />
+                    <time dateTime={job.published_at} className="text-xs text-[#64748B] flex items-center gap-1">
+                      <CalendarIcon className="w-3.5 h-3.5" aria-hidden />
+                      <span className="sr-only">Publicado el </span>
                       {/* Zona horaria fija: el HTML sale del servidor (UTC) y tiene que coincidir con el navegador. */}
                       {new Date(job.published_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
-                    </span>
+                    </time>
                   )}
                 </div>
                 <h1 className="text-3xl font-display font-extrabold text-[#1C2230] mb-3">{job.title}</h1>
@@ -303,7 +305,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                 )}
               </div>
             </div>
-          </div>
+          </header>
 
           {/* Body */}
           <div className="px-8 py-8 space-y-8">
@@ -340,7 +342,7 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
               </div>
             )}
           </div>
-        </div>
+        </article>
       </div>
     </div>
   );

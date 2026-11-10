@@ -10,6 +10,10 @@ type Json = Record<string, unknown>;
 
 const ORG_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;
+// Talency es una sola entidad en todo el sitio: la Organization de BBJobs la nombra como
+// parentOrganization y los Service de selección como provider, siempre por este @id. Antes eran
+// dos objetos sueltos sin @id y para un buscador podían ser dos "Talency" distintas.
+const TALENCY_ID = `${SITE_URL}/#talency`;
 
 const AREA_SERVIDA = [
   { "@type": "City", name: "Bahía Blanca" },
@@ -29,12 +33,34 @@ export function organizationSchema(): Json {
     logo: SITIO.logo,
     description: `${SITIO.descripcion} ${SITIO.iniciativa}.`,
     slogan: SITIO.lema,
+    email: SITIO.email,
     areaServed: AREA_SERVIDA,
-    parentOrganization: {
-      "@type": "Organization",
-      name: SITIO.talency.nombre,
-      url: SITIO.talency.url,
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: SITIO.email,
+      url: urlAbs("/contacto"),
+      availableLanguage: "es",
+      areaServed: "AR",
     },
+    parentOrganization: { "@id": TALENCY_ID },
+  };
+}
+
+/** Talency, la consultora de recursos humanos detrás de BBJobs. Sólo lo comprobable: nombre, sitio
+ *  y ciudad. Es EmploymentAgency (agencia de selección), no la propia BBJobs, que es el portal. */
+export function talencySchema(): Json {
+  return {
+    "@context": "https://schema.org",
+    "@type": "EmploymentAgency",
+    "@id": TALENCY_ID,
+    name: SITIO.talency.nombre,
+    url: SITIO.talency.url,
+    sameAs: [SITIO.talency.url],
+    description: "Consultora de recursos humanos de Bahía Blanca. Verifica a las empresas que publican en BBJobs y hace búsquedas de selección de personal.",
+    address: { "@type": "PostalAddress", addressLocality: "Bahía Blanca", addressRegion: "Buenos Aires", addressCountry: "AR" },
+    areaServed: AREA_SERVIDA,
+    subOrganization: { "@id": ORG_ID },
   };
 }
 
@@ -68,13 +94,8 @@ export function serviceSchema(s: { nombre: string; descripcion: string; path: st
     description: s.descripcion,
     url,
     inLanguage: "es-AR",
-    provider: {
-      "@type": "Organization",
-      name: SITIO.talency.nombre,
-      url: SITIO.talency.url,
-      description: "Consultora de recursos humanos de Bahía Blanca.",
-      address: { "@type": "PostalAddress", addressLocality: "Bahía Blanca", addressRegion: "Buenos Aires", addressCountry: "AR" },
-    },
+    // El nodo completo de Talency sale en todas las páginas desde el layout (talencySchema).
+    provider: { "@id": TALENCY_ID },
     broker: { "@id": ORG_ID },
     areaServed: AREA_SERVIDA,
     audience: { "@type": "BusinessAudience", audienceType: s.sector ? `Empresas del sector ${s.sector}` : "Empresas" },
@@ -89,15 +110,53 @@ export function serviceSchema(s: { nombre: string; descripcion: string; path: st
 export type Miga = { nombre: string; path: string };
 
 export function breadcrumbSchema(migas: Miga[]): Json {
+  const actual = migas[migas.length - 1];
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
+    ...(actual ? { "@id": `${urlAbs(actual.path)}#breadcrumb` } : {}),
     itemListElement: migas.map((m, i) => ({
       "@type": "ListItem",
       position: i + 1,
       name: m.nombre,
       item: urlAbs(m.path),
     })),
+  };
+}
+
+/** Página de listado (/empleos, /empresas, /trabajo-en/…, /empleos-de/…): CollectionPage cuyo
+ *  contenido principal es la lista de fichas que muestra el HTML, con su URL canónica. Le dice al
+ *  buscador qué es la página (un índice de avisos o de empresas, parte del sitio BBJobs) y qué
+ *  fichas cuelgan de ella. Si la página tiene migas, se enlaza su BreadcrumbList por @id. */
+export function coleccionSchema(p: {
+  path: string;
+  nombre: string;
+  descripcion: string;
+  items: { url: string; nombre: string }[];
+  conMigas?: boolean;
+}): Json {
+  const url = urlAbs(p.path);
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${url}#webpage`,
+    url,
+    name: p.nombre,
+    description: p.descripcion,
+    inLanguage: "es-AR",
+    isPartOf: { "@id": WEBSITE_ID },
+    about: { "@type": "City", name: "Bahía Blanca" },
+    ...(p.conMigas ? { breadcrumb: { "@id": `${url}#breadcrumb` } } : {}),
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: p.items.length,
+      itemListElement: p.items.map((it, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        url: urlAbs(it.url),
+        name: it.nombre,
+      })),
+    },
   };
 }
 
@@ -170,6 +229,9 @@ export function jobPostingSchema(job: PublicJob, cat: Catalogos): Json {
     ...(rubro && rubro.slug !== "otro" ? { industry: rubro.name } : {}),
     hiringOrganization: {
       "@type": "Organization",
+      // Mismo @id que la Organization de la ficha de la empresa (companySchema): la empresa que
+      // contrata y la de /empresas/<slug> son la misma entidad para el buscador.
+      ...(job.company_id ? { "@id": `${urlAbs(companyUrl({ id: job.company_id, legal_name: job.company_legal_name_snapshot }))}#organization` } : {}),
       name: job.company_legal_name_snapshot,
       // `url` es la ficha de la empresa en BBJobs. Sin `sameAs`: esa propiedad es para el sitio o
       // perfil propio de la empresa, y la ficha de BBJobs no "es la misma" entidad.
@@ -239,7 +301,8 @@ export function companySchema(company: PublicCompany, rubro?: string): Json {
     ...(company.logo_url ? { logo: company.logo_url } : {}),
     ...(company.description ? { description: company.description } : {}),
     ...(web ? { sameAs: [web] } : {}),
-    ...(rubro ? { knowsAbout: rubro } : {}),
+    // "Otro" es el comodín del catálogo, no un sector: no dice nada de la empresa.
+    ...(rubro && rubro.toLowerCase() !== "otro" ? { knowsAbout: rubro } : {}),
     ...(company.city || company.province
       ? {
           address: {

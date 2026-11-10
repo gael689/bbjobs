@@ -99,7 +99,7 @@ export default function PlanesPage() {
           {/* El título no repite "es gratis" porque la bajada de Eugenia ya abre con eso.
               Acá enmarca, la bajada informa. */}
           <h1 className="font-display font-extrabold text-4xl md:text-[52px] text-[#1C2230] leading-[1.08] tracking-tight mb-5 text-balance">
-            Buscá personal<br />a tu ritmo.
+            Buscá personal{" "}<br />a tu ritmo.
           </h1>
           <p className="text-lg text-[#64748B] leading-relaxed">
             Publicar búsquedas en BBJobs es gratis. Solo pagás si querés darles más visibilidad

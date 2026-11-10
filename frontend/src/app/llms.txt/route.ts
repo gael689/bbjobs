@@ -1,6 +1,6 @@
 import { SITIO, urlAbs } from "@/lib/seo/sitio";
 import { jobUrl } from "@/lib/seo/urls";
-import { getActiveJobs, getCatalogos, etiquetasJob } from "@/lib/seo/datos";
+import { getActiveJobs, getCatalogos, etiquetasJob, idsPorSlug, type CatalogItem } from "@/lib/seo/datos";
 import { localidadDeZona, RUBROS_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 import { ZONAS } from "@/lib/seo/zonas";
 import { RUBROS } from "@/lib/seo/rubros";
@@ -26,7 +26,7 @@ export async function GET() {
   l.push("- Candidatos: crean su cuenta gratis, completan su perfil y cargan su CV en PDF. Se postulan a cada búsqueda con un click, con carta de presentación opcional, y siguen el estado de sus postulaciones desde su panel.");
   l.push("- Empresas: se registran, el equipo de Talency las verifica manualmente y, una vez aprobadas, publican búsquedas gratis. Cada búsqueda dura como máximo 20 días.");
   l.push("- Cada aviso indica puesto, empresa, zona, modalidad (presencial, remoto o híbrido), tipo de contratación y, si la empresa lo decide, el sueldo.");
-  l.push(`- Postularse: ${urlAbs("/register?type=candidate")} · Publicar una búsqueda: ${urlAbs("/register?type=company")}`, "");
+  l.push(`- Postularse: ${urlAbs("/register?type=candidate")} · Publicar una búsqueda: ${urlAbs("/publicar-empleo")}`, "");
 
   l.push("## Selección de personal por Talency", "");
   l.push(SELECCION_HUB.citable, "");
@@ -44,8 +44,16 @@ export async function GET() {
   l.push(`- [Planes para empresas](${urlAbs("/planes")})`);
   l.push(`- [Quiénes somos](${urlAbs("/nosotros")})`);
   l.push(`- [Contacto](${urlAbs("/contacto")})`);
-  ZONAS.forEach((z) => l.push(`- [${z.h1}](${urlAbs(`/trabajo-en/${z.slug}`)}): ${z.bajada}`));
-  RUBROS.forEach((r) => l.push(`- [${r.h1}](${urlAbs(`/empleos-de/${r.slug}`)}): ${r.bajada}`));
+  // Sólo las páginas de zona y de sector con búsquedas activas: las otras son noindex y no están en
+  // el sitemap (mismo criterio que app/sitemap.ts), y a un asistente no le sirve un listado vacío.
+  const conBusquedas = (catalogo: readonly string[], lista: CatalogItem[], campo: "zone_id" | "industry_id") => {
+    const ids = idsPorSlug(lista, catalogo);
+    return jobs.some((j) => j[campo] && ids.has(j[campo] as string));
+  };
+  ZONAS.filter((z) => conBusquedas(ZONAS_INDICE.find((i) => i.slug === z.slug)?.catalogo ?? [], cat.zonas, "zone_id"))
+    .forEach((z) => l.push(`- [${z.h1}](${urlAbs(`/trabajo-en/${z.slug}`)}): ${z.bajada}`));
+  RUBROS.filter((r) => conBusquedas(RUBROS_INDICE.find((i) => i.slug === r.slug)?.catalogo ?? [], cat.rubros, "industry_id"))
+    .forEach((r) => l.push(`- [${r.h1}](${urlAbs(`/empleos-de/${r.slug}`)}): ${r.bajada}`));
   l.push("");
 
   l.push(`## Búsquedas activas (${jobs.length})`, "");

@@ -64,7 +64,7 @@ export default function EmpresasClient({ initialCompanies }: { initialCompanies:
         <div className="max-w-4xl mx-auto text-center">
           <span className="inline-block text-xs font-bold text-[#1E8EA3] uppercase tracking-widest mb-4">Para empresas</span>
           <h1 className="font-display font-extrabold text-4xl sm:text-5xl text-[#1C2230] leading-tight mb-5">
-            El talento de Bahía Blanca<br />te está esperando
+            El talento de Bahía Blanca{" "}<br />te está esperando
           </h1>
           <p className="text-lg text-[#64748B] max-w-2xl mx-auto mb-8">
             Publicá tu primera búsqueda gratis y accedé a candidatos locales verificados, sin intermediarios
