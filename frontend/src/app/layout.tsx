@@ -15,7 +15,7 @@ import MedicionPropia from "@/components/consent/MedicionPropia";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import JsonLd from "@/components/seo/JsonLd";
 import { SITE_URL, SITIO } from "@/lib/seo/sitio";
-import { organizationSchema, websiteSchema } from "@/lib/seo/schema";
+import { organizationSchema, talencySchema, websiteSchema } from "@/lib/seo/schema";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-display", display: "swap", weight: ["400","500","600","700","800"] });
 const dmSans  = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap", weight: ["400","500","700"] });
@@ -52,10 +52,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={`${jakarta.variable} ${dmSans.variable}`}>
+    // es-AR (09/11/2026): el sitio está escrito en castellano rioplatense y apunta a Bahía Blanca;
+    // concuerda con og:locale es_AR y con el inLanguage del JSON-LD.
+    <html lang="es-AR" className={`${jakarta.variable} ${dmSans.variable}`}>
       <body className="min-h-screen bg-[#FAFBFD] text-[#1C2230] font-sans flex flex-col antialiased relative">
-        {/* JSON-LD del sitio: Organization (BBJobs, iniciativa de Talency) + WebSite con buscador. */}
-        <JsonLd data={[organizationSchema(), websiteSchema()]} />
+        {/* JSON-LD del sitio: Organization (BBJobs), Talency (su organización madre, un solo @id
+            para todo el sitio) y WebSite con buscador. */}
+        <JsonLd data={[organizationSchema(), talencySchema(), websiteSchema()]} />
         <ClerkProvider appearance={clerkAppearance} localization={esES}>
           <ClerkTokenSync />
           <SessionExpiredBanner />
