@@ -7,7 +7,9 @@
 - Registro de actividad: no guarda texto del CV ni datos personales; el borrado de cuenta lo
   desengancha de la persona.
 
-Gemini simulado (el doble de `test_ai_pipeline_db`). No trunca tablas: cada test arma su mundo.
+Gemini simulado (el doble de `test_ai_pipeline_db`). Cada test arma su mundo; sólo los que leen
+totales de toda la base (el panorama y el aviso de la noche) arrancan sin los recomendados ni las
+notificaciones que dejaron otros tests (`sin_restos`), así pasan igual con la base reutilizada.
 """
 from __future__ import annotations
 
@@ -62,6 +64,19 @@ async def maker(monkeypatch):
     monkeypatch.setattr(db_session, "async_session_maker", session_maker)
     yield session_maker
     await engine.dispose()
+
+
+@pytest.fixture
+async def sin_restos(maker):
+    """Vacía lo que el panorama y `notify_new_fits` leen de TODA la base: los recomendados (el
+    top 5 del panorama se llenaba con los 99 de corridas anteriores) y las notificaciones (las de
+    los tests de carteles quedan sin link y rompían "todas llevan a /dashboard/admin/ia"). Nada
+    referencia a estas dos tablas, así que no arrastra otras."""
+    from sqlalchemy import text
+
+    async with maker() as db:
+        await db.execute(text("TRUNCATE job_recommendations, notifications"))
+        await db.commit()
 
 
 @pytest.fixture
@@ -471,7 +486,7 @@ async def _force_strong(maker, job_id, candidate_id, score=91):
         await db.commit()
 
 
-async def test_overview_shows_usage_quality_and_top_matches(maker, client, ai):
+async def test_overview_shows_usage_quality_and_top_matches(maker, sin_restos, client, ai):
     companies, job, people = await _ready_world(maker, ai)
     await _force_strong(maker, job.id, people["bueno"][1].id, 99)
     await _force_strong(maker, job.id, people["talento"][1].id, 98)
@@ -495,7 +510,7 @@ async def test_overview_shows_usage_quality_and_top_matches(maker, client, ai):
     assert (await client.get("/api/v1/admin/ai/overview")).status_code == 403
 
 
-async def test_new_fits_notice_is_short_and_talency_sees_it(maker, ai):
+async def test_new_fits_notice_is_short_and_talency_sees_it(maker, sin_restos, ai):
     from app.models.alerts import Notification
     from app.services.ai import jobs as ai_jobs
 
