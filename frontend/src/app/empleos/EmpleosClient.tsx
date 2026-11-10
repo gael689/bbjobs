@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { track } from "@/lib/analytics";
@@ -175,6 +175,27 @@ export default function EmpleosClient({
 
   const filtersKey = buildParams(1).toString();
   const loading = resolvedFiltersKey !== filtersKey;
+
+  // El HTML de /empleos viene cacheado (ISR, hasta 30 min) para que Google vea los avisos sin
+  // gastar CPU por visita. Apenas hidrata, se pide la primera página al backend: así un aviso
+  // recién aprobado aparece enseguida. Si el usuario ya filtró, gana su búsqueda.
+  const filtrosRef = useRef(filtersKey);
+  useEffect(() => { filtrosRef.current = filtersKey; }, [filtersKey]);
+  useEffect(() => {
+    if (!initialJobs) return; // sin lista del servidor, el efecto de filtros ya la pide
+    const inicial = filtrosRef.current;
+    let ignore = false;
+    api.get(`/jobs?${inicial}`)
+      .then(r => {
+        if (ignore || filtrosRef.current !== inicial) return;
+        setJobs(r.data.items);
+        setTotal(r.data.total);
+        setPage(1);
+      })
+      .catch(() => {});
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // `ignore` evita que una respuesta vieja (de un filtro anterior) pise los resultados
