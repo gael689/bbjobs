@@ -111,6 +111,8 @@ export default function BuscadorPostulantes({
         >
           <option value="">Más recientes primero</option>
           <option value="estrella">Con estrella primero</option>
+          {/* Primero el género preferido de la búsqueda (dato interno); sin preferencia, no cambia nada. */}
+          <option value="genero">Género preferido primero</option>
         </select>
         {hayFiltros(filtros) && (
           <button

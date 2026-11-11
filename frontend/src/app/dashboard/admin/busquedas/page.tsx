@@ -518,6 +518,12 @@ export default function AdminBusquedasPage() {
                       <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${JOB_STATUS_CLS[selectedJob.status] || "bg-slate-100 text-slate-600"}`}>
                         {JOB_STATUS_LABEL[selectedJob.status] || selectedJob.status}
                       </span>
+                      {/* Dato interno de la empresa: no sale en el aviso público. */}
+                      {selectedJob.preferred_gender && (
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#F7EFE9] text-[#8A6A52]" title="Interno: no se publica en el aviso">
+                          Género preferido: {selectedJob.preferred_gender === "femenino" ? "Femenino" : "Masculino"} (interno)
+                        </span>
+                      )}
                       <ExpiryBadge expiresAt={selectedJob.expires_at} status={selectedJob.status} />
                       {selectedJob.company_verification_status !== "verified" && (
                         <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700">

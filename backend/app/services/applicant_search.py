@@ -41,13 +41,13 @@ from app.models.candidate import (
     Availability, CandidateProfile, CandidateSkill, Education, Experience, Gender,
 )
 from app.models.catalogs import Skill
-from app.models.job import Application, ApplicationStatus
+from app.models.job import Application, ApplicationStatus, JobPosting
 from app.services.job_search import (
     FUZZY_THRESHOLD, Term, escape_like, normalize_text, norm, parse_query,
 )
 
 Lado = Literal["empresa", "admin"]
-Orden = Literal["recientes", "estrella"]
+Orden = Literal["recientes", "estrella", "genero"]
 
 MAX_Q_CHARS = 200
 
@@ -87,7 +87,7 @@ def filtros_postulantes(
     status: Optional[List[ApplicationStatus]] = Query(None, description="Uno o varios estados"),
     starred: Optional[bool] = Query(None, description="Sólo con estrella (true) o sin estrella (false)"),
     seen: Optional[bool] = Query(None, description="Sólo vistos (true) o sin ver (false)"),
-    orden: Orden = Query("recientes", description="recientes | estrella (las marcadas primero)"),
+    orden: Orden = Query("recientes", description="recientes | estrella (las marcadas primero) | genero (primero el género preferido de la búsqueda)"),
 ) -> FiltrosPostulantes:
     """Los parámetros del listado, declarados una vez para la empresa y el admin."""
     return FiltrosPostulantes(
@@ -242,6 +242,12 @@ async def aplicar_filtros(
     orden = [Application.created_at.desc(), Application.id.desc()]
     if f.orden == "estrella":
         orden = [case((estrella.is_(None), 1), else_=0), estrella.desc(), *orden]
+    elif f.orden == "genero":
+        # Primero quien coincide con el género preferido de SU búsqueda (dato interno); sin
+        # género preferido, queda el orden de siempre. Lo elige la persona: la IA no lo usa.
+        preferido = (select(JobPosting.preferred_gender)
+                     .where(JobPosting.id == Application.job_posting_id).scalar_subquery())
+        orden = [case((CandidateProfile.gender == preferido, 0), else_=1), *orden]
     return query.order_by(*orden)
 
 

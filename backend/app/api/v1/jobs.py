@@ -90,6 +90,7 @@ async def create_job_posting(
         salary_currency=payload.salary_currency,
         salary_visible=payload.salary_visible,
         benefits=payload.benefits,
+        preferred_gender=payload.preferred_gender,
         status=JobPostingStatus.active,
         published_at=datetime.datetime.now(datetime.timezone.utc),
         duration_days=payload.duration_days,

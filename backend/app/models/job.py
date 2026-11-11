@@ -52,6 +52,10 @@ class JobPosting(UUIDMixin, Base):
     salary_visible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     benefits: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Género preferido por la empresa (11/11/2026): dato INTERNO. Lo ven la empresa dueña y
+    # Talency; no sale en el aviso público, no frena postulaciones y la IA no lo lee. Sirve
+    # para ordenar postulantes a mano (`applicant_search`, orden "genero"). masculino | femenino.
+    preferred_gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
     
     status: Mapped[JobPostingStatus] = mapped_column(String(50), default=JobPostingStatus.draft, nullable=False)
     

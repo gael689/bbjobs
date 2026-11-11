@@ -139,6 +139,7 @@ class JobAdminResponse(BaseModel):
     salary_currency: Optional[str] = None
     salary_visible: bool = False
     benefits: Optional[str] = None
+    preferred_gender: Optional[str] = None  # interno: Talency lo ve, el público no
     # Señales de la IA para la lista de pendientes (sólo con la IA activa y el vector ya
     # calculado al publicar). Orientativas: la IA no aprueba ni rechaza nada.
     ai_flags: Optional["JobAiFlags"] = None

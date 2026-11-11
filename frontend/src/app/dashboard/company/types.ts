@@ -34,6 +34,7 @@ export interface JobPosting {
   salary_currency?: string;
   salary_visible?: boolean;
   benefits?: string;
+  preferred_gender?: PreferredGender | null;
 }
 
 // Precio fijo de destacar una búsqueda — espejo de FEATURED_JOB_PRICE en
@@ -208,6 +209,7 @@ export interface JobForm {
   salary_max: string;
   salary_visible: boolean;
   duration_days: number;
+  preferred_gender: PreferredGender | "";
 }
 
 export const MAX_JOB_DURATION_DAYS = 20;
@@ -216,8 +218,17 @@ export const EMPTY_JOB_FORM: JobForm = {
   title: "", description: "",
   industry_id: "", zone_id: "", contract_type_id: "",
   modality: "presencial", salary_min: "", salary_max: "", salary_visible: false,
-  duration_days: MAX_JOB_DURATION_DAYS,
+  duration_days: MAX_JOB_DURATION_DAYS, preferred_gender: "",
 };
+
+// Género preferido de la búsqueda (11/11/2026): dato interno. Lo ven la empresa y Talency, no
+// sale en el aviso, no frena postulaciones y la IA no lo usa. Sirve para ordenar postulantes.
+export type PreferredGender = "masculino" | "femenino";
+export const PREFERRED_GENDER_LABEL: Record<PreferredGender, string> = {
+  masculino: "Masculino", femenino: "Femenino",
+};
+export const PREFERRED_GENDER_AYUDA =
+  "Es interno: no se publica en el aviso y cualquiera se puede postular. Sólo sirve para ordenar a tus postulantes.";
 
 export const MODALITIES = [
   { value: "presencial", label: "Presencial" },

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime
 import uuid
 from app.models.job import JobPostingModality, JobPostingStatus, JobModerationStatus
@@ -7,6 +7,9 @@ from app.models.candidate import EducationLevel
 
 # Límite de producto: toda búsqueda vence a los 20 días como máximo (se puede reducir, no ampliar).
 MAX_JOB_DURATION_DAYS = 20
+
+# Género preferido: interno, nunca en la respuesta pública (ver models/job.py).
+PreferredGender = Literal["masculino", "femenino"]
 
 class JobPostingSkillCreate(BaseModel):
     skill_id: uuid.UUID
@@ -32,6 +35,7 @@ class JobPostingCreate(BaseModel):
     benefits: Optional[str] = None
     duration_days: int = Field(default=MAX_JOB_DURATION_DAYS, ge=1, le=MAX_JOB_DURATION_DAYS)
     skills: List[JobPostingSkillCreate] = []
+    preferred_gender: Optional[PreferredGender] = None
 
 class JobPostingUpdate(BaseModel):
     title: Optional[str] = None
@@ -39,6 +43,8 @@ class JobPostingUpdate(BaseModel):
     modality: Optional[JobPostingModality] = None
     status: Optional[JobPostingStatus] = None
     duration_days: Optional[int] = Field(default=None, ge=1, le=MAX_JOB_DURATION_DAYS)
+    # null lo borra (exclude_unset en el PATCH: si no viene, no se toca).
+    preferred_gender: Optional[PreferredGender] = None
 
 class JobPostingResponse(BaseModel):
     id: uuid.UUID
@@ -76,6 +82,7 @@ class JobPostingCompanyResponse(JobPostingResponse):
     interna que no corresponde exponer fuera de la empresa dueña de la búsqueda."""
     moderation_status: JobModerationStatus
     moderation_notes: Optional[str] = None
+    preferred_gender: Optional[str] = None
 
 class JobPostingPublicResponse(JobPostingResponse):
     @model_validator(mode="after")

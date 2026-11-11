@@ -13,7 +13,7 @@ export interface FiltrosPostulantes {
   status: string;
   starred: "" | "true";
   seen: "" | "false";
-  orden: "" | "estrella";
+  orden: "" | "estrella" | "genero";
   age_min: string;
   age_max: string;
   experience_min: string;

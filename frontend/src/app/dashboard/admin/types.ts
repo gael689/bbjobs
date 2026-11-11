@@ -174,6 +174,7 @@ export interface Job {
   salary_currency?: string;
   salary_visible?: boolean;
   benefits?: string;
+  preferred_gender?: "masculino" | "femenino" | null;  // interno: no sale en el aviso público
   // Señales de la IA en la lista de pendientes (calculadas al publicar). Orientativas: la IA no
   // aprueba ni rechaza nada. Ausente con la IA apagada o sin vector todavía.
   ai_flags?: JobAiFlags | null;

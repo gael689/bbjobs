@@ -431,6 +431,7 @@ async def search_talent(
     availability: Optional[Availability] = Query(None),
     immediate_availability: Optional[bool] = Query(None),
     has_own_transport: Optional[bool] = Query(None),
+    gender: Optional[Gender] = Query(None),
     only_unlocked: bool = Query(False, description="Sólo los que ya desbloqueé"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -458,6 +459,8 @@ async def search_talent(
         query = query.where(CandidateProfile.immediate_availability.is_(immediate_availability))
     if has_own_transport is not None:
         query = query.where(CandidateProfile.has_own_transport.is_(has_own_transport))
+    if gender is not None:
+        query = query.where(CandidateProfile.gender == gender)
     if position:
         # EXISTS y no JOIN: un candidato con tres puestos que coinciden no puede aparecer tres
         # veces (mismo criterio que el filtro de postulantes en applications.py).

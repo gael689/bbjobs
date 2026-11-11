@@ -14,7 +14,8 @@ import { AvisoOtrosProcesos, NotasPostulacion } from "@/components/dashboard/Not
 import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 import {
   JOB_MODERATION_CLS, JOB_MODERATION_LABEL, FEATURED_JOB_PRICE,
-  type Application, type JobPosting,
+  PREFERRED_GENDER_AYUDA, PREFERRED_GENDER_LABEL,
+  type Application, type JobPosting, type PreferredGender,
 } from "../types";
 
 type FilterTab = "all" | "active" | "paused" | "closed";
@@ -24,6 +25,7 @@ interface EditForm {
   description: string;
   modality: string;
   duration_days: number;
+  preferred_gender: PreferredGender | null;
 }
 
 export default function CompanyBusquedasPage() {
@@ -106,6 +108,7 @@ export default function CompanyBusquedasPage() {
       description: job.description,
       modality: job.modality,
       duration_days: job.duration_days ?? 20,
+      preferred_gender: job.preferred_gender ?? null,
     });
     setEditing(true);
   }
@@ -322,6 +325,23 @@ export default function CompanyBusquedasPage() {
                       className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3]"
                     />
                   </div>
+                </div>
+                <div>
+                  <label htmlFor="edit_preferred_gender" className="block text-xs font-bold text-[#1C2230] mb-1.5">
+                    Género preferido <span className="font-normal text-[#64748B]">(opcional, interno)</span>
+                  </label>
+                  <select
+                    id="edit_preferred_gender"
+                    value={editForm.preferred_gender ?? ""}
+                    onChange={e => setEditForm({ ...editForm, preferred_gender: (e.target.value || null) as PreferredGender | null })}
+                    className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] bg-white"
+                  >
+                    <option value="">Sin preferencia</option>
+                    {(Object.keys(PREFERRED_GENDER_LABEL) as PreferredGender[]).map(g => (
+                      <option key={g} value={g}>{PREFERRED_GENDER_LABEL[g]}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-[#64748B] mt-1.5">{PREFERRED_GENDER_AYUDA}</p>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => setEditing(false)}

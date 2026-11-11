@@ -66,7 +66,7 @@ type Zona = { id: string; name: string };
 
 const EMPTY_FILTERS = {
   position: "", age_min: "", age_max: "",
-  experience_min: "", experience_max: "", zone_id: "", only_unlocked: false,
+  experience_min: "", experience_max: "", zone_id: "", gender: "", only_unlocked: false,
 };
 
 function duracion(meses: number): string {
@@ -104,6 +104,7 @@ export default function BaseDeTalentoPage() {
     if (f.experience_min) params.experience_min = f.experience_min;
     if (f.experience_max) params.experience_max = f.experience_max;
     if (f.zone_id) params.zone_id = f.zone_id;
+    if (f.gender) params.gender = f.gender;
     if (f.only_unlocked) params.only_unlocked = true;
     return params;
   }
@@ -251,6 +252,17 @@ export default function BaseDeTalentoPage() {
           >
             <option value="">Todas las zonas</option>
             {zonas.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
+          <select
+            value={filters.gender}
+            onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}
+            aria-label="Género"
+            className="border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
+          >
+            <option value="">Todos los géneros</option>
+            <option value="femenino">Femenino</option>
+            <option value="masculino">Masculino</option>
+            <option value="otro">Otro</option>
           </select>
         </div>
         <div className="flex flex-wrap items-center gap-3 mt-3">

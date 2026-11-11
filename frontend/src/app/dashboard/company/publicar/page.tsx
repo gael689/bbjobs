@@ -12,6 +12,7 @@ import AsistenteRedaccion from "@/components/dashboard/AsistenteRedaccion";
 import type { SkillCatalog, SkillCatalogItem } from "@/app/dashboard/candidate/types";
 import {
   EMPTY_JOB_FORM, MAX_JOB_DURATION_DAYS, MODALITIES, FEATURED_JOB_PRICE,
+  PREFERRED_GENDER_AYUDA, PREFERRED_GENDER_LABEL, type PreferredGender,
   type Catalog, type CompanyProfile, type JobForm,
 } from "../types";
 
@@ -109,6 +110,7 @@ export default function PublicarBusquedaPage() {
         ...form,
         salary_min: form.salary_min ? Number(form.salary_min) : undefined,
         salary_max: form.salary_max ? Number(form.salary_max) : undefined,
+        preferred_gender: form.preferred_gender || undefined,
         skills: selectedSkills.map(s => ({ skill_id: s.skill_id, is_required: s.is_required })),
       };
       const created = await api.post("/me/company/jobs", payload);
@@ -342,6 +344,24 @@ export default function PublicarBusquedaPage() {
                       />
                       <span className="text-sm font-bold text-[#1E8EA3] w-16 text-right shrink-0">{form.duration_days} días</span>
                     </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="preferred_gender" className="block text-sm font-bold text-[#1C2230] mb-1.5">
+                      Género preferido <span className="font-normal text-[#64748B]">(opcional, interno)</span>
+                    </label>
+                    <select
+                      id="preferred_gender"
+                      value={form.preferred_gender}
+                      onChange={e => setForm(f => ({ ...f, preferred_gender: e.target.value as PreferredGender | "" }))}
+                      className="w-full border border-[#DDE3EC] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#1E8EA3] bg-white"
+                    >
+                      <option value="">Sin preferencia</option>
+                      {(Object.keys(PREFERRED_GENDER_LABEL) as PreferredGender[]).map(g => (
+                        <option key={g} value={g}>{PREFERRED_GENDER_LABEL[g]}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-[#64748B] mt-1.5">{PREFERRED_GENDER_AYUDA}</p>
                   </div>
 
                   <div>
