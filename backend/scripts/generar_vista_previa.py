@@ -253,9 +253,12 @@ CAMPANITA: dict[str, tuple[str, str, str | None]] = {
 RESUMENES: dict[str, tuple[str, str, str, list[EmailItem], str, str]] = {
     # Con dos búsquedas, para que se vea el asunto en plural (con una: "Hay una búsqueda que…").
     "aviso_busquedas": ("", "", "",
-        [EmailItem("Operario/a de depósito con autoelevador", "Bahía Blanca", "/empleos/x"),
-         EmailItem("Repositor/a turno mañana", "Zona Norte", "/empleos/x")],
-        "Ver más búsquedas", "/empleos"),
+        # Igual que matches.send_match_alerts: empresa · zona · modalidad, y el por qué.
+        [EmailItem("Operario/a de depósito con autoelevador", "Logística Sur · Bahía Blanca · Presencial", "/empleos/x",
+                   why="En tu zona · Presencial, como buscás · Pide Manejo de autoelevador"),
+         EmailItem("Repositor/a turno mañana", "Distribuidora Sur · Zona Norte · Presencial", "/empleos/x",
+                   why="Cerca de tu zona · Presencial, como buscás")],
+        "Ver mis búsquedas para vos", "/dashboard/candidate"),
     "digest_para_vos": ("Búsquedas de esta semana que te pueden interesar", "Búsquedas para vos",
         "Se publicaron esta semana y encajan con tu perfil. Postularte lleva un clic.",
         [EmailItem("Chofer de reparto", "Bahía Blanca · presencial · Distribuidora Sur", "/empleos/x"),

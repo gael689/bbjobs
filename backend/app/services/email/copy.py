@@ -556,7 +556,8 @@ DIGESTS: dict[str, DigestCopy] = {
         "Se publicó una búsqueda que encaja con tu perfil",
         "La elegimos según tu experiencia, tus habilidades y tu zona. Revisá los requisitos y, si te "
         "interesa, postulate con un clic.",
-        "Ver más búsquedas", "Postularme",
+        # El botón lleva al panel (matches.send_match_alerts): ahí están todas las que le encajan.
+        "Ver mis búsquedas para vos", "Postularme",
         subject_many="Hay {cantidad} búsquedas que encajan con tu perfil",
         heading_many="Se publicaron {cantidad} búsquedas que encajan con tu perfil",
         intro_many="Las elegimos según tu experiencia, tus habilidades y tu zona. Revisá los requisitos "

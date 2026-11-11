@@ -45,17 +45,17 @@ const LANZAMIENTO: { titulo: string; detalle: string; estado: EstadoEtapa }[] = 
   },
   {
     titulo: "Prender la IA y probarla",
-    detalle: "Con búsquedas reales: si recomienda bien y si el porqué tiene sentido.",
+    detalle: "Falta la clave de Gemini (paso a paso en la última pantalla). Después, probarla con búsquedas reales.",
     estado: "falta",
   },
   {
     titulo: "Prender los mails, de a poco",
-    detalle: "Arrancan con pocos por día y suben semana a semana, para que no caigan en spam.",
+    detalle: "Falta el plan pago de Resend (paso a paso en la última pantalla). Arrancan con pocos por día y suben semana a semana.",
     estado: "falta",
   },
   {
     titulo: "Presentar BBJobs a las empresas de la zona",
-    detalle: "Cuando esté la casilla de Talency para recibir las respuestas.",
+    detalle: "Antes vamos a sumar más empresas y conseguir el mail de las que no lo tienen.",
     estado: "falta",
   },
 ];
@@ -377,6 +377,13 @@ function PasoSitio() {
       bajada="Antes de los módulos nuevos se trabajó para que Google entienda BBJobs y lo muestre a quien busca trabajo en la zona. Eso ya está publicado."
       demo={<DemoGoogle />}
     >
+      <div className="mb-5 flex gap-3 rounded-2xl border border-secondary bg-secondary-light p-4 text-[15px] leading-snug text-text">
+        <span aria-hidden className="text-lg">⏳</span>
+        <span>
+          <strong className="font-semibold">Hay que tenerle paciencia a Google.</strong> Va encontrando y
+          sumando las páginas de a poco, a lo largo de semanas. No aparecen todas de un día para el otro.
+        </span>
+      </div>
       <ListaTildes
         items={[
           "Cada búsqueda y cada empresa tiene su propia página, preparada para aparecer en Google.",
@@ -401,8 +408,8 @@ const COLOR_ACTOR: Record<Actor, string> = {
 const VIAJE: { actor: Actor; titulo: string; texto: string }[] = [
   { actor: "Empresa", titulo: "Publica una búsqueda", texto: "Carga el puesto, los requisitos y marca cuáles son excluyentes." },
   { actor: "Talency", titulo: "La revisa y la aprueba", texto: "Nada se publica sin que ustedes la miren. Si necesita cambios, a la empresa le llega un mail para corregirla." },
-  { actor: "BBJobs", titulo: "Busca quién encaja", texto: "Compara la búsqueda con los perfiles: requisitos, experiencia, estudios, zona y modalidad." },
-  { actor: "Candidato", titulo: "Le llega «Salió una búsqueda que encaja con vos»", texto: "Con el porqué: «En tu zona · Presencial, como buscás · Pide Excel». Como mucho un mail por día." },
+  { actor: "BBJobs", titulo: "Busca quién encaja", texto: "Compara la búsqueda con los perfiles: requisitos, experiencia, estudios y modalidad." },
+  { actor: "Candidato", titulo: "Le llega un mail: «Salió una búsqueda que encaja con vos»", texto: "A cada candidato que encaja le llega un mail a su casilla, con la búsqueda y el porqué: «Presencial, como buscás · Pide Excel». Como mucho uno por día." },
   { actor: "Candidato", titulo: "Se postula", texto: "Le llega «Postulación confirmada» y la búsqueda queda en su panel." },
   { actor: "Empresa", titulo: "Ve quién encaja mejor", texto: "Los postulantes ordenados con el porqué de cada uno, y un resumen diario en vez de un mail por postulación." },
   { actor: "Candidato", titulo: "Se entera de cada avance", texto: "Cuando la empresa abre su CV o cambia el estado, le llega un mail. Los «No avanza» esperan 24 horas por si fue un error." },
@@ -560,7 +567,7 @@ const CANDIDATOS: {
       "«Técnica Superior en Administración Contable»",
       "En su perfil: busca jornada completa",
     ],
-    porque: ["En Bahía Blanca, como la búsqueda", "Cumple los 2 excluyentes", "Busca jornada completa"],
+    porque: ["Cumple los 2 excluyentes", "3 años en facturación", "Busca jornada completa"],
   },
   {
     nombre: "Martín",
@@ -572,14 +579,14 @@ const CANDIDATOS: {
       "«Estudiante de Contador Público, 3.er año»",
       "En su perfil: busca jornada completa",
     ],
-    porque: ["En Punta Alta, cerca", "Cumple 1 de los 2 excluyentes", "Estudia Contador Público"],
+    porque: ["Cumple 1 de los 2 excluyentes", "Estudia Contador Público", "Busca jornada completa"],
   },
   {
     nombre: "Sofía",
-    zona: "Lejos de Bahía Blanca",
+    zona: "Bahía Blanca",
     puntaje: 44,
     evidencias: ["«Excel avanzado, certificado»", null, null, null],
-    porque: ["Vive lejos de la búsqueda", "Cumple 1 de los 2 excluyentes", "No consta experiencia en facturación"],
+    porque: ["Cumple 1 de los 2 excluyentes", "No consta experiencia en facturación", "Sin estudios contables"],
   },
 ];
 const etiquetaEncaje = (p: number) => (p >= 80 ? "Encaja muy bien" : p >= 60 ? "Encaja bien" : "Encaja poco");
@@ -598,7 +605,13 @@ function DemoIA() {
         <Chip tono="arena">¿Quién encaja mejor?</Chip>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2" role="tablist" aria-label="Candidatos">
+      <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-primary">
+        <motion.span aria-hidden animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 1.4 }}>
+          👆
+        </motion.span>
+        Tocá a Martín o a Sofía para ver cómo evalúa a cada uno
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2" role="tablist" aria-label="Candidatos">
         {CANDIDATOS.map((k, i) => (
           <button
             key={k.nombre}
@@ -634,7 +647,7 @@ function DemoIA() {
                 <div className="font-display text-3xl font-extrabold text-text">
                   <Contador hasta={c.puntaje} duracion={1} />
                 </div>
-                <div className="text-[11px] font-semibold text-text-muted">{c.zona}</div>
+                <div className="text-[11px] font-semibold text-text-muted">{etiquetaEncaje(c.puntaje)}</div>
               </div>
             </Anillo>
           </div>
@@ -671,7 +684,7 @@ function DemoIA() {
           </Chip>
         ))}
       </div>
-      <NotaEjemplo texto="Ejemplo con personas inventadas. Tocá cada candidato." />
+      <NotaEjemplo texto="Ejemplo con personas inventadas." />
     </Tarjeta>
   );
 }
@@ -681,15 +694,15 @@ function PasoIA() {
     <Escena
       capitulo="Candidatos recomendados con IA"
       titulo="Para cada búsqueda, quién encaja mejor y por qué"
-      bajada="La IA lee el CV y, requisito por requisito, dice si lo cumple copiando la frase que lo prueba. Así nadie tiene que creerle a ciegas."
+      bajada="La IA lee el CV y, requisito por requisito, dice si lo cumple copiando la frase que lo prueba. Así nadie tiene que creerle a ciegas. La demo de la derecha se puede tocar."
       demo={<DemoIA />}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-2 text-sm">
           {[
             ["Los requisitos", "uno por uno"],
+            ["Los excluyentes", "pesan el doble"],
             ["El perfil", "experiencia, estudios, modalidad"],
-            ["La zona", "por cercanía real"],
             ["El parecido", "entre el CV y el aviso"],
           ].map(([a, b]) => (
             <div key={a} className="rounded-xl border border-border bg-white px-3 py-2">
@@ -698,10 +711,13 @@ function PasoIA() {
             </div>
           ))}
         </div>
+        <p className="text-[13px] leading-snug text-text-muted">
+          La zona casi no cuenta: BBJobs ya es un portal de la zona, así que nadie queda atrás por vivir en otro barrio.
+        </p>
         <div className="rounded-2xl bg-text p-4 text-white">
           <div className="text-xs font-bold uppercase tracking-wider text-primary-mid">Lo que la IA nunca hace</div>
           <ul className="mt-2 space-y-1.5 text-[14px] leading-snug">
-            <li>· No usa edad ni género.</li>
+            <li>· No usa la edad.</li>
             <li>· No manda mails ni cambia el estado de una postulación: sólo sugiere, decide la empresa.</li>
             <li>· El CV sale de BBJobs sin nombre ni datos de contacto.</li>
           </ul>
@@ -1153,22 +1169,51 @@ function PasoPanel() {
 
 // ── 9. Empresas a contactar ───────────────────────────────────────────────────────────
 
+// Los textos reales de PLANTILLA_PROSPECCION (frontend/src/app/dashboard/admin/campanas/tipos.ts).
 const TOQUES = [
   {
     dia: 0,
     titulo: "Presentación",
-    texto:
-      "«Les escribimos desde Talency, la consultora de recursos humanos de Bahía Blanca que lleva adelante BBJobs…» Cuenta que publicar es gratis, que cada empresa se verifica a mano y que Talency puede hacer la selección completa.",
+    asunto: "BBJobs, el portal de empleos de Bahía Blanca",
+    texto: `Hola, ¿cómo están?
+
+Les escribimos desde Talency, la consultora de recursos humanos de Bahía Blanca que lleva adelante BBJobs, el portal de empleos de Bahía Blanca y la región.
+
+En BBJobs las empresas publican sus búsquedas gratis y reciben postulaciones de candidatos de la zona. Cada empresa se verifica a mano antes de publicar, así quien se postula sabe que el aviso es real.
+
+Si prefieren delegar la búsqueda, en Talency hacemos la selección completa: definimos el perfil con ustedes, publicamos, filtramos, entrevistamos y les presentamos a los candidatos que mejor encajan.
+
+Pueden conocer el portal acá: https://www.bbjobs.com.ar/publicar-empleo
+
+Cuando necesiten sumar a alguien al equipo, respondan este mail y lo vemos juntos.
+
+Saludos,
+Equipo de Talency
+BBJobs · www.bbjobs.com.ar`,
   },
   {
     dia: 7,
     titulo: "Recordatorio",
-    texto: "«Les escribimos la semana pasada para contarles de BBJobs. Por si les sirve, publicar una búsqueda es gratis…»",
+    asunto: "Re: BBJobs, el portal de empleos de Bahía Blanca",
+    texto: `Hola, ¿cómo va?
+
+Les escribimos la semana pasada para contarles de BBJobs. Por si les sirve, publicar una búsqueda es gratis: https://www.bbjobs.com.ar/publicar-empleo
+
+Y si prefieren que nos ocupemos de toda la búsqueda, así trabajamos la selección de personal: https://www.bbjobs.com.ar/seleccion-de-personal
+
+Saludos,
+Equipo de Talency`,
   },
   {
     dia: 21,
     titulo: "Cierre",
-    texto: "«Les escribimos por última vez, no queremos llenarles la casilla…»",
+    asunto: "Re: BBJobs, el portal de empleos de Bahía Blanca",
+    texto: `Hola,
+
+Les escribimos por última vez, no queremos llenarles la casilla. Cuando necesiten sumar a alguien al equipo, nos encuentran respondiendo este mail o en www.bbjobs.com.ar.
+
+¡Éxitos!
+Equipo de Talency`,
   },
 ];
 
@@ -1189,6 +1234,10 @@ function DemoContactar() {
           </div>
           <div className="text-xs text-text-muted">tienen mail</div>
         </Tarjeta>
+      </div>
+      <div className="rounded-2xl border border-primary-mid/60 bg-primary-light/60 px-4 py-3 text-[14px] leading-snug text-text">
+        <strong className="font-semibold">Y la lista va a crecer:</strong> vamos a sumar más empresas de la zona y
+        conseguir el mail de las que todavía no lo tienen.
       </div>
       <Tarjeta>
         <div className="relative flex items-center justify-between">
@@ -1220,17 +1269,22 @@ function DemoContactar() {
             <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
               Mail {toque + 1} de 3 · {TOQUES[toque].titulo}
             </div>
-            <div className="mt-2 rounded-xl border border-border bg-bg p-4 font-mono text-[13px] leading-relaxed text-text">
-              <div className="mb-2 text-text-muted">
-                De: Equipo de Talency
-                <br />
-                Asunto: {toque === 0 ? "" : "Re: "}BBJobs, el portal de empleos de Bahía Blanca
+            <div className="mt-2 rounded-xl border border-border bg-bg">
+              <div className="border-b border-border px-4 py-2.5 text-[12.5px] text-text-muted">
+                <div>
+                  <span className="font-semibold text-text">De:</span> Equipo de Talency
+                </div>
+                <div>
+                  <span className="font-semibold text-text">Asunto:</span> {TOQUES[toque].asunto}
+                </div>
               </div>
-              {TOQUES[toque].texto}
+              <div className="max-h-60 overflow-y-auto whitespace-pre-line px-4 py-3 text-[13.5px] leading-relaxed text-text">
+                {TOQUES[toque].texto}
+              </div>
             </div>
           </motion.div>
         </AnimatePresence>
-        <NotaEjemplo texto="Tocá cada día. Los textos completos se pueden editar antes de mandar." />
+        <NotaEjemplo texto="Tocá cada día para leer el mail completo, tal cual sale. Se puede editar antes de mandar." />
       </Tarjeta>
     </div>
   );
@@ -1246,10 +1300,9 @@ function PasoContactar() {
     >
       <ListaTildes
         items={[
-          "Pocos por día y en horario de oficina.",
-          "Cada mail trae su link para darse de baja.",
+          "Pocos por día, de lunes a viernes y en horario de oficina.",
           "Si alguien rebota o se queja, no se le escribe más.",
-          "Las respuestas llegan a una casilla de Talency: sin esa casilla, no sale ninguno.",
+          "Las respuestas llegan a una casilla de Talency, que definimos más adelante.",
         ]}
       />
     </Escena>
@@ -1405,49 +1458,115 @@ function PasoLanzamiento() {
   );
 }
 
-// ── 12. Lo que necesito de vos ────────────────────────────────────────────────────────
+// ── 12. Lo que falta para prenderlo ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const PEDIDOS = [
-  { titulo: "Una casilla de Talency", texto: "Para recibir las respuestas de las empresas. Sin eso no sale ningún mail de presentación." },
-  { titulo: "Aprobar los textos", texto: "El del aviso al candidato y los 3 mails a empresas." },
-  { titulo: "Charlar «Está en otro proceso»", texto: "Queda apagado hasta que lo decidamos juntos." },
-  { titulo: "Marcar 3 búsquedas reales", texto: "Decime en cada una quién te parecía mejor: con eso ajusto el orden de los recomendados." },
+const PEDIDOS: { titulo: string; texto: string; pasos: ReactNode[] }[] = [
+  {
+    titulo: "Pagar el plan Pro de Resend",
+    texto: "El servicio que manda los mails. 20 USD por mes, hasta 50.000 mails.",
+    pasos: [
+      <>Entrá a <strong>resend.com</strong> con la cuenta de BBJobs.</>,
+      <>Andá a <strong>Settings → Billing</strong> (Facturación).</>,
+      <>En el plan <strong>Pro</strong> tocá <strong>Upgrade</strong>.</>,
+      <>Cargá la tarjeta y confirmá.</>,
+      <>Avisame: sumo la dirección contacto@ y dejo los mails listos para prender.</>,
+    ],
+  },
+  {
+    titulo: "Crear la clave de Gemini",
+    texto: "La IA de Google que lee los CV y arma los recomendados.",
+    pasos: [
+      <>Entrá a <strong>aistudio.google.com</strong> con la cuenta de Google de Talency.</>,
+      <>Tocá <strong>Get API key</strong> y después <strong>Create API key</strong>. Si te pide un proyecto, creá uno llamado «BBJobs».</>,
+      <>Activá la facturación: al lado de la clave, <strong>Set up billing</strong>, y cargá la tarjeta. Con facturación activa, Google no usa los datos para entrenar su IA.</>,
+      <>Poné un aviso de gasto: en <strong>console.cloud.google.com → Facturación → Presupuestos y alertas</strong>, un presupuesto por mes (por ejemplo, 10 USD) con aviso por mail. BBJobs además tiene su propio tope: 1 USD por día.</>,
+      <>Copiá la clave y pasámela por un medio privado, no por mail ni por un grupo. Yo la cargo en el servidor.</>,
+    ],
+  },
+  {
+    titulo: "Probar los recomendados con 3 búsquedas",
+    texto: "Cuando prendamos la IA.",
+    pasos: [
+      <>Elegí 3 búsquedas que conozcas bien, de las que ya sabés quién era el mejor candidato.</>,
+      <>Mirá el orden en que BBJobs recomienda a los postulantes.</>,
+      <>Si alguien debería estar más arriba o más abajo, decime quién y por qué. Con eso ajusto el puntaje.</>,
+    ],
+  },
 ];
 
 function PasoVos({ vistaPrevia }: PasoProps) {
   const [tildados, setTildados] = useState<boolean[]>(() => PEDIDOS.map(() => false));
+  const [abierto, setAbierto] = useState<number | null>(0);
   const listos = tildados.filter(Boolean).length;
   return (
     <Escena
       capitulo="Lo que sigue"
-      titulo="Lo que necesito de vos"
-      bajada="Con estas cuatro cosas cerramos el lanzamiento. Podés ir tildándolas para llevar la cuenta."
+      titulo="Lo que falta para prenderlo"
+      bajada="Tres cosas de tu lado, cada una con su paso a paso. Tocá cada una para abrirla, y tildala cuando esté."
       demo={
         <div className="space-y-4">
           <Tarjeta className="p-3!">
-            {PEDIDOS.map((p, i) => (
-              <button
-                key={p.titulo}
-                type="button"
-                role="checkbox"
-                aria-checked={tildados[i]}
-                onClick={() => setTildados((t) => t.map((v, j) => (j === i ? !v : v)))}
-                className={`flex w-full items-start gap-3 rounded-2xl p-3 text-left transition ${tildados[i] ? "bg-primary-light/70" : "hover:bg-bg"}`}
-              >
-                <motion.span
-                  animate={{ scale: tildados[i] ? [1, 1.25, 1] : 1 }}
-                  className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border-2 text-sm font-bold ${
-                    tildados[i] ? "border-primary bg-primary text-white" : "border-border bg-white text-transparent"
-                  }`}
-                >
-                  ✓
-                </motion.span>
-                <span>
-                  <span className={`block font-semibold ${tildados[i] ? "text-primary-hover line-through decoration-2" : "text-text"}`}>{p.titulo}</span>
-                  <span className="block text-[13px] leading-snug text-text-muted">{p.texto}</span>
-                </span>
-              </button>
-            ))}
+            {PEDIDOS.map((p, i) => {
+              const on = abierto === i;
+              return (
+                <div key={p.titulo} className={`rounded-2xl transition ${tildados[i] ? "bg-primary-light/70" : on ? "bg-bg" : ""}`}>
+                  <div className="flex items-start gap-3 p-3">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={tildados[i]}
+                      aria-label={`Listo: ${p.titulo}`}
+                      onClick={() => setTildados((t) => t.map((v, j) => (j === i ? !v : v)))}
+                      className="mt-0.5"
+                    >
+                      <motion.span
+                        animate={{ scale: tildados[i] ? [1, 1.25, 1] : 1 }}
+                        className={`grid h-6 w-6 place-items-center rounded-lg border-2 text-sm font-bold ${
+                          tildados[i] ? "border-primary bg-primary text-white" : "border-border bg-white text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </motion.span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAbierto(on ? null : i)}
+                      aria-expanded={on}
+                      className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left"
+                    >
+                      <span>
+                        <span className={`block font-semibold ${tildados[i] ? "text-primary-hover line-through decoration-2" : "text-text"}`}>
+                          {p.titulo}
+                        </span>
+                        <span className="block text-[13px] leading-snug text-text-muted">{p.texto}</span>
+                      </span>
+                      <span className="shrink-0 rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-semibold text-primary">
+                        {on ? "Cerrar" : "Paso a paso"}
+                      </span>
+                    </button>
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {on && (
+                      <motion.ol
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden px-3 pb-3 pl-12"
+                      >
+                        {p.pasos.map((paso, k) => (
+                          <li key={k} className="flex gap-2.5 py-1.5 text-[13.5px] leading-snug text-text">
+                            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-white">
+                              {k + 1}
+                            </span>
+                            <span>{paso}</span>
+                          </li>
+                        ))}
+                      </motion.ol>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
             <div className="px-3 pb-1 pt-2 text-center text-xs font-semibold text-text-muted">
               {listos === PEDIDOS.length ? "¡Todo listo! 🎉" : `${listos} de ${PEDIDOS.length}`}
             </div>
@@ -1495,5 +1614,5 @@ export const PASOS: { id: string; capitulo: string; corto: string; Componente: C
   { id: "contactar", capitulo: "Empresas a contactar", corto: "Presentar BBJobs y Talency", Componente: PasoContactar },
   { id: "remitentes", capitulo: "Para que los mails lleguen", corto: "Tres direcciones", Componente: PasoRemitentes },
   { id: "lanzamiento", capitulo: "El lanzamiento", corto: "De 0 a 100", Componente: PasoLanzamiento },
-  { id: "vos", capitulo: "Lo que sigue", corto: "Lo que necesito de vos", Componente: PasoVos },
+  { id: "vos", capitulo: "Lo que sigue", corto: "Lo que falta para prenderlo", Componente: PasoVos },
 ];
