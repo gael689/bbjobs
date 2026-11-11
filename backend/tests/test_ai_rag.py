@@ -152,7 +152,8 @@ def test_dropping_unasked_criteria_lifts_coverage_to_full():
     h = scoring.hybrid_score(c)
     assert h.coverage == 1.0
     before = scoring.hybrid_score({**c, "experience": None, "education": None})
-    assert before.coverage == pytest.approx(0.75)
+    w = scoring.DEFAULT_WEIGHTS
+    assert before.coverage == pytest.approx(1 - (w["experience"] + w["education"]) / sum(w.values()))
     assert scoring.final_score(h, 0.5, None, False) > scoring.final_score(before, 0.5, None, False)
 
 
@@ -339,11 +340,12 @@ def test_rerank_spare_slots_go_to_the_other_group():
 
 
 def test_busqueda_que_pide_poco_no_da_cobertura_total():
-    """Sólo zona y modalidad (30 de peso): la cobertura no llega a 1 y el puntaje sin IA no
+    """Sólo zona y modalidad (15 de peso): la cobertura no llega a 1 y el puntaje sin IA no
     satura en "Encaja" (piso MIN_APPLICABLE_WEIGHT)."""
     h = scoring.hybrid_score({"zone": 1.0, "modality": 1.0})
     assert h.fit == 1.0
-    assert h.coverage == 30 / scoring.MIN_APPLICABLE_WEIGHT
+    w = scoring.DEFAULT_WEIGHTS
+    assert h.coverage == (w["zone"] + w["modality"]) / scoring.MIN_APPLICABLE_WEIGHT
     assert scoring.final_score(h, 0.5, None, False) < scoring.RECOMMENDED_THRESHOLD
     # Con habilidades requeridas el peso supera el piso y no cambia nada.
     full = scoring.hybrid_score({"skills_required": 1.0, "zone": 1.0, "modality": 1.0})

@@ -32,7 +32,7 @@ ENCAJA = "Encaja"
 ENCAJA_MUY_BIEN = "Encaja muy bien"
 # Puntaje simple de "encaja muy bien": zona y modalidad más dos habilidades en común (2 + 1 + 4).
 # Depende de la escala de `score_for_candidate`, como `matches.SIMPLE_MATCH_MIN`.
-SIMPLE_STRONG_MIN = 7.0
+SIMPLE_STRONG_MIN = 5.5  # 7 → 5,5 el 11/11, por la zona (digests.ZONE_POINTS)
 MAX_ITEMS = 10
 MAX_IDS = 200
 MAX_SKILLS_IN_REASON = 3

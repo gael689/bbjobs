@@ -28,12 +28,13 @@ def test_weekly_score_uses_zone_proximity_not_exact_zone():
     exacta = score_for_candidate(_job(), set(), set(), Z1, {"onsite"}, slugs)
     vecina = score_for_candidate(_job(), set(), set(), z_norte, {"onsite"}, slugs)
     lejana = score_for_candidate(_job(), set(), set(), z_suarez, {"onsite"}, slugs)
-    assert exacta == vecina == 3 and lejana == 1.5
+    # La zona pesa poco y nada (ZONE_POINTS = 0,5): la modalidad suma 1 y la cercanía, medio punto.
+    assert exacta == vecina == 1.5 and lejana == 1.125
     assert score_for_candidate(_job(), set(), set(), None, {"onsite"}, slugs) == 1
 
 
 def test_remote_jobs_count_as_close_for_everyone():
-    assert score_for_candidate(_job(modality="remoto"), set(), set(), Z2, set()) >= 3
+    assert score_for_candidate(_job(modality="remoto"), set(), set(), Z2, set()) == 1.5
 
 
 def test_items_render_as_links_escaped_and_in_plain_text():

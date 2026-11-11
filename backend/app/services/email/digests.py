@@ -127,20 +127,24 @@ async def _active_jobs_since(db: AsyncSession, since: datetime | None):
 
 # ── "Búsquedas para vos" (lunes) ────────────────────────────────────────────────────────
 
+# Lo que suma la zona (o un aviso remoto). Los umbrales de matches/busquedas_para_vos dependen de esto.
+ZONE_POINTS = 0.5
+
+
 def score_for_candidate(job: JobPosting, job_skills: set, cand_skills: set, cand_zone, modalities: set[str],
                         zone_slugs: dict | None = None) -> float:
     """Puntaje simple y explicable para el resumen semanal (sin IA): zona, modalidad y
     habilidades técnicas en común. Si existe un recomendado de la IA, manda ese.
 
-    La zona suma 2 × cercanía (`services/zonas.py`, plan final §2.1): Zona Norte para una
-    búsqueda en Bahía Blanca suma lo mismo que la zona exacta. `zone_slugs` es el mapa
+    La zona suma 0,5 × cercanía (`services/zonas.py`): pesa poco y nada porque BBJobs ya es un
+    portal de la zona (11/11/2026; antes 2 ×, con los umbrales 1,5 más arriba). `zone_slugs` es el mapa
     id → slug del catálogo, cargado una vez por corrida."""
     score = 0.0
     modality = str(getattr(job.modality, "value", job.modality))
     if modality == "remoto":
-        score += 2
+        score += ZONE_POINTS
     else:
-        score += 2 * (proximidad_ids(cand_zone, job.zone_id, zone_slugs or {}) or 0.0)
+        score += ZONE_POINTS * (proximidad_ids(cand_zone, job.zone_id, zone_slugs or {}) or 0.0)
     needed = {"presencial": "onsite", "remoto": "remote", "híbrido": "hybrid"}.get(modality)
     if needed and (not modalities or needed in modalities):
         score += 1

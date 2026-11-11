@@ -21,7 +21,7 @@ from app.services.zonas import proximidad
 
 # Cambiarla deja constancia en cada fila recalculada (`job_recommendations.weights_version`); la
 # vuelta de la noche recalcula todo con el híbrido y reutiliza lo que ya evaluó la IA.
-WEIGHTS_VERSION = "2026-11-09b"  # zona por cercanía y fuera lo que la búsqueda no pide (plan final §2.1-2.2)
+WEIGHTS_VERSION = "2026-11-11"  # zona 20 → 5: BBJobs ya es un portal de la zona (decisión de Gael, 11/11)
 
 # Pesos del puntaje híbrido. Son el punto de partida y se calibran con el etiquetado de Eugenia
 # (auditoría R13). Sólo cuentan los criterios que la búsqueda declara y de los que hay dato.
@@ -30,7 +30,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "skills_optional": 10,
     "experience": 15,
     "education": 10,
-    "zone": 20,
+    "zone": 5,  # poco y nada: casi todos los candidatos son de la zona (11/11/2026)
     "modality": 10,
 }
 
@@ -40,7 +40,7 @@ RECOMMENDED_THRESHOLD = 70
 NEW_FIT_THRESHOLD = 82  # 80 → 82 el 09/11: con los arreglos de 2.1-2.2 los puntajes suben; mantiene la proporción de avisos
 NEW_FIT_MIN_COVERAGE = 0.5
 EXCLUDING_FAIL_CAP = 49
-MIN_APPLICABLE_WEIGHT = 60  # ver hybrid_score
+MIN_APPLICABLE_WEIGHT = 45  # ver hybrid_score; 60 → 45 el 11/11 con la zona en 5: habilidades requeridas + modalidad
 
 
 def experience_months(intervals: Iterable[tuple[date | None, date | None]], today: date | None = None) -> int | None:

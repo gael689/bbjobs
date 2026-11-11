@@ -51,7 +51,7 @@ MAX_PER_MAIL = 10
 # habilidades y la modalidad. 4,5 y no 5: Punta Alta (cercanía 0,8 → 1,6) con modalidad y una
 # habilidad entra; Monte Hermoso o Coronel Suárez (0,25 → 0,5) necesitan dos habilidades.
 # Depende de la escala de `score_for_candidate`; si cambia, revisar este número.
-SIMPLE_MATCH_MIN = 4.5
+SIMPLE_MATCH_MIN = 3.0  # 4,5 → 3 el 11/11: la zona pasó de 2 a 0,5 puntos (digests.ZONE_POINTS)
 
 
 def _is_live(job: JobPosting | None, now: datetime) -> bool:
