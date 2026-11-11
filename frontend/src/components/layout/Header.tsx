@@ -25,7 +25,9 @@ export default function Header() {
     pathname?.startsWith("/dashboard") ||
     pathname?.startsWith("/login") ||
     pathname?.startsWith("/register") ||
-    pathname?.startsWith("/onboarding");
+    pathname?.startsWith("/onboarding") ||
+    // El recorrido para Eugenia es una presentación a pantalla completa con su propia barra.
+    (pathname?.startsWith("/vista-previa/") && pathname.endsWith("/recorrido"));
   if (hideNavbar) return null;
 
   return (

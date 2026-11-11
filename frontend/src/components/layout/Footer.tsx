@@ -17,7 +17,9 @@ export default function Footer() {
     pathname?.startsWith("/dashboard") ||
     pathname?.startsWith("/login") ||
     pathname?.startsWith("/register") ||
-    pathname?.startsWith("/onboarding");
+    pathname?.startsWith("/onboarding") ||
+    // El recorrido para Eugenia es una presentación a pantalla completa.
+    (pathname?.startsWith("/vista-previa/") && pathname.endsWith("/recorrido"));
   if (hideFooter) return null;
 
   // Todos los links del footer van con `prefetch={false}` (19/10/2026). Son ~35 y el footer está
