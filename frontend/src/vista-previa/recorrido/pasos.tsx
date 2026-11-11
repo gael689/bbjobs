@@ -1021,13 +1021,13 @@ function Reloj() {
             />
           </label>
           <div className="rounded-xl border border-border p-3">
-            <div className="text-[13px] font-semibold text-text">«Postulación confirmada»</div>
-            <div className="text-xs text-text-muted">Es urgente: la persona la espera.</div>
+            <div className="text-[13px] font-semibold text-text">«Ya podés publicar»</div>
+            <div className="text-xs text-text-muted">Es de su cuenta: la empresa lo está esperando.</div>
             <div className="mt-1.5"><Chip>Sale en el momento</Chip></div>
           </div>
           <div className="rounded-xl border border-border p-3">
-            <div className="text-[13px] font-semibold text-text">«Salió una búsqueda que encaja con vos»</div>
-            <div className="text-xs text-text-muted">No es urgente.</div>
+            <div className="text-[13px] font-semibold text-text">«Postulación confirmada» o «Salió una búsqueda que encaja con vos»</div>
+            <div className="text-xs text-text-muted">No son urgentes.</div>
             <div className="mt-1.5">
               <AnimatePresence mode="wait">
                 <motion.span key={String(enHorario)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="inline-block">
@@ -1047,7 +1047,7 @@ function PasoReglas() {
     <Escena
       capitulo="Las reglas para no molestar"
       titulo="Lo que no es urgente, nunca de noche"
-      bajada="Lo que no es urgente sale entre las 8 y las 21. Mové la aguja del reloj y fijate qué pasa con cada mail."
+      bajada="Lo que no es urgente sale entre las 8 y las 21. Sólo los avisos de la cuenta salen a cualquier hora. Mové la aguja del reloj y fijate qué pasa con cada mail."
       demo={<Reloj />}
     >
       <ListaTildes
@@ -1055,7 +1055,7 @@ function PasoReglas() {
           "Nadie recibe más de 2 mails por día de los que no son urgentes.",
           "Si un mail rebota o lo marcan como spam, esa persona no recibe nada más.",
           "Todo aviso queda también en la campanita del panel, aunque el mail no salga.",
-          "Cada mail tiene su link para darse de baja con un clic.",
+          "Cada persona elige qué mails recibe, con un link en el mismo mail.",
         ]}
       />
     </Escena>
@@ -1181,7 +1181,7 @@ function DemoContactar() {
           <div className="font-display text-3xl font-extrabold text-text">
             <Contador hasta={6800} />
           </div>
-          <div className="text-xs text-text-muted">empresas de la zona</div>
+          <div className="text-xs text-text-muted">empresas de la zona, aprox.</div>
         </Tarjeta>
         <Tarjeta className="p-4! text-center">
           <div className="font-display text-3xl font-extrabold text-primary">
@@ -1314,7 +1314,7 @@ function Carriles() {
       <AnimatePresence>
         {problema && (
           <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-3 text-center text-[13px] text-text">
-            Los otros carriles siguen andando: la confirmación de una postulación llega igual.
+            Los otros carriles siguen andando: los avisos de cuenta y de postulaciones llegan igual.
           </motion.p>
         )}
       </AnimatePresence>
