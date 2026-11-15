@@ -96,10 +96,16 @@ CATALOG = si.Catalog(
 
 def test_validate_keeps_only_catalog_values():
     data = si.GeminiInterpretation(zone_slug="punta-alta", industry_slug="Administración", modality="Híbrido",
-                                   contract_type="part TIME", keywords=["Recepcionista"], entendimos="Admin en PA")
+                                   contract_type="part TIME", keywords=["Recepcionista"])
     out = si.validate(data, CATALOG)
     assert out.available and out.zone.id == ZONE and out.industry.id == IND and out.contract_type.id == CT
     assert out.modality == "híbrido" and out.keywords == "recepcionista"
+    # El «Entendimos» lo arma el código con lo validado, no la IA (IA-AGENTES-PLAN.md §7).
+    assert out.understood.startswith("Buscás: recepcionista, en Administración, híbrido, part time, en ")
+
+
+def test_the_model_is_not_asked_for_free_text():
+    assert "entendimos" not in si.GeminiInterpretation.model_json_schema()["properties"]
 
 
 def test_validate_drops_invented_values_and_blocked_words():

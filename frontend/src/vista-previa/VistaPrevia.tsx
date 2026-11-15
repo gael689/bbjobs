@@ -616,7 +616,7 @@ function IA({ ia }: { ia: DatosIA }) {
         <ol className={`mt-2 list-decimal space-y-1 pl-5 text-sm ${ink}`}>
           <li>Lee el aviso y arma la lista de requisitos. Lo que no se puede pedir (edad, apariencia, género…) se descarta.</li>
           <li>Lee el CV de cada persona <strong>sin sus datos personales</strong>: nombre, DNI, teléfono, mail y fecha de nacimiento se sacan antes.</li>
-          <li>Revisa requisito por requisito y, para cada uno que da por cumplido, copia la frase del CV que lo prueba. Si no la encuentra, queda «Sin dato» (que no es lo mismo que «No cumple»).</li>
+          <li>La IA revisa requisito por requisito y dice en qué parte del CV lo vio. Después el sistema busca ahí la frase que lo prueba: si no la encuentra, queda «Sin dato» (que no es lo mismo que «No cumple»). Si el puntaje queda cerca del corte, un segundo agente lo revisa.</li>
           <li>El puntaje lo calcula el sistema con reglas fijas, no la IA. La empresa ve la lista ordenada y decide: la IA nunca descarta a nadie, no manda mails ni cambia estados.</li>
         </ol>
       </section>
@@ -705,6 +705,141 @@ function IA({ ia }: { ia: DatosIA }) {
   );
 }
 
+// ── Agentes de IA (pedido de Gael, 15/11/2026) ─────────────────────────────────────────────
+// Sale de backend/scripts/generar_vista_agentes.py (agentes.json): el registro de agentes, sus
+// instrucciones y los precios verificados. Sin base ni Gemini.
+
+export interface AgenteVP {
+  clave: string; nombre: string; equipo: string; tipo: string; modelo: string;
+  que_hace: string; recibe: string; devuelve: string; nunca: string; codigo: string;
+  costo_uso: number; costo_uso_2027: number; instrucciones: string | null;
+}
+export interface DatosAgentes {
+  generado: string;
+  equipos: { clave: string; titulo: string; bajada: string }[];
+  agentes: AgenteVP[];
+  recorrido: { tipo: string; valor: string }[];
+  por_busqueda: number; por_busqueda_2027: number; busquedas_por_mes: number;
+  franja_revisor: number[];
+  evaluador_antes: number; evaluador_ahora: number; tope_diario: number;
+}
+
+const usdVP = (n: number) => `USD ${n < 0.01 ? n.toFixed(4) : n.toFixed(2)}`;
+
+function TarjetaAgente({ a, franja }: { a: AgenteVP; franja: number[] }) {
+  return (
+    <article className="rounded-lg border border-[#DDE3EC] bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h4 className={`font-display text-lg font-bold ${ink}`}>{a.nombre}</h4>
+          <p className={`text-xs ${muted}`}>
+            {a.tipo === "ia" ? "Lee y responde con IA" : "Compara textos, no escribe"} · {a.modelo}
+          </p>
+        </div>
+        <Chip tone="t">~{usdVP(a.costo_uso)} por uso</Chip>
+      </div>
+      <p className={`mt-3 text-sm ${ink}`}>{a.que_hace}</p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <Dato titulo="Recibe">{a.recibe}</Dato>
+        <Dato titulo="Devuelve">{a.devuelve}</Dato>
+        <div className="sm:col-span-2"><Dato titulo="Nunca">{a.nunca}</Dato></div>
+        <div className="rounded-md border border-dashed border-[#9ED4DF] p-3 sm:col-span-2">
+          <Dato titulo="Lo que hace el sistema, sin IA">{a.codigo}</Dato>
+        </div>
+      </dl>
+      {a.clave === "revisor" && (
+        <p className={`mt-3 text-xs ${ink}`}>
+          Solo revisa a quienes quedaron entre {franja[0]} y {franja[1]} puntos. Desde el 1 de enero de 2027 su
+          modelo cuesta el doble (~{usdVP(a.costo_uso_2027)} por uso).
+        </p>
+      )}
+      {a.instrucciones && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-semibold text-[#187B8E]">Ver sus instrucciones</summary>
+          <pre className={`mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-3 font-sans text-xs leading-relaxed ${ink}`}>
+            {a.instrucciones}
+          </pre>
+        </details>
+      )}
+    </article>
+  );
+}
+
+function Agentes({ datos }: { datos: DatosAgentes }) {
+  const nombres = Object.fromEntries(datos.agentes.map((a) => [a.clave, a.nombre]));
+  const porMes = datos.por_busqueda * datos.busquedas_por_mes;
+  return (
+    <div className="space-y-8">
+      <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
+        <h4 className={`text-lg font-bold ${ink}`}>Cada agente hace una sola cosa</h4>
+        <p className={`mt-1 text-sm ${ink}`}>
+          En vez de una sola IA que hace todo, cada tarea la hace un agente distinto, y entre uno y otro el sistema
+          controla lo que devolvió. La IA se usa solo donde hace falta leer y entender un texto. Lo que se puede
+          resolver con reglas fijas (calcular el puntaje, elegir la frase del CV que respalda una respuesta, decidir a
+          quién le llega un mail) lo hace el sistema: no cuesta nada y no se equivoca de la misma manera.
+        </p>
+        <h5 className={`mt-4 text-sm font-bold ${ink}`}>Cómo se arma una recomendación</h5>
+        <ol className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {datos.recorrido.map((p, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <span className={`rounded-lg px-3 py-1.5 text-sm ${p.tipo === "agente"
+                ? "bg-[#1E8EA3] font-semibold text-white"
+                : `border border-dashed border-[#9ED4DF] bg-white ${ink}`}`}>
+                {p.tipo === "agente" ? nombres[p.valor] ?? p.valor : p.valor}
+              </span>
+              {i < datos.recorrido.length - 1 && <span aria-hidden className={`hidden sm:inline ${muted}`}>→</span>}
+            </li>
+          ))}
+        </ol>
+        <p className={`mt-2 text-xs ${muted}`}>En azul, los agentes con IA. Con borde punteado, lo que hace el sistema sin IA.</p>
+      </section>
+
+      <section className="rounded-lg border border-[#DDE3EC] bg-white p-5">
+        <h4 className={`text-lg font-bold ${ink}`}>Cuánto cuesta</h4>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md bg-[#E6F4F7] p-3">
+            <p className={`text-2xl font-extrabold ${ink}`}>~{usdVP(datos.por_busqueda)}</p>
+            <p className={`text-sm ${ink}`}>las recomendaciones de una búsqueda</p>
+          </div>
+          <div className="rounded-md bg-[#E6F4F7] p-3">
+            <p className={`text-2xl font-extrabold ${ink}`}>~{usdVP(porMes)}</p>
+            <p className={`text-sm ${ink}`}>por mes, con unas {datos.busquedas_por_mes} búsquedas</p>
+          </div>
+          <div className="rounded-md bg-[#F7EFE9] p-3">
+            <p className={`text-2xl font-extrabold ${ink}`}>{usdVP(datos.tope_diario)}</p>
+            <p className={`text-sm ${ink}`}>tope por día: si se llega, la IA se pausa sola hasta el día siguiente</p>
+          </div>
+        </div>
+        <p className={`mt-3 text-sm ${ink}`}>
+          Revisar a un candidato contra los requisitos costaba ~{usdVP(datos.evaluador_antes)}; separado en agentes, cuesta
+          ~{usdVP(datos.evaluador_ahora)}. Desde enero de 2027 una búsqueda pasa a ~{usdVP(datos.por_busqueda_2027)}, porque
+          sube el precio del modelo del Revisor.
+        </p>
+        <p className={`mt-2 text-xs ${muted}`}>
+          Son estimaciones con los precios de Google del {datos.generado}. Cuando esté funcionando, el Centro de IA del
+          panel muestra el gasto real de cada agente, día por día.
+        </p>
+      </section>
+
+      {datos.equipos.map((eq) => {
+        const lista = datos.agentes.filter((a) => a.equipo === eq.clave);
+        if (!lista.length) return null;
+        return (
+          <section key={eq.clave} className="space-y-3">
+            <div>
+              <h3 className={`font-display text-xl font-bold ${ink}`}>{eq.titulo}</h3>
+              <p className={`text-sm ${muted}`}>{eq.bajada}</p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {lista.map((a) => <TarjetaAgente key={a.clave} a={a} franja={datos.franja_revisor} />)}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function Desplegable({ titulo, bajada, children }: { titulo: string; bajada: string; children: React.ReactNode }) {
   return (
     <details className="group rounded-xl border border-[#DDE3EC] bg-white">
@@ -724,15 +859,16 @@ function Desplegable({ titulo, bajada, children }: { titulo: string; bajada: str
 
 // Dos pestañas arriba de todo (Gael, 19/10/2026): los mails por un lado y las recomendaciones con IA por
 // otro. Antes la IA iba al final de la página de mails y Eugenia no llegaba a verla.
-type Vista = "mails" | "ia";
+type Vista = "mails" | "ia" | "agentes";
 
 function Pestanas({ vista, elegir, totalMails }: { vista: Vista; elegir: (v: Vista) => void; totalMails: number }) {
   const opciones: { clave: Vista; titulo: string; bajada: string }[] = [
     { clave: "mails", titulo: "Mails automáticos", bajada: `Los ${totalMails} mails: qué recibe cada persona, cuándo y con qué texto.` },
     { clave: "ia", titulo: "Recomendaciones con IA", bajada: "Cómo la IA le ordena los postulantes a la empresa, con un ejemplo." },
+    { clave: "agentes", titulo: "Agentes de IA", bajada: "Quién hace cada tarea, qué hace el sistema sin IA y cuánto cuesta." },
   ];
   return (
-    <div role="tablist" aria-label="Qué querés ver" className="mt-6 grid gap-3 sm:grid-cols-2">
+    <div role="tablist" aria-label="Qué querés ver" className="mt-6 grid gap-3 sm:grid-cols-3">
       {opciones.map((o) => {
         const activa = vista === o.clave;
         return (
@@ -756,9 +892,9 @@ function Pestanas({ vista, elegir, totalMails }: { vista: Vista; elegir: (v: Vis
 }
 
 export default function VistaPrevia({
-  etapas, avisos, sinMail, preguntas, ia,
+  etapas, avisos, sinMail, preguntas, ia, agentes,
 }: {
-  etapas: Etapa[]; avisos: Aviso[]; sinMail: SinMail[]; preguntas: Pregunta[]; ia: DatosIA;
+  etapas: Etapa[]; avisos: Aviso[]; sinMail: SinMail[]; preguntas: Pregunta[]; ia: DatosIA; agentes: DatosAgentes;
 }) {
   const [vista, setVista] = useState<Vista>("mails");
   const ordenados = [...avisos].sort((a, b) => a.orden - b.orden);
@@ -778,7 +914,18 @@ export default function VistaPrevia({
 
         <Pestanas vista={vista} elegir={elegir} totalMails={ordenados.length} />
 
-        {vista === "ia" ? (
+        {vista === "agentes" ? (
+          <section className="mt-8 max-w-5xl space-y-4">
+            <div className="border-b-4 border-[#1E8EA3] pb-3">
+              <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Agentes de IA</h2>
+              <p className={`mt-1 text-sm ${ink}`}>
+                Todo lo que hace la IA en BBJobs, repartido en agentes. Ninguno manda mails, cambia estados ni descarta a
+                nadie: ordenan, resumen y sugieren, y siempre decide una persona.
+              </p>
+            </div>
+            <Agentes datos={agentes} />
+          </section>
+        ) : vista === "ia" ? (
           <section className="mt-8 max-w-4xl space-y-4">
             <div className="border-b-4 border-[#1E8EA3] pb-3">
               <h2 className={`font-display text-2xl font-extrabold tracking-tight sm:text-3xl ${ink}`}>Recomendaciones de candidatos con IA</h2>

@@ -6,7 +6,7 @@ import pytest
 from app.services.ai import scoring
 from app.services.ai.chunks import MAX_CHUNKS, CandidateData, Education, Experience, build_ficha
 from app.services.ai.requirements import PROTECTED, ReqItem, Requirement, filter_protected, protected_in_text
-from app.services.ai.rerank import EvalItem, Fragment, RerankOut, validate
+from app.services.ai.rerank import MAX_EVIDENCE_CHARS, EvalItem, Fragment, RerankOut, validate
 
 TODAY = date(2026, 10, 4)
 
@@ -213,7 +213,8 @@ def test_final_score_is_reproducible_and_bounded():
     assert 0 <= scoring.final_score(h, None, None, False) <= 100
 
 
-# --- validación del rerank (R9, R10, R12) ----------------------------------------------------
+# --- validación del Evaluador (R9, R10, R12; IA-AGENTES-PLAN.md §2) ------------------------------
+# La IA devuelve sólo veredicto + fragmento; la cita y los motivos los arma el código.
 
 REQS = [Requirement("r1", "Manejo de autoelevador", "excluyente", "habilidad"),
         Requirement("r2", "Licencia de conducir", "deseable", "licencia")]
@@ -221,74 +222,69 @@ FRAGS = [Fragment("f1", "Puesto: Operario. Tareas: manejo de autoelevador y cont
          Fragment("f2", "Habilidades técnicas: Excel.")]
 
 
-def _out(items, motivos=(), ref="#A1"):
-    return RerankOut(ref=ref, requisitos=[EvalItem(**i) for i in items], motivos=list(motivos))
+def _out(items, ref="#A1"):
+    return RerankOut(ref=ref, requisitos=[EvalItem(**i) for i in items])
 
 
-def test_literal_evidence_from_the_right_fragment_is_kept():
-    r = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevador", "fragmento": "f1"}]),
-                 ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
+def _val(items, *, reqs=REQS, frags=FRAGS, names=(), blind=False, ref="#A1"):
+    return validate(_out(items, ref=ref), ref="#A1", requirements=reqs, fragments=frags,
+                    forbidden_names=list(names), blind=blind)
+
+
+def test_the_code_quotes_the_relevant_sentence_of_the_cited_fragment():
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}])
     assert [e.verdict for e in r.evals] == ["si", "sin_datos"]
-    assert r.evidence["r1"] == "manejo de autoelevador"
+    assert r.evidence["r1"] == "Tareas: manejo de autoelevador y control de stock en Logística Sur SA"
+
+
+def test_a_wrong_fragment_id_still_finds_the_sentence_in_the_same_profile():
+    # Gemini real eligió bien pero con otro id: es la misma ficha, se busca en las demás.
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f2"}])
+    assert r.evals[0].verdict == "si" and "autoelevador" in r.evidence["r1"]
 
 
 @pytest.mark.parametrize("item", [
-    {"id": "r1", "cumple": "si", "evidencia": "maneja autoelevadores", "fragmento": "f1"},   # no es literal
-    {"id": "r1", "cumple": "si", "evidencia": "stock", "fragmento": "f1"},                   # muy corta
-    {"id": "r1", "cumple": "no", "evidencia": "", "fragmento": ""},                          # "no" sin evidencia
+    {"id": "r2", "cumple": "si", "fragmento": "f1"},    # la ficha no dice nada de licencia
+    {"id": "r2", "cumple": "no", "fragmento": ""},      # "no" sin nada que lo muestre
 ])
-def test_invalid_evidence_degrades_to_no_data(item):
-    r = validate(_out([item]), ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
-    assert r.evals[0].verdict == "sin_datos" and r.degraded == 1
+def test_without_a_supporting_sentence_it_degrades_to_no_data(item):
+    r = _val([item])
+    assert r.evals[1].verdict == "sin_datos" and r.degraded == 1 and "r2" not in r.evidence
 
 
-def test_literal_evidence_with_the_wrong_fragment_id_is_accepted():
-    # Gemini real citó bien el texto pero con otro id: es la misma ficha, se acepta.
-    r = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevador", "fragmento": "f2"}]),
-                 ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
-    assert r.evals[0].verdict == "si"
-
-
-def test_blind_profiles_never_leak_employer_names():
-    item = {"id": "r1", "cumple": "si", "evidencia": "control de stock en Logística Sur SA", "fragmento": "f1"}
-    out = _out([item], motivos=["Trabajó en Logística Sur con autoelevador", "Tiene experiencia en depósito"])
-    r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=["Logística Sur SA", "Logística Sur"], blind=True)
+def test_blind_profiles_never_quote_employer_names():
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], names=["Logística Sur SA", "Logística Sur"], blind=True)
+    # La única frase sobre autoelevador nombra al empleador: no se cita y baja a sin_datos.
     assert r.evals[0].verdict == "sin_datos"
-    # La evaluación bajó a sin_datos, así que los motivos se rearman desde lo validado: ninguno
-    # nombra al empleador.
-    assert r.reasons and not any("Logística" in m for m in r.reasons)
-
-
-def test_reasons_with_contact_data_are_dropped_and_capped():
-    out = _out([], motivos=["Escribile a x@y.com", "a", "b", "c", "d"])
-    r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
-    assert "Escribile a x@y.com" not in r.reasons and len(r.reasons) == 3
+    assert not any("Logística" in m for m in r.reasons) and not any("Logística" in v for v in r.evidence.values())
 
 
 def test_wrong_reference_is_rejected():
     with pytest.raises(ValueError):
-        validate(_out([], ref="#OTRA"), ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
+        _val([], ref="#OTRA")
 
 
-def test_self_assessment_is_not_evidence_but_real_tasks_are():
-    frags = [Fragment("f1", "Cumplí funciones de cajero. Cumplo todos los requisitos del puesto.")]
+def test_self_assessment_is_never_the_quote_but_real_tasks_are():
+    frags = [Fragment("f1", "Cumplo todos los requisitos del puesto de cajero. Cumplí funciones de cajero en un súper.")]
     reqs = [Requirement("r1", "Experiencia como cajero", "excluyente", "experiencia")]
-    ok = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "Cumplí funciones de cajero", "fragmento": "f1"}]),
-                  ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
-    bad = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "Cumplo todos los requisitos del puesto", "fragmento": "f1"}]),
-                   ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
-    assert ok.evals[0].verdict == "si" and bad.evals[0].verdict == "sin_datos"
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], reqs=reqs, frags=frags)
+    assert r.evals[0].verdict == "si" and r.evidence["r1"] == "Cumplí funciones de cajero en un súper"
+    only_self = [Fragment("f1", "Cumplo todos los requisitos del puesto de cajero.")]
+    assert _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], reqs=reqs, frags=only_self).evals[0].verdict == "sin_datos"
 
 
-def test_literal_but_irrelevant_evidence_is_rejected():
+def test_an_irrelevant_sentence_is_never_the_quote():
     # Gemini real citó «Zona: Centro» como prueba de manejar autoelevador.
     frags = [Fragment("f1", "Zona: Centro. Puesto: Operario. Tareas: manejo de autoelevadores en depósito.")]
     reqs = [Requirement("r1", "Manejo de autoelevador", "excluyente", "habilidad")]
-    bad = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "Zona: Centro. Puesto: Operario", "fragmento": "f1"}]),
-                   ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
-    good = validate(_out([{"id": "r1", "cumple": "si", "evidencia": "manejo de autoelevadores en depósito", "fragmento": "f1"}]),
-                    ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
-    assert bad.evals[0].verdict == "sin_datos" and good.evals[0].verdict == "si"
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], reqs=reqs, frags=frags)
+    assert r.evidence["r1"] == "Tareas: manejo de autoelevadores en depósito"
+
+
+def test_contact_data_is_never_quoted():
+    frags = [Fragment("f1", "Manejo de autoelevador, escribime a juan@mail.com")]
+    reqs = [Requirement("r1", "Manejo de autoelevador", "excluyente", "habilidad")]
+    assert _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], reqs=reqs, frags=frags).evals[0].verdict == "sin_datos"
 
 
 def test_protected_phrases_in_the_description_are_reported():
@@ -301,19 +297,25 @@ def test_protected_phrases_in_the_description_are_reported():
 def test_inventory_counts_as_evidence_for_stock():
     frags = [Fragment("f1", "Recepción de mercadería y conteo de inventario semanal.")]
     reqs = [Requirement("r1", "Experiencia en control de stock", "excluyente", "experiencia")]
-    r = validate(_out([{"id": "r1", "cumple": "parcial", "evidencia": "conteo de inventario semanal", "fragmento": "f1"}]),
-                 ref="#A1", requirements=reqs, fragments=frags, forbidden_names=[], blind=False)
+    r = _val([{"id": "r1", "cumple": "parcial", "fragmento": "f1"}], reqs=reqs, frags=frags)
     assert r.evals[0].verdict == "parcial"
 
 
-def test_reasons_are_rebuilt_when_an_evaluation_is_degraded():
-    # Gemini real: «experiencia comprobada en control de stock» con ese requisito en sin_datos.
-    out = _out([{"id": "r1", "cumple": "si", "evidencia": "Zona: Centro, sin relación", "fragmento": "f1"},
-                {"id": "r2", "cumple": "sin_datos"}],
-               motivos=["Tiene experiencia comprobada con autoelevador."])
-    r = validate(out, ref="#A1", requirements=REQS, fragments=FRAGS, forbidden_names=[], blind=False)
-    assert r.degraded == 1
-    assert r.reasons == ["Su perfil no dice nada sobre manejo de autoelevador y licencia de conducir."]
+def test_reasons_are_always_built_from_what_was_validated():
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}, {"id": "r2", "cumple": "sin_datos"}])
+    assert r.reasons == ["Cumple: manejo de autoelevador.", "Su perfil no dice nada sobre licencia de conducir."]
+
+
+def test_long_sentences_are_clipped_at_a_word():
+    long_text = "Manejo de autoelevador " + "en depósitos de gran tamaño " * 20
+    r = _val([{"id": "r1", "cumple": "si", "fragmento": "f1"}], frags=[Fragment("f1", long_text)])
+    assert len(r.evidence["r1"]) <= MAX_EVIDENCE_CHARS + 1 and r.evidence["r1"].endswith("…")
+
+
+def test_the_model_is_never_asked_for_quotes_or_reasons():
+    # Lo que más caro sale (salida) y peor hacía el modelo barato: fuera del esquema.
+    props = RerankOut.model_json_schema()["$defs"]["EvalItem"]["properties"]
+    assert set(props) == {"id", "cumple", "fragmento"} and "motivos" not in RerankOut.model_json_schema()["properties"]
 
 
 # --- lugares reservados para la Base de Talento en el rerank (plan final §2.3) --------------

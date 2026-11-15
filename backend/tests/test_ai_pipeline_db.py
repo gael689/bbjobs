@@ -56,6 +56,7 @@ def _vec(text_: str) -> list[float]:
 class FakeAI(AIProvider):
     def __init__(self):
         self.reranks = 0
+        self.features: list[tuple[str, str | None]] = []
 
     async def embed(self, texts, *, task):
         return [_vec(t) for t in texts]
@@ -64,7 +65,7 @@ class FakeAI(AIProvider):
         return AITextResult(text="", usage=AIUsage(model="gemini-3.5-flash-lite"))
 
     async def generate_json(self, *, system, prompt, model, feature, company_id=None, max_output_tokens=2048,
-                            service_tier="standard"):
+                            service_tier="standard", model_name=None):
         from app.services.ai.requirements import ReqList
         from app.services.ai.rerank import RerankOut
 
@@ -76,6 +77,7 @@ class FakeAI(AIProvider):
             ]}
             return AIResult(data=ReqList.model_validate(data), usage=usage)
         self.reranks += 1
+        self.features.append((feature, model_name))
         ref = re.search(r"Referencia: (#\w+)", prompt).group(1)
         reqs = re.findall(r"- (r\d+) \(\w+\): (.+)", prompt)
         frags = dict(re.findall(r"\[(f\d+)\] (.+)", prompt))
@@ -85,10 +87,10 @@ class FakeAI(AIProvider):
             hit = next(((fid, t) for fid, t in frags.items() if key and key in t.lower()), None)
             if hit:
                 i = hit[1].lower().index(key)
-                items.append({"id": rid, "cumple": "si", "evidencia": hit[1][max(0, i - 10):i + len(key) + 5], "fragmento": hit[0]})
+                items.append({"id": rid, "cumple": "si", "fragmento": hit[0]})
             else:
-                items.append({"id": rid, "cumple": "sin_datos", "evidencia": "", "fragmento": ""})
-        out = {"ref": ref, "requisitos": items, "motivos": ["Tiene experiencia con autoelevador"]}
+                items.append({"id": rid, "cumple": "sin_datos", "fragmento": ""})
+        out = {"ref": ref, "requisitos": items}
         return AIResult(data=RerankOut.model_validate(out), usage=usage)
 
 
@@ -243,7 +245,7 @@ async def test_usage_is_logged_with_cost(maker):
     async with maker() as db:
         features = set((await db.execute(select(AiUsageLog.feature))).scalars().all())
         cost = (await db.execute(select(func.sum(AiUsageLog.cost_usd)))).scalar_one()
-    assert {"embeddings", "requisitos", "rerank"} <= features and cost > 0
+    assert {"embeddings", "requisitos", "evaluador"} <= features and cost > 0
 
 
 async def test_tombstone_removes_ai_data(maker):
@@ -493,3 +495,37 @@ async def test_company_list_flags_unevaluated_and_puts_them_after_same_level(mak
     assert names[:2] == ["Flojo Test", "Bueno Test"] and names[-1] == "Tramposo Test"
     flags = {a["name"]: a["evaluated"] for a in data["applicants"]}
     assert flags["Flojo Test"] is True and flags["Bueno Test"] is False
+
+
+async def test_evaluador_and_revisor_split(maker, monkeypatch):
+    """IA-AGENTES-PLAN.md §2: el Evaluador evalúa a todos; el Revisor, con el modelo mejor, sólo a
+    los de la franja dudosa. Lo guardado lleva la versión y el modelo de quien evaluó último."""
+    from app.services.ai import rerank
+
+    companies, job, people = await _world(maker)
+    ai = FakeAI()
+    # Toda la franja abierta: así el Revisor trabaja con cualquier puntaje que dé el mundo de prueba.
+    monkeypatch.setattr(pipeline, "REVIEW_MIN", 0)
+    monkeypatch.setattr(pipeline, "REVIEW_MAX", 100)
+    stats = await _compute(maker, job.id, ai)
+    feats = [f for f, _ in ai.features]
+    assert set(feats) == {"evaluador", "revisor"} and stats["revisiones"] == feats.count("revisor") >= 1
+    assert all(m is None for f, m in ai.features if f == "evaluador")
+    assert all(m == settings.GEMINI_REVIEW_MODEL for f, m in ai.features if f == "revisor")
+    done = [r for r in (await _recs(maker, job.id)).values() if r.rerank_status == "done"]
+    assert done and all(r.prompt_version == rerank.VERSIONES["revisor"] for r in done)
+    assert all(r.model == settings.GEMINI_REVIEW_MODEL for r in done)
+
+    # Nada cambió: se reutiliza lo del Revisor, sin pagar de nuevo.
+    again = FakeAI()
+    stats = await _compute(maker, job.id, again)
+    assert again.features == [] and stats["reutilizados"] >= len(done)
+
+
+async def test_the_revisor_only_looks_at_the_doubtful_band(maker, monkeypatch):
+    companies, job, people = await _world(maker)
+    ai = FakeAI()
+    monkeypatch.setattr(pipeline, "REVIEW_MIN", 101)   # franja vacía
+    monkeypatch.setattr(pipeline, "REVIEW_MAX", 101)
+    stats = await _compute(maker, job.id, ai)
+    assert stats["revisiones"] == 0 and {f for f, _ in ai.features} == {"evaluador"}

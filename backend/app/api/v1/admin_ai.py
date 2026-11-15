@@ -872,3 +872,126 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
         applicants_strong=applicants_strong, applicants_strong_advanced=advanced, notices_week=notices,
         feedback_up=up, feedback_down=down, top_matches=top,
     )
+
+
+# ── 4. Los agentes (IA-AGENTES-PLAN.md §5) ──────────────────────────────────────────────
+
+AGENTS_DAYS = 30
+
+
+class AgentStats(BaseModel):
+    calls_today: int
+    spend_today_usd: float
+    calls: int                       # últimos AGENTS_DAYS días
+    spend_usd: float
+    avg_cost_usd: Optional[float] = None
+    last_used_at: Optional[datetime] = None
+
+
+class AgentOut(BaseModel):
+    key: str
+    name: str
+    team: Literal["recomendaciones", "asistentes", "talency"]
+    kind: Literal["ia", "vectores"]
+    model: str
+    what: str
+    receives: str
+    returns: str
+    never: str
+    code: str                        # lo que hace el sistema sin IA alrededor de este agente
+    est_cost_usd: float              # costo estimado de un uso, con los precios de hoy
+    # andando · apagado (su interruptor) · sin_cuenta (no hay Gemini) · tope (se gastó el del día)
+    state: Literal["andando", "apagado", "sin_cuenta", "tope"]
+    switch: Optional[str] = None
+    version: Optional[str] = None
+    instructions: Optional[str] = None
+    stats: AgentStats
+    # Solo Evaluador y Revisor: lo que el código hizo con sus respuestas (últimos AGENTS_DAYS días).
+    reviews: Optional[int] = None
+    degraded: Optional[int] = None
+
+
+class FlowStep(BaseModel):
+    kind: Literal["agente", "codigo"]
+    value: str
+
+
+class AgentsResponse(BaseModel):
+    agents: list[AgentOut]
+    flow: list[FlowStep]
+    days: int
+    daily_budget_usd: float
+    today_usd: float
+    review_band: tuple[int, int]
+    per_search_usd: float            # recomendaciones de una búsqueda típica, precios de hoy
+    per_search_2027_usd: float       # ídem con los precios desde el 1/1/2027 (sube el Revisor)
+    searches_per_month: int
+    prices_source: str
+
+
+@router.get("/admin/ai/agents", response_model=AgentsResponse)
+async def admin_ai_agents(_: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+    """Quién es cada agente, qué hace, con qué instrucciones y cuánto trabajó. Sin llamar a Gemini."""
+    from app.services.ai import agentes, precios
+
+    now = datetime.now(timezone.utc)
+    today = local_day_start(now)
+    since = today - timedelta(days=AGENTS_DAYS - 1)
+
+    usage = {f: (c, float(s or 0), last) for f, c, s, last in (await db.execute(
+        select(AiUsageLog.feature, func.count(), func.sum(AiUsageLog.cost_usd), func.max(AiUsageLog.created_at))
+        .where(AiUsageLog.created_at >= since).group_by(AiUsageLog.feature)
+    )).all()}
+    usage_today = {f: (c, float(s or 0)) for f, c, s in (await db.execute(
+        select(AiUsageLog.feature, func.count(), func.sum(AiUsageLog.cost_usd))
+        .where(AiUsageLog.created_at >= today).group_by(AiUsageLog.feature)
+    )).all()}
+    reviews, degraded = (await db.execute(
+        select(func.coalesce(func.sum(cast(AiActivityLog.detail["revisiones"].astext, Numeric)), 0),
+               func.coalesce(func.sum(cast(AiActivityLog.detail["degradados"].astext, Numeric)), 0))
+        .where(AiActivityLog.kind == activity.KIND_RECOMPUTE, AiActivityLog.created_at >= since)
+    )).one()
+
+    configured = _provider() is not None
+    spent = await pipeline.spent_today(db)
+    over_budget = spent >= settings.AI_DAILY_BUDGET_USD
+    switches = {k.value: bool(await get_setting(db, k)) for k in SettingKey}
+
+    out = []
+    for a in agentes.AGENTES:
+        calls = sum(usage.get(f, (0, 0.0, None))[0] for f in a.features)
+        spend = sum(usage.get(f, (0, 0.0, None))[1] for f in a.features)
+        lasts = [usage[f][2] for f in a.features if f in usage and usage[f][2] is not None]
+        if not configured:
+            state = "sin_cuenta"
+        elif a.interruptor and not switches.get(a.interruptor, False):
+            state = "apagado"
+        elif over_budget:
+            state = "tope"
+        else:
+            state = "andando"
+        out.append(AgentOut(
+            key=a.clave, name=a.nombre, team=a.equipo, kind=a.tipo, model=agentes.modelo_de(a),
+            what=a.que_hace, receives=a.recibe, returns=a.devuelve, never=a.nunca, state=state,
+            code=agentes.CODIGO[a.clave], est_cost_usd=agentes.costo_estimado(a.clave),
+            switch=a.interruptor,
+            version=agentes.version(a.clave) if a.con_instrucciones else None,
+            instructions=agentes.instrucciones(a.clave) if a.con_instrucciones else None,
+            stats=AgentStats(
+                calls_today=sum(usage_today.get(f, (0, 0.0))[0] for f in a.features),
+                spend_today_usd=round(sum(usage_today.get(f, (0, 0.0))[1] for f in a.features), 6),
+                calls=calls, spend_usd=round(spend, 6),
+                avg_cost_usd=round(spend / calls, 6) if calls else None,
+                last_used_at=max(lasts) if lasts else None,
+            ),
+            reviews=int(reviews) if a.clave == "revisor" else None,
+            degraded=int(degraded) if a.clave == "evaluador" else None,
+        ))
+    return AgentsResponse(
+        agents=out, flow=[FlowStep(kind=k, value=v) for k, v in agentes.RECORRIDO], days=AGENTS_DAYS,
+        daily_budget_usd=settings.AI_DAILY_BUDGET_USD, today_usd=round(spent, 6),
+        review_band=(pipeline.REVIEW_MIN, pipeline.REVIEW_MAX),
+        per_search_usd=agentes.costo_por_busqueda(),
+        per_search_2027_usd=agentes.costo_por_busqueda(date(2027, 1, 2)),
+        searches_per_month=agentes.BUSQUEDAS_POR_MES, prices_source=precios.FUENTE,
+    )

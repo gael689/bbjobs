@@ -641,3 +641,33 @@ async def test_one_broken_profile_does_not_stop_the_index_batch(maker, ai, monke
         stats = await pipeline.index_candidates(db, ai, [roto, sano])
         await db.commit()
     assert stats["fallidos"] == 1 and stats["reindexados"] == 1
+
+
+async def test_agents_tab_shows_each_agent_with_its_work_and_instructions(maker, sin_restos, client, ai):
+    """Centro de IA → Agentes (IA-AGENTES-PLAN.md §5): sólo lectura, sin llamar a Gemini."""
+    companies, job, people = await _ready_world(maker, ai)
+    async with maker() as db:
+        # El gasto viejo del rerank se sigue sumando al Evaluador.
+        db.add(AiUsageLog(id=uuid.uuid4(), feature="rerank", model="m", cost_usd=Decimal("0.002"), job_id=job.id))
+        db.add(AiUsageLog(id=uuid.uuid4(), feature="revisor", model="m", cost_usd=Decimal("0.004"), job_id=job.id))
+        await db.commit()
+
+    r = await client.get("/api/v1/admin/ai/agents")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    agents = {a["key"]: a for a in d["agents"]}
+    assert {"lector_cv", "requisitos", "evaluador", "revisor", "resumidor", "moderador", "redactor_busquedas",
+            "habilidades", "buscador", "redactor_campanas", "audiencias"} == set(agents)
+    ev, rev = agents["evaluador"], agents["revisor"]
+    assert ev["stats"]["calls"] >= 2 and ev["stats"]["spend_usd"] > 0     # "rerank" + "evaluador" de _ready_world
+    assert rev["stats"]["calls"] >= 1 and rev["model"] == settings.GEMINI_REVIEW_MODEL
+    assert ev["instructions"] and ev["version"].startswith("evaluador@") and "fragmento" in ev["instructions"]
+    assert agents["lector_cv"]["instructions"] is None and agents["lector_cv"]["kind"] == "vectores"
+    assert ev["degraded"] is not None and rev["reviews"] is not None
+    assert [s["value"] for s in d["flow"] if s["kind"] == "agente"][:2] == ["lector_cv", "requisitos"]
+    assert d["review_band"] == [60, 79]
+    assert all(a["code"] and a["est_cost_usd"] > 0 for a in d["agents"])
+    assert d["per_search_2027_usd"] > d["per_search_usd"] > 0          # el Revisor sube en 2027
+
+    client.as_user(people["bueno"][0])
+    assert (await client.get("/api/v1/admin/ai/agents")).status_code == 403

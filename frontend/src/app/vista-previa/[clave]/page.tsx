@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { timingSafeEqual } from "node:crypto";
 import avisos from "@/vista-previa/datos/avisos.json";
 import ia from "@/vista-previa/datos/ia.json";
+import agentes from "@/vista-previa/datos/agentes.json";
 import VistaPrevia from "@/vista-previa/VistaPrevia";
 
 // La clave vive en la variable VISTA_PREVIA_CLAVE del hosting. Sin variable o con otra clave
@@ -27,6 +28,7 @@ export default async function Page({ params }: { params: Promise<{ clave: string
       sinMail={avisos.sin_mail}
       preguntas={avisos.preguntas}
       ia={ia}
+      agentes={agentes}
     />
   );
 }

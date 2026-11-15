@@ -98,6 +98,7 @@ class AIProvider(ABC):
         company_id: str | None = None,
         max_output_tokens: int = 2048,
         service_tier: ServiceTier = "standard",
+        model_name: str | None = None,
     ) -> AIResult[T]: ...
 
     @abstractmethod
@@ -235,8 +236,10 @@ class GeminiProvider(AIProvider):
         max_output_tokens: int,
         service_tier: ServiceTier,
         schema: dict | None,
+        model_name: str | None = None,
     ) -> tuple[str, AIUsage]:
-        model = settings.GEMINI_GENERATION_MODEL
+        # `model_name`: otro modelo para esta llamada (el Revisor usa `GEMINI_REVIEW_MODEL`).
+        model = model_name or settings.GEMINI_GENERATION_MODEL
         body: dict[str, Any] = {
             "model": model,
             "input": prompt,
@@ -308,17 +311,19 @@ class GeminiProvider(AIProvider):
         company_id: str | None = None,
         max_output_tokens: int = 2048,
         service_tier: ServiceTier = "standard",
+        model_name: str | None = None,
     ) -> AIResult[T]:
         """Pide JSON con el esquema de `model` y lo valida igual con pydantic: la API acepta un
         subconjunto de JSON Schema y la salida de un modelo nunca se da por buena sin validar.
         Un reintento si no valida; los tokens de los dos intentos se suman."""
         schema = model.model_json_schema()
-        total = AIUsage(model=settings.GEMINI_GENERATION_MODEL)
+        total = AIUsage(model=model_name or settings.GEMINI_GENERATION_MODEL)
         last_error: Exception | None = None
         for _ in range(2):
             text, usage = await self._interact(
                 system=system, prompt=prompt, feature=feature, company_id=company_id,
                 max_output_tokens=max_output_tokens, service_tier=service_tier, schema=schema,
+                model_name=model_name,
             )
             total = AIUsage(
                 model=usage.model,
