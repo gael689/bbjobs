@@ -8,6 +8,7 @@ confirma con un POST. El POST es también el que usan Gmail y Yahoo desde el hea
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -207,7 +208,10 @@ async def _handle_resend_event(request: Request, db: AsyncSession, secret: str |
         raise HTTPException(status_code=503, detail="Webhook de Resend no configurado")
     body = await request.body()
     try:
-        event = Webhook(secret).verify(body, dict(request.headers))
+        # svix 1.x devolvía el evento; 2.x devuelve None. `verify` sólo valida la firma y el
+        # cuerpo se lee acá, así anda con cualquiera de las dos.
+        Webhook(secret).verify(body, dict(request.headers))
+        event = json.loads(body)
     except WebhookVerificationError:
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 

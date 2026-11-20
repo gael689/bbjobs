@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, Request, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -337,7 +338,9 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
     body = await request.body()
     try:
-        event = Webhook(settings.CLERK_WEBHOOK_SECRET).verify(body, dict(request.headers))
+        # svix 2.x devuelve None en `verify`: se valida la firma y el cuerpo se lee acá.
+        Webhook(settings.CLERK_WEBHOOK_SECRET).verify(body, dict(request.headers))
+        event = json.loads(body)
     except WebhookVerificationError:
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
