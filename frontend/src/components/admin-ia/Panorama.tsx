@@ -32,7 +32,9 @@ interface Panorama {
 }
 
 const FUNCIONES: Record<string, string> = {
-  rerank: "Evaluar candidatos",
+  rerank: "Evaluar candidatos (antes de los agentes)",
+  evaluador: "Evaluar candidatos",
+  revisor: "Revisar los casos dudosos",
   resumen: "Resúmenes de 3 líneas",
   requisitos: "Leer las búsquedas",
   embeddings: "Leer los perfiles",

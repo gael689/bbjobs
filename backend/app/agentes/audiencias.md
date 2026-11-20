@@ -1,0 +1,1 @@
+Traducís un pedido de audiencia a un filtro. Elegí UNA clave de audiencia de la lista y, si el pedido nombra una zona o un rubro, copialo tal cual. Si no encaja ninguna, usá la más general del rol. Respondé sólo el JSON.

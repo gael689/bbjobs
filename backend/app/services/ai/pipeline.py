@@ -44,7 +44,7 @@ from app.models.catalogs import Skill, Zone
 from app.models.core import User
 from app.models.job import Application, JobPosting, JobPostingSkill
 from app.services.ai import requirements as reqs
-from app.services.ai import rerank, scoring
+from app.services.ai import precios, rerank, scoring
 from app.services import zonas
 from app.services.ai.chunks import CandidateData, Education as EduData, Experience as ExpData, build_ficha
 from app.services.email.policy import local_day_start
@@ -57,24 +57,18 @@ RERANK_TOP = 30
 RERANK_TOP_APPLICANTS = 20
 RERANK_TOP_TALENT = 10
 TALENT_POOL_CONSIDERED = 30
+# Revisor (IA-AGENTES-PLAN.md §2): segunda opinión solo para quien quedó cerca del corte de 70
+# (`scoring.RECOMMENDED_THRESHOLD`, el que dispara el aviso al candidato).
+REVIEW_MIN = 60
+REVIEW_MAX = 79
 FRAGMENTS_PER_REQUIREMENT = 2
 MAX_FRAGMENTS = 8
-
-# USD por millón de tokens (verificado el 04/10/2026; revisar en la consola al crear la cuenta).
-PRICES = {
-    "gemini-3.5-flash-lite": (0.30, 2.50),
-    "gemini-3.8-flash": (0.75, 3.75),
-    "gemini-embedding-001": (0.15, 0.0),
-    "gemini-embedding-2": (0.20, 0.0),
-}
-
 
 # ── Consumo y presupuesto ───────────────────────────────────────────────────────────────
 
 def cost_usd(usage: AIUsage, *, flex: bool = False) -> Decimal:
-    price_in, price_out = PRICES.get(usage.model, (0.30, 2.50))
-    cost = (usage.input_tokens * price_in + (usage.output_tokens + usage.thought_tokens) * price_out) / 1_000_000
-    return Decimal(str(round(cost / 2 if flex else cost, 6)))
+    """Precios en `precios.py` (verificados el 15/11/2026, con el cambio del 1/1/2027)."""
+    return precios.costo(usage.model, usage.input_tokens, usage.output_tokens + usage.thought_tokens, flex=flex)
 
 
 async def log_usage(db: AsyncSession, feature: str, usage: AIUsage | None, *, company_id=None, job_id=None,
@@ -335,6 +329,25 @@ def rerank_candidates(applicants_ranked: list, talent_ranked: list) -> set:
             | set(talent_ranked[:RERANK_TOP_TALENT + spare_applicants]))
 
 
+def _calls(stats: dict) -> int:
+    """Llamadas de texto de esta corrida (Evaluador y Revisor, buenas o fallidas): el tope por corrida
+    (`AI_MAX_RERANKS_PER_RUN`) es de llamadas, porque una respuesta que no sirve igual se pagó."""
+    return stats["rerank"] + stats["fallidos"] + stats["revisiones"] + stats["revisiones_fallidas"]
+
+
+def _with_skills(req_evals: list[dict], ctx: "JobContext", skill_ids) -> list[dict]:
+    """Un requisito que es una habilidad que el candidato tiene cargada cuenta como "si"."""
+    return [{**e, "verdict": "si"} if ctx.skill_reqs.get(e["req_id"]) in skill_ids else e for e in req_evals]
+
+
+def _score(row: dict, req_evals: list[dict]) -> int:
+    if req_evals:
+        req_score, failed = scoring.requirements_score([scoring.RequirementEval(**e) for e in req_evals])
+    else:
+        req_score, failed = None, False
+    return scoring.final_score(row["hybrid"], row["semantic_pct"], req_score, failed)
+
+
 def _semantic(ctx: JobContext, chunks: list[tuple[str, str, np.ndarray]]) -> tuple[float | None, dict[str, list[int]]]:
     """Promedio, sobre los requisitos, del mejor coseno entre los fragmentos (vectores de norma 1)."""
     if not ctx.req_vectors or not chunks:
@@ -369,7 +382,8 @@ async def compute_recommendations(
         db, activity.KIND_RECOMPUTE, job_id=job.id, company_id=job.company_id,
         detail={"motivo": reason or ("noche" if not rerank_enabled else "otro"), "candidatos": stats["universo"],
                 "guardados": stats["guardados"], "reranks": stats["rerank"], "reutilizados": stats["reutilizados"],
-                "fallidos": stats["fallidos"], "tope": stats["tope"]},
+                "fallidos": stats["fallidos"], "tope": stats["tope"], "revisiones": stats["revisiones"],
+                "degradados": stats["degradados"]},
         cost_usd=activity.cost_since(db, mark), alert=bool(stats["fallidos"]),
     )
     return stats
@@ -430,7 +444,8 @@ async def _compute_recommendations(
     rerank_pool = rerank_candidates(
         sorted((c for c in applicants if c in rows), key=lambda c: -rows[c]["score"]), kept_talent)
 
-    stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0}
+    stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0,
+             "revisiones": 0, "revisiones_fallidas": 0, "degradados": 0}
     can_rerank = rerank_enabled and provider is not None and bool(ctx.requirements)
     # El gasto del día se lee una vez y se le suma lo que gasta esta vuelta (antes era una suma
     # sobre ai_usage_log por candidato).
@@ -441,17 +456,19 @@ async def _compute_recommendations(
         cdata = data[cid][0]
         ficha_hash = idx.ficha_hash if idx else None
         req_evals, evidence, reasons, status = [], {}, [], "none"
-        code_reasons = False
+        version, model_used = None, None
+        fresh = False   # evaluado en esta vuelta: los motivos se rearman con la habilidad cargada
 
         same_inputs = prev is not None and prev.rerank_status == "done" and prev.job_hash == ctx.job_hash \
-            and prev.ficha_hash == ficha_hash and prev.prompt_version == rerank.PROMPT_VERSION
+            and prev.ficha_hash == ficha_hash and prev.prompt_version in rerank.VERSIONES.values()
         if same_inputs:
             req_evals, evidence, reasons, status = prev.req_evals, prev.evidence, prev.reasons, "done"
+            version, model_used = prev.prompt_version, prev.model
             stats["reutilizados"] += 1
         elif can_rerank and cid in rerank_pool:
             if idx is not None and idx.injection_flags:
                 status = "skipped_injection"
-            elif stats["rerank"] + stats["fallidos"] >= max_reranks:
+            elif _calls(stats) >= max_reranks:
                 status = "skipped_limit"
                 stats["tope"] = 1
             elif spent_start + float(cost_mark_of(db) - cost_start) >= settings.AI_DAILY_BUDGET_USD:
@@ -468,45 +485,58 @@ async def _compute_recommendations(
                 chosen = (chosen or list(range(len(cand_chunks))))[:MAX_FRAGMENTS]
                 fragments = [rerank.Fragment(f"f{n + 1}", cand_chunks[i][1]) for n, i in enumerate(chosen)]
                 ref = "#" + hashlib.sha256(f"{job.id}:{cid}".encode()).hexdigest()[:6].upper()
+                ask = dict(
+                    ref=ref, requirements=ctx.requirements, fragments=fragments,
+                    forbidden_names=[*(e.company_name or "" for e in cdata.experiences),
+                                     *(e.institution or "" for e in cdata.educations)],
+                    blind=row["source"] == "talent", company_id=str(job.company_id), service_tier=service_tier,
+                )
                 try:
-                    res = await rerank.rerank_one(
-                        provider, ref=ref, requirements=ctx.requirements, fragments=fragments,
-                        forbidden_names=[*(e.company_name or "" for e in cdata.experiences),
-                                         *(e.institution or "" for e in cdata.educations)],
-                        blind=row["source"] == "talent", company_id=str(job.company_id),
-                        service_tier=service_tier,
-                    )
-                    await log_usage(db, "rerank", res.usage, company_id=job.company_id, job_id=job.id,
+                    res = await rerank.rerank_one(provider, agente="evaluador", **ask)
+                    await log_usage(db, "evaluador", res.usage, company_id=job.company_id, job_id=job.id,
                                     flex=service_tier == "flex")
                     req_evals = [e.__dict__ for e in res.evals]
                     evidence, reasons, status = res.evidence, res.reasons, "done"
-                    code_reasons = res.degraded > 0
+                    version, model_used, fresh = rerank.VERSIONES["evaluador"], settings.GEMINI_GENERATION_MODEL, True
                     stats["rerank"] += 1
+                    stats["degradados"] += res.degraded
                 except (AIError, ValueError) as exc:
                     status = "failed"
                     stats["fallidos"] += 1
                     logger.warning("ai_rerank_fallo", job_id=str(job.id), error=str(exc)[:200])
 
+                # Revisor: segunda opinión, con el modelo mejor, solo si quedó cerca del corte.
+                if fresh:
+                    provisional = _score(row, _with_skills(req_evals, ctx, data[cid][1]))
+                    within_budget = spent_start + float(cost_mark_of(db) - cost_start) < settings.AI_DAILY_BUDGET_USD
+                    if REVIEW_MIN <= provisional <= REVIEW_MAX and within_budget and _calls(stats) < max_reranks:
+                        try:
+                            rev = await rerank.rerank_one(provider, agente="revisor", **ask)
+                            await log_usage(db, "revisor", rev.usage, company_id=job.company_id, job_id=job.id,
+                                            flex=service_tier == "flex")
+                            req_evals = [e.__dict__ for e in rev.evals]
+                            evidence, reasons = rev.evidence, rev.reasons
+                            version, model_used = rerank.VERSIONES["revisor"], settings.GEMINI_REVIEW_MODEL
+                            stats["revisiones"] += 1
+                            stats["degradados"] += rev.degraded
+                        except (AIError, ValueError) as exc:
+                            # Queda lo del Evaluador, que ya era válido.
+                            stats["revisiones_fallidas"] += 1
+                            logger.warning("ai_revisor_fallo", job_id=str(job.id), error=str(exc)[:200])
+
         if req_evals:
-            skill_ids = data[cid][1]
-            req_evals = [
-                {**e, "verdict": "si"} if ctx.skill_reqs.get(e["req_id"]) in skill_ids else e
-                for e in req_evals
-            ]
-            evals = [scoring.RequirementEval(**e) for e in req_evals]
-            if code_reasons:
-                # Los motivos salieron de las evaluaciones: que reflejen la habilidad cargada.
+            req_evals = _with_skills(req_evals, ctx, data[cid][1])
+            if fresh:
+                # Los motivos los arma el código desde lo validado: que reflejen la habilidad cargada.
+                evals = [scoring.RequirementEval(**e) for e in req_evals]
                 reasons = rerank.reasons_from_evals(evals, {r.id: r for r in ctx.requirements})
-            req_score, failed = scoring.requirements_score(evals)
-        else:
-            req_score, failed = None, False
-        final = scoring.final_score(row["hybrid"], row["semantic_pct"], req_score, failed)
+        final = _score(row, req_evals)
         values = dict(
             source=row["source"], hybrid_fit=row["hybrid"].fit, coverage=row["hybrid"].coverage,
             semantic_pct=row["semantic_pct"], criteria=row["hybrid"].criteria, req_evals=req_evals,
             evidence=evidence, reasons=reasons, final_score=final, rerank_status=status, job_hash=ctx.job_hash,
-            ficha_hash=ficha_hash, prompt_version=rerank.PROMPT_VERSION if status == "done" else None,
-            weights_version=scoring.WEIGHTS_VERSION, model=settings.GEMINI_GENERATION_MODEL if status == "done" else None,
+            ficha_hash=ficha_hash, prompt_version=version if status == "done" else None,
+            weights_version=scoring.WEIGHTS_VERSION, model=model_used if status == "done" else None,
             computed_at=datetime.now(timezone.utc),
         )
         await db.execute(pg_insert(JobRecommendation).values(id=uuid.uuid4(), job_id=job.id, candidate_id=cid, **values)

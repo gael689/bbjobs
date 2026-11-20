@@ -72,11 +72,11 @@ class SummaryAI(FakeAI):
         self.prompts: list[str] = []
 
     async def generate_json(self, *, system, prompt, model, feature, company_id=None, max_output_tokens=2048,
-                            service_tier="standard"):
+                            service_tier="standard", model_name=None):
         if model is not SummaryOut:
             return await super().generate_json(system=system, prompt=prompt, model=model, feature=feature,
                                                company_id=company_id, max_output_tokens=max_output_tokens,
-                                               service_tier=service_tier)
+                                               service_tier=service_tier, model_name=model_name)
         self.summaries += 1
         self.prompts.append(system + "\n" + prompt)
         ref = re.search(r"Referencia: (#\w+)", prompt).group(1)

@@ -8,20 +8,23 @@ import Recomendados from "@/components/admin-ia/Recomendados";
 import Actividad from "@/components/admin-ia/Actividad";
 import Acciones from "@/components/admin-ia/Acciones";
 import Panorama from "@/components/admin-ia/Panorama";
+import Agentes from "@/components/admin-ia/Agentes";
 import { Aviso, Spinner, type ResumenActividad } from "@/components/admin-ia/comun";
 
 /**
- * Centro de IA (pedido de Gael: "Talency debe ver todo"). Cuatro pestañas:
+ * Centro de IA (pedido de Gael: "Talency debe ver todo"). Cinco pestañas:
  * - Panorama: estado, rendimiento, uso y gasto, y las mejores coincidencias (28/10/2026).
+ * - Agentes: quién es cada agente, qué hace, sus instrucciones y cuánto trabajó (15/11/2026).
  * - Recomendados: los de cualquier búsqueda, con lo que Talency necesita para gestionar.
  * - Actividad: qué hizo la IA (lecturas de CV, recálculos, resúmenes, moderación…), con alertas.
  * - Acciones: lanzar a mano lo que la IA hace sola, con confirmación y dentro del tope de gasto.
  * Módulo en desarrollo: con la compuerta cerrada el backend responde 404 y se ve el cartel.
  */
-type Pestana = "panorama" | "recomendados" | "actividad" | "acciones";
+type Pestana = "panorama" | "agentes" | "recomendados" | "actividad" | "acciones";
 
 const PESTANAS: { clave: Pestana; label: string }[] = [
   { clave: "panorama", label: "Panorama" },
+  { clave: "agentes", label: "Agentes" },
   { clave: "recomendados", label: "Recomendados" },
   { clave: "actividad", label: "Actividad" },
   { clave: "acciones", label: "Acciones" },
@@ -75,6 +78,8 @@ export default function CentroIaPage() {
         <Aviso tono="error">{resumen.mensaje}</Aviso>
       ) : pestana === "panorama" ? (
         <Panorama onVerBusqueda={id => { setJobAbierto(id); setPestana("recomendados"); }} />
+      ) : pestana === "agentes" ? (
+        <Agentes />
       ) : pestana === "recomendados" ? (
         <Recomendados jobInicial={jobAbierto} onJobAbierto={setJobAbierto} />
       ) : pestana === "actividad" ? (

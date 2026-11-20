@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import avisos from "@/vista-previa/datos/avisos.json";
 import ia from "@/vista-previa/datos/ia.json";
+import agentes from "@/vista-previa/datos/agentes.json";
 import VistaPrevia from "@/vista-previa/VistaPrevia";
 import { claveValida } from "@/vista-previa/clave";
 
@@ -32,6 +33,7 @@ export default async function Page({ params }: { params: Promise<{ clave: string
         sinMail={avisos.sin_mail}
         preguntas={avisos.preguntas}
         ia={ia}
+        agentes={agentes}
       />
     </>
   );

@@ -121,9 +121,14 @@ class Settings(BaseSettings):
     # IA — Gemini. Los nombres de modelo son variables y no constantes a propósito: Google los
     # rota, y de esa manera cambiarlos no necesita un deploy de código.
     GEMINI_API_KEY: str | None = None
-    # `gemini-2.5-*` quedó legado. 3.5 Flash-Lite: el de menor costo de la familia actual
-    # (USD 0,30 entrada / 2,50 salida por millón, verificado el 04/10/2026).
+    # 3.5 Flash-Lite: USD 0,30 entrada / 2,50 salida por millón (verificado el 15/11/2026, ver
+    # `services/ai/precios.py`). 3.1 Flash-Lite es más barato pero se da de baja el 7/5/2027; 2.5
+    # Flash-Lite, mucho más barato, queda como prueba para el Evaluador (IA-AGENTES-PLAN.md §7).
     GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
+    # El Revisor (IA-AGENTES-PLAN.md §2): segunda opinión solo para los candidatos cerca del corte
+    # de 70. Más caro (USD 0,75 / 3,75 hasta el 31/12/2026 y 1,50 / 7,50 desde el 1/1/2027, ver
+    # `services/ai/precios.py`), pero son pocos por búsqueda.
+    GEMINI_REVIEW_MODEL: str = "gemini-3.8-flash"
     # `-001` y no `-2` por precio (auditoría P11). Se apaga el 14/05/2028; los vectores de uno y
     # otro no son comparables, así que cambiarlo obliga a reindexar todo.
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"

@@ -248,7 +248,6 @@ async def test_interpret_validates_against_catalog(maker, client, ai_on, monkeyp
     fake = FakeProvider({
         "zone_slug": f"punta-alta-{tag}", "industry_slug": "industria-inventada", "modality": "full time",
         "contract_type": f"Relación de dependencia {tag}", "keywords": ["vendedor", "mujer", "joven", "30"],
-        "entendimos": "Ventas en Punta Alta",
     })
     monkeypatch.setattr(search_interpret, "get_provider", lambda: fake)
     before = await _usage_rows(maker)
@@ -261,7 +260,7 @@ async def test_interpret_validates_against_catalog(maker, client, ai_on, monkeyp
     assert body["contract_type"]["id"] == str(world["ct"].id)
     assert "industry" not in body and "modality" not in body       # inventados: descartados
     assert body["keywords"] == "vendedor"                          # sin género, edad ni números
-    assert body["understood"] == "Ventas en Punta Alta"
+    assert body["understood"] == f"Buscás: vendedor, relación de dependencia {tag}, en {world['punta'].name}"
     assert "<FRASE>" in fake.prompts[0] and f"punta-alta-{tag}" in fake.prompts[0]
     assert await _usage_rows(maker) == before + 1
 
