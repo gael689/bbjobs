@@ -247,3 +247,34 @@ async def test_empty_or_failed_output_is_an_error(fake):
     with pytest.raises(AIError) as err:
         await GeminiProvider().generate_text(system="s", prompt="p", feature="x")
     assert err.value.transient is False
+
+
+def test_real_client_is_built_on_v1beta(monkeypatch):
+    """Sin esto las versiones nuevas de google-genai usan la API estable y Google rechaza con 400
+    el campo `labels` en toda llamada de texto (hallado con la clave real el 20/11/2026)."""
+    from google import genai
+
+    captured = {}
+
+    class Dummy:
+        def __init__(self, **kw):
+            captured.update(kw)
+
+    monkeypatch.setattr(genai, "Client", Dummy)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k")
+    gemini_client._make_client()
+    assert captured["api_key"] == "k" and captured["http_options"].api_version == "v1beta"
+
+
+async def test_reviewer_model_uses_its_own_thinking_level(fake, monkeypatch):
+    """`gemini-3.8-flash` rechaza "minimal" con 400 (verificado con la clave real el 20/11/2026):
+    el Revisor usa su propio nivel y el resto sigue en "minimal"."""
+    monkeypatch.setattr(settings, "GEMINI_REVIEW_MODEL", "modelo-revisor")
+    monkeypatch.setattr(settings, "GEMINI_REVIEW_THINKING_LEVEL", "low")
+    monkeypatch.setattr(settings, "GEMINI_THINKING_LEVEL", "minimal")
+    provider = GeminiProvider()
+    for model_name in ("modelo-revisor", None):
+        fake.interactions.append(_interaction(json.dumps({"requisitos": ["a"]})))
+        await provider.generate_json(system="s", prompt="p", model=Requisitos, feature="f", model_name=model_name)
+    niveles = [c["generation_config"]["thinking_level"] for c in fake.interaction_calls]
+    assert niveles == ["low", "minimal"]

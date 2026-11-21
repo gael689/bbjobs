@@ -157,11 +157,19 @@ def _classify(exc: Exception) -> AIError:
     return AIError(f"Gemini falló ({code}): {str(exc)[:300]}", transient=False)
 
 
+API_VERSION = "v1beta"
+
+
 def _make_client() -> Any:
     """Punto único de construcción del cliente: los tests lo reemplazan por un doble."""
     from google import genai
+    from google.genai import types
 
-    return genai.Client(api_key=settings.GEMINI_API_KEY)
+    # `labels` (atribución de costos por función y empresa) sólo existe en la API v1beta. Las
+    # versiones nuevas del SDK usan la estable por defecto y Google contesta 400 a TODA llamada de
+    # texto (los embeddings andaban y los tests, con doble, no lo veían). Se fija explícitamente
+    # para no depender de la versión de `google-genai` que instale cada deploy.
+    return genai.Client(api_key=settings.GEMINI_API_KEY, http_options=types.HttpOptions(api_version=API_VERSION))
 
 
 def _usage_from(interaction: Any, model: str) -> AIUsage:
@@ -250,6 +258,8 @@ class GeminiProvider(AIProvider):
     ) -> tuple[str, AIUsage]:
         # `model_name`: otro modelo para esta llamada (el Revisor usa `GEMINI_REVIEW_MODEL`).
         model = model_name or settings.GEMINI_GENERATION_MODEL
+        thinking = settings.GEMINI_REVIEW_THINKING_LEVEL if model == settings.GEMINI_REVIEW_MODEL \
+            else settings.GEMINI_THINKING_LEVEL
         body: dict[str, Any] = {
             "model": model,
             "input": prompt,
@@ -258,7 +268,7 @@ class GeminiProvider(AIProvider):
             "service_tier": service_tier,
             "labels": make_labels(feature, company_id),
             "generation_config": {
-                "thinking_level": settings.GEMINI_THINKING_LEVEL,
+                "thinking_level": thinking,
                 "max_output_tokens": max_output_tokens,
                 "seed": settings.GEMINI_SEED,
             },

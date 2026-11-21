@@ -134,6 +134,9 @@ class Settings(BaseSettings):
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
     # Reproducibilidad del rerank (auditoría R17): misma semilla y pensamiento mínimo.
     GEMINI_THINKING_LEVEL: str = "minimal"
+    # El Revisor (`gemini-3.8-flash`) no acepta "minimal" (Google contesta 400): su piso es "low"
+    # (verificado con la clave real el 20/11/2026). "medium" piensa más y cuesta más tokens.
+    GEMINI_REVIEW_THINKING_LEVEL: str = "low"
     GEMINI_SEED: int = 20261004
     # El modelo de embeddings permite truncar la dimensión. 768 pesa 4 veces menos que los 3072
     # nativos con una pérdida de calidad que no se nota para ranking de perfiles.
