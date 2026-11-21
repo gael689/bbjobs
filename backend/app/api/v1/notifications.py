@@ -129,12 +129,12 @@ async def notifications_summary(
         from app.api.v1.recommendations import pending_for_company
         from app.models.company import CompanyProfile, VerificationStatus
         from app.models.settings import SettingKey
-        from app.services.settings import get_setting
+        from app.services.settings import get_setting, recs_visibles_para_empresas
 
         company = (await db.execute(
             select(CompanyProfile).where(CompanyProfile.user_id == current_user.id)
         )).scalar_one_or_none()
-        if company is not None and company.verification_status == VerificationStatus.verified                 and await get_setting(db, SettingKey.ia_recomendaciones_activas):
+        if company is not None and company.verification_status == VerificationStatus.verified                 and await recs_visibles_para_empresas(db):
             pending = await pending_for_company(db, company.id)
             recommended = RecommendedPending(total=pending.total,
                                              jobs=[PendingJob(**j.model_dump()) for j in pending.jobs])

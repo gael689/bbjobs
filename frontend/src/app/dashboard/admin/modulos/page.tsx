@@ -29,6 +29,8 @@ const INTERRUPTORES: { clave: string; titulo: string; ayuda: string }[] = [
     ayuda: "Avisos, resúmenes y campañas por mail. Apagado, no sale ningún mail." },
   { clave: "ia_recomendaciones_activas", titulo: "Candidatos recomendados con IA",
     ayuda: "Ordena postulantes y sugiere perfiles de la Base de Talento. Apagado, las empresas no lo ven." },
+  { clave: "ia_recomendaciones_visibles", titulo: "Mostrar los recomendados a las empresas",
+    ayuda: "Modo observación: apagado, la IA calcula y vos lo ves en el Centro de IA, pero las empresas no ven recomendados ni reciben avisos. Prendelo cuando los números se vean bien." },
   { clave: "revision_cv_activa", titulo: "Venta de revisión de CV",
     ayuda: "Los postulantes pueden pagar la revisión. Apagalo si no das abasto." },
   { clave: "busqueda_ia_activa", titulo: "Buscador inteligente de empleos",

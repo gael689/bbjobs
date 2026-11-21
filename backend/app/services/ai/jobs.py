@@ -34,7 +34,7 @@ from app.models.settings import SettingKey
 from app.services.ai import pipeline, scoring
 from app.services.ai.ingest import MAX_PDF_BYTES
 from app.services.notifications import create_notification, notify_all_admins
-from app.services.settings import get_setting
+from app.services.settings import get_setting, recs_visibles_para_empresas
 
 logger = structlog.get_logger("app.services.ai.jobs")
 
@@ -189,6 +189,9 @@ async def notify_new_fits(db, now: datetime) -> int:
     de un perfil que la empresa marcó 👎 ni de uno de la Base de Talento que queda fuera de lo que
     la empresa ve (su cupo de perfiles por búsqueda)."""
     from app.models.payment import TalentCreditPack, TalentPackStatus
+
+    if not await recs_visibles_para_empresas(db):
+        return 0   # modo sombra: nada sale hacia las empresas ni se marca como avisado
 
     week_ago = now - timedelta(days=7)
     # Puesto de cada perfil de la Base dentro de su búsqueda: la pantalla muestra sólo los primeros.

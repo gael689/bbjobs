@@ -1335,6 +1335,7 @@ class SiteSettingsResponse(BaseModel):
     # Módulos en desarrollo: None (y fuera de la respuesta) con la compuerta cerrada.
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
+    ia_recomendaciones_visibles: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
     asistente_ia_activo: Optional[bool] = None
@@ -1346,6 +1347,7 @@ class SiteSettingsUpdate(BaseModel):
     stats_visibles_en_landing: Optional[bool] = None
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
+    ia_recomendaciones_visibles: Optional[bool] = None
     revision_cv_activa: Optional[bool] = None
     busqueda_ia_activa: Optional[bool] = None
     asistente_ia_activo: Optional[bool] = None

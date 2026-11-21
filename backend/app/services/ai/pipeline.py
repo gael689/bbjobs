@@ -283,7 +283,7 @@ async def job_context(db: AsyncSession, provider: AIProvider | None, job: JobPos
         .where(JobRequirementVector.job_id == job.id, JobRequirementVector.model == settings.GEMINI_EMBEDDING_MODEL)
     )).all()
     return JobContext(
-        job=job, requirements=stored, job_hash=h,
+        job=job, requirements=stored, job_hash=reqs.requirements_hash(h, stored),
         req_vectors={rid: np.asarray(v, dtype=np.float32) for rid, v in vec_rows},
         required_skill_ids={sid for sid, _, r in skill_rows if r},
         optional_skill_ids={sid for sid, _, r in skill_rows if not r},
@@ -504,6 +504,11 @@ async def _compute_recommendations(
                     status = "failed"
                     stats["fallidos"] += 1
                     logger.warning("ai_rerank_fallo", job_id=str(job.id), error=str(exc)[:200])
+                    if getattr(exc, "quota_day", False):
+                        # Cuota del día agotada: el resto de la tanda fallaría igual. Se corta y
+                        # la vuelta siguiente (10 min) o el día siguiente lo retoma.
+                        can_rerank = False
+                        stats["cuota_dia"] = 1
 
                 # Revisor: segunda opinión, con el modelo mejor, solo si quedó cerca del corte.
                 if fresh:

@@ -23,6 +23,10 @@ class SettingKey(str, enum.Enum):
     # código sin que cambie nada de lo que ve nadie.
     emails_automaticos_activos = "emails_automaticos_activos"
     ia_recomendaciones_activas = "ia_recomendaciones_activas"
+    # Modo sombra (auditoría 20/11/2026): con `activas` prendido y `visibles` apagado la IA calcula
+    # y Talency ve el resultado en el Centro de IA, pero las empresas no ven recomendados ni
+    # reciben avisos. Se prende `visibles` recién cuando termina la etapa de observación.
+    ia_recomendaciones_visibles = "ia_recomendaciones_visibles"
     # Venta de la Revisión de CV (v4 §6, riesgo "cobrar sin poder atender"): se apaga si
     # Talency no da abasto.
     revision_cv_activa = "revision_cv_activa"
@@ -44,6 +48,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.stats_visibles_en_landing: False,
     SettingKey.emails_automaticos_activos: False,
     SettingKey.ia_recomendaciones_activas: False,
+    SettingKey.ia_recomendaciones_visibles: False,
     SettingKey.revision_cv_activa: False,
     SettingKey.busqueda_ia_activa: False,
     SettingKey.asistente_ia_activo: False,
@@ -55,6 +60,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
 NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
     SettingKey.emails_automaticos_activos,
     SettingKey.ia_recomendaciones_activas,
+    SettingKey.ia_recomendaciones_visibles,
     SettingKey.revision_cv_activa,
     SettingKey.busqueda_ia_activa,
     SettingKey.asistente_ia_activo,

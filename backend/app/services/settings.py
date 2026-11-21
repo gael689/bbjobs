@@ -30,3 +30,10 @@ async def set_setting(db: AsyncSession, key: SettingKey, enabled: bool) -> None:
         row.enabled = enabled
     else:
         db.add(SiteSetting(key=key, enabled=enabled))
+
+
+async def recs_visibles_para_empresas(db: AsyncSession) -> bool:
+    """¿Las empresas ven los recomendados con IA (pantallas y avisos)? Hace falta que la IA esté
+    activa Y que haya terminado el modo sombra. Talency los ve siempre que la IA esté activa."""
+    return await get_setting(db, SettingKey.ia_recomendaciones_activas) and \
+        await get_setting(db, SettingKey.ia_recomendaciones_visibles)

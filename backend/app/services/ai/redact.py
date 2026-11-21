@@ -323,3 +323,33 @@ def leaks(text: str, *, known_names: list[str], known_phones: list[str], known_e
     if any(_is_address(text, m) for m in _ADDRESS.finditer(text)) or _ADDRESS_PART.search(text):
         found.append("domicilio")
     return found
+
+
+def scrub_contacto(text: str | None, *, edad: bool = False) -> str:
+    """Tacha mails, links, teléfonos y CUIL/CUIT de un texto libre que NO es un CV (un aviso, la
+    frase del buscador) antes de mandarlo a la IA (auditoría 20/11/2026).
+
+    A diferencia de `redact`, no borra líneas ni toca "edad" o "género": el aviso tiene que
+    llegarle entero al Redactor para que pueda avisar de un requisito discriminatorio. Tampoco
+    toca el DNI suelto: en un aviso "1.500.000" es un sueldo. Con `edad=True` (frases de
+    visitantes anónimos: "tengo 52 años") también tacha la edad."""
+    if not text:
+        return ""
+    text = _EMAIL.sub(TOKEN, text)
+    text = _URL.sub(TOKEN, text)
+
+    def _cuil(m: re.Match) -> str:
+        return TOKEN if cuit_is_valid(re.sub(r"\D", "", m.group(0))) else m.group(0)
+
+    text = _CUIL.sub(_cuil, text)
+
+    def _phone(m: re.Match) -> str:
+        if _YEAR_RANGE.fullmatch(m.group(0).strip()):
+            return m.group(0)
+        return TOKEN if len(re.sub(r"\D", "", m.group(0))) >= 8 else m.group(0)
+
+    text = _PHONE.sub(_phone, text)
+    if edad:
+        text = _AGE.sub(TOKEN, text)
+        text = _sub_checked(_AGE_LOOSE, text, _is_age, Redaction(text=""), "edad")
+    return re.sub(rf"({re.escape(TOKEN)}[\s,;.-]*){{2,}}", TOKEN + " ", text)

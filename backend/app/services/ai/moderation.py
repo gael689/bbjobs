@@ -39,6 +39,7 @@ from app.models.ai import JobPostingVector
 from app.models.catalogs import Industry
 from app.models.job import JobModerationStatus, JobPosting, JobPostingStatus
 from app.services.ai.pipeline import budget_left, log_usage
+from app.services.ai.redact import scrub_contacto
 
 logger = structlog.get_logger("app.services.ai.moderation")
 
@@ -53,7 +54,7 @@ LOOKBACK = timedelta(days=365)
 
 
 def job_text(title: str, description: str | None) -> str:
-    return f"{(title or '').strip()}\n{(description or '').strip()}"[:MAX_TEXT_CHARS]
+    return scrub_contacto(f"{(title or '').strip()}\n{(description or '').strip()}")[:MAX_TEXT_CHARS]
 
 
 def text_hash(text: str) -> str:

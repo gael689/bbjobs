@@ -56,9 +56,12 @@ class AIUnavailable(Exception):
 class AIError(Exception):
     """La llamada a la IA falló. `transient=True` = vale la pena reintentar más tarde."""
 
-    def __init__(self, message: str, *, transient: bool):
+    def __init__(self, message: str, *, transient: bool, quota_day: bool = False):
         super().__init__(message)
         self.transient = transient
+        # Cuota DIARIA agotada (429 "per day"): reintentar en segundos no sirve y cada intento
+        # gasta tiempo; quien llama corta la tanda y vuelve a probar en la vuelta siguiente.
+        self.quota_day = quota_day
 
 
 @dataclass(frozen=True)
@@ -138,10 +141,17 @@ def _status_code(exc: Exception) -> int | None:
     return None
 
 
+# Google nombra la cuota en el cuerpo del 429: "GenerateRequestsPerDayPerProjectPerModel…",
+# "requests per day", "RPD". Sin esa marca se asume cuota por minuto (se reintenta).
+_DAILY_QUOTA = re.compile(r"per\s?day|perday|daily|\bRPD\b", re.IGNORECASE)
+
+
 def _classify(exc: Exception) -> AIError:
     if isinstance(exc, (httpx.TransportError, asyncio.TimeoutError, TimeoutError)):
         return AIError(f"Error de red hablando con Gemini: {exc}", transient=True)
     code = _status_code(exc)
+    if code == 429 and _DAILY_QUOTA.search(str(exc)):
+        return AIError("Gemini: cuota diaria agotada (429)", transient=True, quota_day=True)
     if code is not None and (code == 429 or code >= 500):
         return AIError(f"Gemini respondió {code}", transient=True)
     return AIError(f"Gemini falló ({code}): {str(exc)[:300]}", transient=False)
@@ -186,7 +196,7 @@ class GeminiProvider(AIProvider):
                 raise
             except Exception as exc:  # el SDK no tiene una jerarquía única de errores
                 last = _classify(exc)
-                if not last.transient:
+                if not last.transient or last.quota_day:
                     raise last from exc
         assert last is not None
         raise last

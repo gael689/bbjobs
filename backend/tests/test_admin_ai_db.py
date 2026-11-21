@@ -57,6 +57,7 @@ async def maker(monkeypatch):
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with session_maker() as db:
         await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
+        await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
         await db.commit()
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
     monkeypatch.setattr(settings, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
@@ -329,6 +330,7 @@ async def test_actions_respect_budget_provider_and_switch(maker, client, ai, mon
     finally:
         async with maker() as db:
             await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
+            await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
             await db.commit()
     async with maker() as db:
         queued = (await db.execute(select(AiRecomputeQueue).where(AiRecomputeQueue.job_id == job.id))).scalar_one_or_none()

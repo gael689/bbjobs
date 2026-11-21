@@ -99,6 +99,7 @@ async def maker(monkeypatch):
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with session_maker() as db:
         await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
+        await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
         await set_setting(db, SettingKey.emails_automaticos_activos, True)
         await db.commit()
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
@@ -193,6 +194,7 @@ async def test_para_vos_without_ai_keeps_todays_order(maker):
     finally:
         async with maker() as db:
             await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
+            await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
             await db.commit()
     assert order[0] == jobs["cash"].title          # sin vectores: el orden de siempre
 
@@ -292,6 +294,7 @@ async def test_approval_marks_job_and_switch_off_does_not(maker, client):
     finally:
         async with maker() as db:
             await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
+            await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
             await db.commit()
 
 

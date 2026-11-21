@@ -41,6 +41,7 @@ from app.models.ai import AiUsageLog
 from app.models.catalogs import SKILL_SLUG_IDIOMAS, SKILL_SLUG_OTRA, Industry, Skill, Zone
 from app.models.settings import SettingKey
 from app.services.ai.ingest import sanitize_text
+from app.services.ai.redact import scrub_contacto
 from app.services.ai.pipeline import budget_left, log_usage
 from app.services.ai.requirements import PROTECTED, protected_in_text
 from app.services.ai.search_interpret import _TTLCache
@@ -329,7 +330,7 @@ SYSTEM = agentes.instrucciones("redactor_busquedas")  # app/agentes/redactor_bus
 def build_prompt(text: str, *, title: str | None, zone: str | None, modality: str | None,
                  industries, skills: list[Skill]) -> str:
     def clean(s: str | None, n: int) -> str:
-        return sanitize_text(s or "", n).replace("<", " ").replace(">", " ")
+        return scrub_contacto(sanitize_text(s or "", n)).replace("<", " ").replace(">", " ")
 
     body = clean(text, MAX_INPUT_CHARS)
     sectores = "\n".join(f"- {slug}: {name}" for _, slug, name in industries)

@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from app.integrations.gemini_client import AIProvider, AIUsage
 from app.services.ai.ingest import detect_injection, sanitize_text
+from app.services.ai.redact import scrub_contacto
 from app.services.ai import agentes
 
 PROMPT_VERSION = agentes.version("requisitos")  # cambia sola si cambian las instrucciones
@@ -79,6 +80,14 @@ def job_hash(title: str, description: str, skills: list[tuple[str, bool]]) -> st
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def requirements_hash(base: str, requirements: list["Requirement"]) -> str:
+    """Clave de caché de las evaluaciones: el aviso MÁS la lista de requisitos contra la que se
+    evaluó. Si Requisitos falla una vez y el Evaluador trabaja con los de respaldo, cuando llegan
+    los buenos la clave cambia y se reevalúa (antes se reutilizaba la evaluación vieja)."""
+    raw = base + "\n" + "\n".join(f"{r.id}|{r.tipo}|{r.texto}" for r in requirements)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def from_structured(skills: list[tuple[str, bool]], start: int = 1) -> list[Requirement]:
     """Las habilidades **técnicas** cargadas en la búsqueda, como requisitos (sin IA)."""
     return [
@@ -116,9 +125,10 @@ async def extract(
 ) -> ExtractResult:
     desc = sanitize_text(description, max_chars=6000)
     flags = detect_injection(desc)
+    desc_ia = scrub_contacto(desc)   # a Gemini no le llegan mails ni teléfonos de quien recluta
     prompt = (
-        f"Puesto: {sanitize_text(title, 255)}\n"
-        f"<AVISO_NO_CONFIABLE>\n{desc}\n</AVISO_NO_CONFIABLE>\n"
+        f"Puesto: {scrub_contacto(sanitize_text(title, 255))}\n"
+        f"<AVISO_NO_CONFIABLE>\n{desc_ia}\n</AVISO_NO_CONFIABLE>\n"
         "Habilidades cargadas en el formulario (ya se evalúan aparte, no las repitas): "
         + (", ".join(n for n, _ in technical_skills) or "ninguna")
     )

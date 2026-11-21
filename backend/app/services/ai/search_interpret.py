@@ -39,6 +39,7 @@ from app.models.catalogs import ContractType, Industry, Zone
 from app.models.job import JobPostingModality
 from app.models.settings import SettingKey
 from app.services.ai.ingest import sanitize_text
+from app.services.ai.redact import scrub_contacto
 from app.services.ai.pipeline import budget_left, log_usage
 from app.services.job_search import STOPWORDS, normalize_text, tokenize
 from app.services.settings import get_setting
@@ -228,7 +229,7 @@ SYSTEM = agentes.instrucciones("buscador")  # app/agentes/buscador.md
 
 
 def build_prompt(q: str, catalog: Catalog) -> str:
-    phrase = sanitize_text(q, max_chars=200).replace("<", " ").replace(">", " ")
+    phrase = scrub_contacto(sanitize_text(q, max_chars=200), edad=True).replace("<", " ").replace(">", " ")
     zones = "\n".join(f"- {slug}: {name}" for _, slug, name in catalog.zones)
     industries = "\n".join(f"- {slug}: {name}" for _, slug, name in catalog.industries)
     contracts = "\n".join(f"- {name}" for _, name in catalog.contract_types)

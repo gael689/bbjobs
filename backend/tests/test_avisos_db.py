@@ -49,6 +49,7 @@ async def maker(monkeypatch):
         ))
     async with session_maker() as db:
         db.add(SiteSetting(key=SettingKey.ia_recomendaciones_activas.value, enabled=True))
+        db.add(SiteSetting(key=SettingKey.ia_recomendaciones_visibles.value, enabled=True))
         db.add(SiteSetting(key=SettingKey.emails_automaticos_activos.value, enabled=True))
         await db.commit()
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
@@ -261,3 +262,53 @@ async def test_tombstone_removes_matches(maker):
         left = (await db.execute(select(func.count()).select_from(CandidateJobMatch)
                                  .where(CandidateJobMatch.candidate_id == bueno.id))).scalar_one()
     assert left == 0
+
+
+async def _apagar_visibles(maker):
+    from app.services.settings import set_setting
+
+    async with maker() as db:
+        await set_setting(db, SettingKey.ia_recomendaciones_visibles, False)
+        await db.commit()
+
+
+async def test_modo_sombra_la_empresa_no_ve_recomendados_ni_bombita(maker, client):
+    """Auditoría 20/11/2026: con la IA activa y `visibles` apagado, la IA calcula pero la empresa
+    ve todo como apagado (pantalla, bombita, resumen de la campanita, recálculo manual)."""
+    from app.main import app
+
+    companies, job, people = await _ready(maker)
+    app.dependency_overrides[require_verified_company] = lambda: companies[0]
+    assert (await client.get("/api/v1/me/company/recommendations/pending")).json()["total"] == 2   # visible
+
+    await _apagar_visibles(maker)
+    assert (await client.get("/api/v1/me/company/recommendations/pending")).json() == {"total": 0, "jobs": []}
+    r = (await client.get(f"/api/v1/me/company/jobs/{job.id}/recommendations")).json()
+    assert r["enabled"] is False and r["status"] == "apagado" and not r.get("items")
+    assert (await client.post(f"/api/v1/me/company/jobs/{job.id}/recommendations/refresh")).status_code == 409
+
+    owner = await _company_user(maker, companies[0])
+    app.dependency_overrides[get_current_user] = lambda: owner
+    assert (await client.get("/api/v1/me/notifications/summary")).json()["recommended"] is None
+
+    # Lo calculado sigue guardado: Talency lo ve en el Centro de IA y al prender `visibles` aparece.
+    async with maker() as db:
+        assert (await db.execute(select(func.count()).select_from(JobRecommendation))).scalar() > 0
+
+
+async def test_modo_sombra_no_avisa_ni_marca_como_avisado(maker):
+    from app.models.alerts import Notification
+    from app.services.ai import jobs as ai_jobs
+
+    companies, job, people = await _ready(maker)
+    await _apagar_visibles(maker)
+    async with maker() as db:
+        await db.execute(update(JobRecommendation).values(final_score=91, coverage=100, rerank_status="done"))
+        await db.commit()
+        assert await ai_jobs.notify_new_fits(db, datetime.now(timezone.utc)) == 0
+        await db.commit()
+        assert (await db.execute(select(func.count()).select_from(Notification).where(
+            Notification.type.in_(("recommended_candidates_new", "admin_ai_new_fits"))))).scalar() == 0
+        # Nada quedó marcado: al terminar la observación, el primer aviso sale completo.
+        assert (await db.execute(select(func.count()).select_from(JobRecommendation).where(
+            JobRecommendation.notified_at.is_not(None)))).scalar() == 0

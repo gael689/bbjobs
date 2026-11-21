@@ -41,7 +41,7 @@ from app.models.payment import TalentCreditPack, TalentPackStatus, TalentUnlock
 from app.models.settings import SettingKey
 from app.services.ai import pendientes, pipeline
 from app.services.email.policy import local_day_start
-from app.services.settings import get_setting
+from app.services.settings import get_setting, recs_visibles_para_empresas
 
 logger = structlog.get_logger("app.api.recommendations")
 router = APIRouter(dependencies=[Depends(require_new_modules)])
@@ -197,7 +197,7 @@ async def job_recommendations(
     db: AsyncSession = Depends(get_db),
 ):
     job = await _own_job(db, company, job_id)
-    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+    if not await recs_visibles_para_empresas(db):
         return RecsResponse(enabled=False, status="apagado", disclaimer=DISCLAIMER)
 
     profile = (await db.execute(select(JobAiProfile).where(JobAiProfile.job_id == job.id))).scalar_one_or_none()
@@ -297,6 +297,8 @@ async def pending_recommendations(
     """Recomendados ≥ 70 que la empresa todavía no miró, por búsqueda (la bombita del panel).
     El panel lo recibe también dentro de `/me/notifications/summary`, en el mismo pedido de la
     campanita."""
+    if not await recs_visibles_para_empresas(db):
+        return PendingOut(total=0, jobs=[])
     return await pending_for_company(db, company.id)
 
 
@@ -312,7 +314,7 @@ async def refresh_recommendations(
     db: AsyncSession = Depends(get_db),
 ):
     job = await _own_job(db, company, job_id)
-    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+    if not await recs_visibles_para_empresas(db):
         raise HTTPException(status_code=409, detail="Las recomendaciones no están activas")
     used = (await db.execute(
         select(func.count()).select_from(RecommendationRefresh).where(
@@ -379,7 +381,7 @@ async def recommendation_summary(
     from app.services.ai import summary as summary_svc
 
     job = await _own_job(db, company, job_id)
-    if not await get_setting(db, SettingKey.ia_recomendaciones_activas):
+    if not await recs_visibles_para_empresas(db):
         raise HTTPException(status_code=409, detail="Las recomendaciones no están activas")
     recs = (await db.execute(
         select(JobRecommendation).where(JobRecommendation.job_id == job.id)

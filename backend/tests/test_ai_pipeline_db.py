@@ -107,6 +107,7 @@ async def maker(monkeypatch):
         ))
     async with session_maker() as db:
         db.add(SiteSetting(key=SettingKey.ia_recomendaciones_activas.value, enabled=True))
+        db.add(SiteSetting(key=SettingKey.ia_recomendaciones_visibles.value, enabled=True))
         await db.commit()
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", True)
     monkeypatch.setattr(settings, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
