@@ -7,17 +7,17 @@ reemplaza están en `docs/archivo/`; el diseño que sigue valiendo, en `docs/ref
 ## Estado en una línea
 
 **El código está terminado y probado en local, con 799 tests y 20 corridas seguidas sin fallas.
-No se hizo push.** Para lanzar faltan cuentas y DNS (Fase 3), el push y el encendido de a poco
+No se hizo push.** Para lanzar faltan cuentas y DNS de Resend (Fase 3), el push y el encendido de a poco
 (Fases 4 a 8).
 
 | | Estado |
 |---|---|
-| Código (backend + frontend) | ✅ terminado en `main` **local**, sin push. Son 14 commits sobre `origin/main`, con 2 migraciones nuevas (`a1c3e5b7d9f2`, `b2d4f6a8c0e3`) |
+| Código (backend + frontend) | ✅ terminado en `main` **local**, sin push. Lo que falta subir se ve con `git log origin/main..HEAD`; trae 2 migraciones nuevas (`a1c3e5b7d9f2`, `b2d4f6a8c0e3`) |
 | Tests | ✅ 799 pasan; 20 corridas seguidas sin fallas. `tsc`, `eslint` y `next build` limpios (con la compuerta prendida y apagada) |
 | IA con Gemini real | ✅ simulacro de punta a punta con datos inventados: requisitos, evaluador y revisor andan; ~USD 0,014 por búsqueda de 10 candidatos con Revisor |
 | Auditorías | ✅ dos auditorías independientes; todo lo importante corregido, con tests que fallan sin el arreglo |
 | Producción (verificado sólo lectura con el token de Railway) | Postgres 18.6 con pgvector; migración `f1b3d5e7a9c2`; compuerta cerrada; logs limpios |
-| Falta de Gael | Fase 3 (clave paga de Gemini, Resend con DNS, Clerk en producción), las pruebas manuales y el OK para el push |
+| Falta de Gael | Resend (clave + DNS), las pruebas manuales y el OK para el push. Gemini (proyecto con facturación) ya está cargada en Railway y Clerk ya estaba en producción |
 
 **Dónde corre cada cosa:**
 - **Backend + Postgres:** Railway, proyecto `bbjobs`. Se accede con `direnv exec . railway …`.
@@ -114,8 +114,9 @@ Por qué así:
 - **DMARC:** `_dmarc.bbjobs.com.ar` sigue en `p=none` con `rua=mailto:dmarc@r.bbjobs.com.ar` (se
   filtra de Respuestas) las
   primeras 2–4 semanas; después `p=quarantine`. Los subdominios lo heredan.
-- **Clerk** (cuando pase a producción) agrega sus propios CNAME (`clerk.`, `accounts.`,
-  `clkmail.`, `clk._domainkey`, `clk2._domainkey`): no chocan con nada de lo de arriba.
+- **Clerk** ya está en producción con sus CNAME en `www.bbjobs.com.ar` (`clerk.www.`, `accounts.www.`,
+  `clkmail.www.`, `clk._domainkey.www.`, `clk2._domainkey.www.`, ver `infra/dns/`): no chocan con
+  nada de lo de arriba.
 - Opcional: reenviar lo que llega a `hola@r.` al mail real de Talency, además de verlo en el admin.
 
 ---
@@ -266,8 +267,7 @@ la Fase 1 agregue la de casillas. Los logs de producción están limpios.
 
 - [ ] Backup de la base de Railway justo antes del push (el único paso que no se puede deshacer
       solo es una migración; con la de casillas, sí hace falta).
-- [ ] `GEMINI_API_KEY` **de un proyecto con facturación** (ver Fase 3). La clave del 20/11 es de
-      desarrollo y no se sube a producción mientras no se confirme que su proyecto es de pago.
+- [x] `GEMINI_API_KEY` (proyecto con facturación) cargada el 20/11 con `--skip-deploys`.
 - [ ] Variables nuevas (`--skip-deploys`): `AI_DAILY_BUDGET_USD=1`, `LEADGEN_SYNC_SECRET`.
 - [ ] Push de `main` → deploy → (migración de casillas si corresponde).
 - [ ] Verificar: sitio igual, `/admin/settings` sin módulos nuevos, rutas nuevas → 404.
@@ -310,9 +310,9 @@ la Fase 1 agregue la de casillas. Los logs de producción están limpios.
 
 ## Fase 9 — Cierre
 
-- [ ] Clerk a producción (instancia live + CNAMEs en Vercel DNS) y borrar los 3 usuarios de prueba.
+- [x] Clerk ya está en producción. Si los usuarios de prueba aparecen en la instancia live, borrarlos.
 - [ ] Eugenia etiqueta 3 búsquedas → calibrar el orden de recomendados y la franja del Revisor.
-- [ ] Actualizar `PENDIENTES-BBJOBS.md` y los PDFs para Eugenia.
+- [ ] Actualizar los PDFs para Eugenia (`docs/eugenia/`) con lo lanzado. `PENDIENTES-BBJOBS.md` quedó archivado: manda este plan.
 
 ---
 

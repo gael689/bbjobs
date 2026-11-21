@@ -17,8 +17,8 @@ pagos, Clerk, celulares. Marcá cada casilla al probarla y anotá al lado lo que
 
 - [ ] Tres casillas de mail reales tuyas para las pruebas (postulante, empresa, admin). No uses
       las `+clerk_test`: en producción no reciben mails.
-- [ ] Clerk en **modo producción** (instancia live, DNS de Clerk cargados en Vercel). Si sigue en
-      modo test, el registro en bbjobs.com.ar pide códigos de prueba y no manda mails.
+- [x] Clerk ya está en **modo producción** (claves `live` en Railway y en el sitio, DNS de Clerk
+      en `www.bbjobs.com.ar` desde el 20/07/2026; verificado el 20/11).
 - [ ] Una tarjeta para Mercado Pago (real, con montos chicos y después el reembolso, o la cuenta
       de prueba de MP si el entorno es sandbox).
 
@@ -135,7 +135,7 @@ pagos, Clerk, celulares. Marcá cada casilla al probarla y anotá al lado lo que
 - [ ] El tope diario se respeta: con 2 casillas de 10, no salen más de 20 por día, y solo de lunes
       a viernes de 9 a 12.
 
-## H. IA (después de cargar la clave paga de Gemini)
+## H. IA (la clave de Gemini, de un proyecto con facturación, ya está en Railway)
 
 - [ ] Admin → Mails e IA: prender **"Candidatos recomendados con IA"** y dejar **apagado**
       "Mostrar los recomendados a las empresas" (modo observación).
@@ -175,8 +175,8 @@ pagos, Clerk, celulares. Marcá cada casilla al probarla y anotá al lado lo que
       `alembic upgrade` hasta `b2d4f6a8c0e3` sin errores.
 - [ ] Repasar en 5 minutos lo básico: inicio, búsqueda, un aviso, iniciar sesión con cada rol,
       postularse y publicar.
-- [ ] Variables en Railway: `MODULOS_NUEVOS_ACTIVOS=true`, `GEMINI_API_KEY` (la paga),
-      `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `RESEND_REPLY_TO`, `PROSPECT_REPLY_DOMAIN`,
+- [ ] Variables en Railway: `MODULOS_NUEVOS_ACTIVOS=true` (`GEMINI_API_KEY` ya está cargada desde el
+      20/11), `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `RESEND_REPLY_TO`, `PROSPECT_REPLY_DOMAIN`,
       `EMAIL_DAILY_CAP=150`, `LEGAL_V3_VIGENTE_DESDE`. En Vercel, `NEXT_PUBLIC_MODULOS_NUEVOS=true` y
       `NEXT_PUBLIC_LEGAL_V3_VIGENTE_DESDE`.
 - [ ] Prender los módulos en este orden, de a uno:
@@ -187,4 +187,5 @@ pagos, Clerk, celulares. Marcá cada casilla al probarla y anotá al lado lo que
   5. Prospección.
 - [ ] Sentry: cargar `SENTRY_DSN` (el SDK ya está instalado) para enterarte de los errores sin
       tener que mirar los logs.
-- [ ] Borrar de Clerk los 3 usuarios de prueba (`bbjobs-prueba-*+clerk_test@example.com`).
+- [ ] Si los 3 usuarios de prueba (`bbjobs-prueba-*+clerk_test@example.com`) aparecen en la
+      instancia **live** de Clerk, borrarlos (lo normal es que sólo estén en la de desarrollo).

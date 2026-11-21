@@ -60,3 +60,66 @@ Llevaremos aquí el registro de las funcionalidades entregadas en cada fase.
 - Configurado CRON Background Job en `startup` event para que cada 1 hora desactive los "destacados" vencidos (`app/core/scheduler.py`).
 - Middleware de SlowAPI integrado a FastAPI para controlar abusos de endpoints.
 - Inicialización condicional de Sentry DSN para trackeo de errores en producción.
+
+## Julio a noviembre de 2026 — portal en producción y módulos nuevos
+
+El detalle está en el historial de git y en los planes archivados (`docs/archivo/`). En resumen:
+- Login con Clerk (instancia live), CVs y logos en Cloudinary, deploy en Railway + Vercel.
+- Mercado Pago para destacados, paquetes de la Base de Talento y Revisión de CV.
+- SEO por rubro y por localidad, y medición propia del sitio.
+- Detrás de la compuerta `MODULOS_NUEVOS_ACTIVOS`: mails automáticos (Resend), recomendados con IA
+  (Gemini, RAG híbrido, agentes por tarea), campañas, prospección y Revisión de CV.
+
+## 20/11/2026 — Preparación del lanzamiento
+
+Todo en `main` local, sin push (migraciones `a1c3e5b7d9f2` y `b2d4f6a8c0e3`). Plan:
+`LANZAMIENTO-PLAN.md`; pruebas a mano: `CHECKLIST-PRUEBAS-MANUALES.md`.
+
+**Arreglos que habrían roto producción**
+- Gemini real rechazaba toda llamada de texto con el SDK nuevo (`labels` sólo en `v1beta`): se fija
+  la versión de la API. El Revisor (`gemini-3.8-flash`) no acepta `thinking_level=minimal`.
+- Webhooks de Resend y Clerk compatibles con `svix 2.x` (`verify()` ya no devuelve el evento).
+
+**IA**
+- Agentes por tarea en `main` (Evaluador, Revisor, pestaña Agentes).
+- Mails y teléfonos tachados en avisos y frases del buscador antes de ir a Gemini (`scrub_contacto`).
+- Caché de evaluaciones atada a la lista de requisitos.
+- 429 por cuota diaria sin reintentos.
+- Resúmenes fallidos guardados para no repagarlos cada noche.
+- Requisitos del catálogo en orden fijo.
+- **Modo sombra** (`ia_recomendaciones_visibles`): la IA calcula y sólo Talency ve los resultados,
+  incluido el mail diario de la empresa.
+- Controles de observación en la pestaña Agentes:
+  - respuestas sin cita;
+  - llamadas fallidas;
+  - correcciones del Revisor;
+  - costo por búsqueda;
+  - cuota diaria agotada.
+
+**Mails**
+- Respuestas entrantes (`email.received`): una vez por mail, sin adjuntos ni respuestas
+  automáticas. Se asocian por token en el Reply-To o por dirección. Un prospecto que responde pasa
+  a "respondió", y si pide la baja, se lo da de baja.
+- Sólo los rebotes duros suprimen una dirección y cuentan para el freno por salud. El freno de la
+  cuenta también corta la prospección.
+- **Casillas de prospección:** el cupo se reparte entre ellas, cada una con su tope diario, y una
+  queja o muchos rebotes la pausan sola. Nunca se envía desde la raíz del dominio, y una casilla
+  sólo se activa con el dominio verificado en Resend.
+- Admin → **Mails**: Respuestas, Enviados, Casillas y Salud de la cuenta.
+- Retención de 90 días y borrado de cuenta también para las respuestas.
+
+**Portal**
+- Compartir el aviso por WhatsApp.
+- Aviso "Postularte es gratis".
+- Filtro "Sólo con sueldo publicado".
+
+**Tests y repositorio**
+- 799 tests; 20 corridas seguidas sin fallas, después de arreglar 5 causas de intermitencia.
+- `tests/conftest.py`: aborta si `TEST_DATABASE_URL` no es local y vacía los catálogos al empezar.
+- Raíz ordenada: `docs/referencia`, `docs/eugenia`, `docs/archivo`. `.envrc` en el `.gitignore`.
+
+**Producción (Railway, con el token)**
+- Verificado en sólo lectura: Postgres 18.6 con pgvector; migración `f1b3d5e7a9c2`; compuerta
+  cerrada; logs limpios; Clerk live.
+- Cargada `GEMINI_API_KEY` (proyecto con facturación) con `--skip-deploys`.
+
