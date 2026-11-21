@@ -5,7 +5,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, UsersIcon, BriefcaseIcon,
   UserPlusIcon, ChartBarIcon, ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon,
-  MagnifyingGlassCircleIcon, MegaphoneIcon, DocumentMagnifyingGlassIcon, BuildingStorefrontIcon, CpuChipIcon, PresentationChartLineIcon, BoltIcon
+  MagnifyingGlassCircleIcon, MegaphoneIcon, DocumentMagnifyingGlassIcon, BuildingStorefrontIcon, CpuChipIcon, PresentationChartLineIcon, BoltIcon, EnvelopeIcon
 } from "@heroicons/react/24/outline";
 import { ETIQUETA_EN_DESARROLLO } from "@/lib/modulos";
 
@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/admin/revisiones-cv", label: "Revisiones de CV", icon: DocumentMagnifyingGlassIcon, section: "Próximamente", badge: ETIQUETA_EN_DESARROLLO },
   { href: "/dashboard/admin/empresas-potenciales", label: "Empresas a contactar", icon: BuildingStorefrontIcon, badge: ETIQUETA_EN_DESARROLLO },
   { href: "/dashboard/admin/campanas", label: "Campañas", icon: MegaphoneIcon, badge: ETIQUETA_EN_DESARROLLO },
+  { href: "/dashboard/admin/mails", label: "Mails", icon: EnvelopeIcon, badge: ETIQUETA_EN_DESARROLLO },
   { href: "/dashboard/admin/modulos", label: "Mails e IA", icon: CpuChipIcon, badge: ETIQUETA_EN_DESARROLLO },
   // Centro de IA: qué hizo la IA, recomendados de cualquier búsqueda y acciones a mano.
   { href: "/dashboard/admin/ia", label: "Centro de IA", icon: BoltIcon, badge: ETIQUETA_EN_DESARROLLO },

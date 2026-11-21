@@ -25,7 +25,12 @@ interface Agente {
   reviews?: number | null; degraded?: number | null;
 }
 interface Paso { kind: "agente" | "codigo"; value: string }
+interface Control {
+  key: string; title: string; state: "ok" | "alerta" | "sin_datos"; value?: number | null;
+  threshold: number; unit: "%" | "usd" | "veces"; detail: string;
+}
 interface Respuesta {
+  checks: Control[];
   agents: Agente[]; flow: Paso[]; days: number; daily_budget_usd: number; today_usd: number;
   review_band: [number, number];
   per_search_usd: number; per_search_2027_usd: number; searches_per_month: number; prices_source: string;
@@ -49,6 +54,47 @@ const INTERRUPTORES: Record<string, string> = {
   asistente_ia_activo: "Asistentes con IA",
   busqueda_ia_activa: "Buscador inteligente",
 };
+
+const CONTROL: Record<Control["state"], { texto: string; cls: string }> = {
+  ok: { texto: "Bien", cls: "bg-emerald-50 text-emerald-800" },
+  alerta: { texto: "Mirar", cls: "bg-red-50 text-red-800" },
+  sin_datos: { texto: "Poca muestra", cls: "bg-slate-100 text-[#1C2230]" },
+};
+
+function formatear(c: Control, n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (c.unit === "usd") return `USD ${n.toLocaleString("es-AR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+  if (c.unit === "%") return `${n.toLocaleString("es-AR")} %`;
+  return String(n);
+}
+
+/** Cómo está respondiendo la IA, con el límite a partir del cual hay que mirar (etapa de observación). */
+function Controles({ controles, dias }: { controles: Control[]; dias: number }) {
+  const mirar = controles.filter(c => c.state === "alerta").length;
+  return (
+    <section className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm">
+      <h3 className="font-display font-bold text-[#1C2230]">Cómo está respondiendo la IA</h3>
+      <p className="text-sm text-[#64748B] mt-1 mb-4">
+        Últimos {dias} días. {mirar ? <strong className="text-red-800">Hay {mirar} para mirar.</strong> : "Nada para mirar por ahora."}{" "}
+        Con poca muestra no se enciende ninguna alerta.
+      </p>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {controles.map(c => (
+          <li key={c.key} className="rounded-xl border border-[#DDE3EC] p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-bold text-[#1C2230]">{c.title}</p>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${CONTROL[c.state].cls}`}>{CONTROL[c.state].texto}</span>
+            </div>
+            <p className="text-xl font-display font-bold text-[#1C2230] mt-1">{formatear(c, c.value)}</p>
+            <p className="text-xs text-[#64748B]">
+              {c.state === "sin_datos" ? "" : `Se mira a partir de ${formatear(c, c.threshold)}. `}{c.detail}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function Recorrido({ pasos, nombres }: { pasos: Paso[]; nombres: Record<string, string> }) {
   return (
@@ -171,6 +217,7 @@ export default function Agentes() {
   const nombres = Object.fromEntries(datos.agents.map(a => [a.key, a.name]));
   return (
     <div className="flex flex-col gap-8">
+      {datos.checks?.length > 0 && <Controles controles={datos.checks} dias={datos.days} />}
       <section className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm">
         <h3 className="font-display font-bold text-[#1C2230]">Cómo se arma una recomendación</h3>
         <p className="text-sm text-[#1C2230] mt-1 mb-4">
