@@ -29,6 +29,7 @@ from app.integrations import resend_client
 from app.integrations.resend_client import EmailSendError, OutgoingEmail, idempotency_key
 from app.models.email import EmailCampaign, EmailCategory, EmailOutbox, EmailStatus, EmailSuppression
 from app.models.prospect import Prospect, ProspectEvent, ProspectStage
+from app.services.email import mailboxes
 from app.services.email.policy import AR_TZ, local_day_start
 from app.services.email.render import RenderedEmail, absolute_url, substitute
 from app.services.email.tokens import prospect_unsubscribe_api_url, prospect_unsubscribe_page_url
@@ -49,8 +50,9 @@ class ProspectSender(ABC):
 
 class ResendProspectSender(ProspectSender):
     async def send(self, msg: OutgoingEmail) -> str:
+        # Con casillas, el dispatcher fija el remitente en `msg.from_email`; sin ellas, el de siempre.
         return await resend_client.send_email(msg, api_key=prospect_api_key(),
-                                              from_email=settings.PROSPECT_FROM_EMAIL)
+                                              from_email=msg.from_email or settings.PROSPECT_FROM_EMAIL)
 
 
 class SimulatedProspectSender(ProspectSender):
@@ -73,7 +75,7 @@ def get_prospect_sender() -> ProspectSender | None:
     if mode == "auto":
         mode = "resend" if prospect_api_key() else "off"
     if mode == "resend" and prospect_api_key():
-        if not settings.PROSPECT_REPLY_TO:
+        if not (settings.PROSPECT_REPLY_TO or settings.PROSPECT_REPLY_DOMAIN):
             # Sin buzón de respuesta, lo que conteste una empresa iría a `contacto@contacto.`,
             # que no recibe: mejor no mandar nada.
             logger.warning("prospect_sender_sin_reply_to")
@@ -146,6 +148,10 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
             EmailOutbox.category == _CAT, EmailOutbox.status == EmailStatus.sent.value,
             EmailOutbox.sent_at >= local_day_start(now)))).scalar_one()
         remaining = settings.PROSPECT_DAILY_CAP - sent_today
+        # Con casillas cargadas el cupo es el de ellas (cada una con su tope); sin casillas, el de siempre.
+        slot_list = await mailboxes.slots(db, now)
+        if slot_list:
+            remaining = min(remaining, sum(s.left for s in slot_list))
         if remaining <= 0:
             return stats
         rows = list((await db.execute(
@@ -190,14 +196,25 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
                     stats.skipped += 1
                     continue
 
+            slot = None
+            if slot_list:
+                slot = mailboxes.pick(slot_list)
+                if slot is None:   # se agotó el cupo de todas las casillas: queda para mañana
+                    row.status, row.claimed_at = EmailStatus.pending.value, None
+                    continue
             if i:
                 await asyncio.sleep(REQUEST_INTERVAL_SECONDS)
+            reply_to = settings.PROSPECT_REPLY_TO
+            if slot is not None and settings.PROSPECT_REPLY_DOMAIN:
+                # Token en el Reply-To: la respuesta se asocia sola a este mail y a la empresa.
+                reply_to = f"{slot.box.address.split('@')[0]}+{row.id.hex}@{settings.PROSPECT_REPLY_DOMAIN}"
             msg = OutgoingEmail(
                 to=row.to_email, subject=row.subject, html="", text=row.text,  # sólo texto
                 headers={"List-Unsubscribe": f"<{prospect_unsubscribe_api_url(prospect.id)}>",
                          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
                 tags={"tipo": "prospeccion", "toque": str(row.touch)},
-                reply_to=settings.PROSPECT_REPLY_TO, idempotency_key=idempotency_key("prospect", row.id),
+                reply_to=reply_to, idempotency_key=idempotency_key("prospect", row.id),
+                from_email=mailboxes.format_from(slot.box) if slot is not None else None,
             )
             try:
                 row.provider_message_id = await sender.send(msg)
@@ -213,6 +230,9 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
                 continue
 
             row.status, row.sent_at, row.attempts = EmailStatus.sent.value, now, row.attempts + 1
+            if slot is not None:
+                row.from_email = slot.box.address
+                slot.used += 1
             stats.sent += 1
             prospect.last_contacted_at = now
             if prospect.stage == ProspectStage.nueva.value:

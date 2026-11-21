@@ -114,6 +114,12 @@ class Settings(BaseSettings):
     PROSPECT_RESEND_API_KEY: str | None = None
     PROSPECT_FROM_EMAIL: str = "Talency · BBJobs <contacto@contacto.bbjobs.com.ar>"
     PROSPECT_REPLY_TO: str | None = None
+    # Subdominio que recibe las respuestas de la prospección (MX de Resend), p. ej.
+    # `r.contacto.bbjobs.com.ar`. Con él, el Reply-To de cada mail lleva un token
+    # (`eugenia+<id>@r.contacto…`) y la respuesta se asocia sola al mail y a la empresa.
+    PROSPECT_REPLY_DOMAIN: str | None = None
+    # Nunca se envía desde la raíz del dominio: sólo desde subdominios (reputación separada).
+    MAIL_ROOT_DOMAIN: str = "bbjobs.com.ar"
     PROSPECT_RESEND_WEBHOOK_SECRET: str | None = None
     # Mails de prospección por día hábil (calentamiento propio; arranca bajo).
     PROSPECT_DAILY_CAP: int = 20

@@ -11,7 +11,7 @@ from typing import Literal, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,9 +20,9 @@ from app.core.config import settings
 from app.core.features import require_new_modules
 from app.integrations import resend_client
 from app.models.core import User, UserRole
-from app.models.email import EmailOutbox, EmailReply, EmailStatus
+from app.models.email import EmailMailbox, EmailOutbox, EmailReply, EmailStatus
 from app.models.prospect import Prospect
-from app.services.email import digests
+from app.services.email import digests, mailboxes
 from app.services.email.policy import local_day_start
 
 logger = structlog.get_logger("app.api.admin_mail")
@@ -273,3 +273,93 @@ async def mail_health(_: User = Depends(_admin), db: AsyncSession = Depends(get_
                      for c, s, d, o, b, q in cats],
         daily=daily, domains=domains, domains_error=error,
     )
+
+
+# ── Casillas de prospección ─────────────────────────────────────────────────────────────
+
+class MailboxOut(BaseModel):
+    id: uuid.UUID
+    address: str
+    display_name: str
+    daily_limit: int
+    status: Literal["activa", "pausada", "inactiva"]
+    status_reason: Optional[str]
+    sent_today: int
+    sent_14d: int
+    bounced_14d: int
+    complained_14d: int
+
+
+class MailboxIn(BaseModel):
+    address: str = Field(max_length=255)
+    display_name: str = Field(default="", max_length=120)
+    daily_limit: int = Field(default=40, ge=1, le=300)
+
+
+class MailboxUpdate(BaseModel):
+    status: Optional[Literal["activa", "pausada"]] = None
+    daily_limit: Optional[int] = Field(default=None, ge=1, le=300)
+    display_name: Optional[str] = Field(default=None, max_length=120)
+
+
+async def _mailbox_out(db: AsyncSession, boxes: list[EmailMailbox]) -> list[MailboxOut]:
+    now = datetime.now(timezone.utc)
+    today = await mailboxes.sent_today(db, now)
+    since = local_day_start(now) - timedelta(days=HEALTH_DAYS - 1)
+    stats = {a: (n, b, c) for a, n, b, c in (await db.execute(
+        select(EmailOutbox.from_email, func.count(),
+               func.count().filter(EmailOutbox.bounced_at.is_not(None), EmailOutbox.bounce_permanent.is_distinct_from(False)),
+               func.count(EmailOutbox.complained_at))
+        .where(EmailOutbox.from_email.is_not(None), EmailOutbox.status == EmailStatus.sent.value,
+               EmailOutbox.sent_at >= since)
+        .group_by(EmailOutbox.from_email))).all()}
+    return [MailboxOut(
+        id=b.id, address=b.address, display_name=b.display_name, daily_limit=b.daily_limit, status=b.status,
+        status_reason=b.status_reason, sent_today=today.get(b.address, 0),
+        sent_14d=stats.get(b.address, (0, 0, 0))[0], bounced_14d=stats.get(b.address, (0, 0, 0))[1],
+        complained_14d=stats.get(b.address, (0, 0, 0))[2]) for b in boxes]
+
+
+@router.get("/admin/mail/mailboxes", response_model=list[MailboxOut])
+async def list_mailboxes(_: User = Depends(_admin), db: AsyncSession = Depends(get_db)):
+    boxes = (await db.execute(select(EmailMailbox).order_by(EmailMailbox.address))).scalars().all()
+    return await _mailbox_out(db, list(boxes))
+
+
+@router.post("/admin/mail/mailboxes", response_model=MailboxOut, status_code=201)
+async def create_mailbox(payload: MailboxIn, _: User = Depends(_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        address, domain = mailboxes.parse_address(payload.address)
+    except mailboxes.MailboxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if (await db.execute(select(EmailMailbox.id).where(EmailMailbox.address == address))).first():
+        raise HTTPException(status_code=409, detail="Esa casilla ya existe.")
+    verified, why = await mailboxes.domain_status(domain)
+    box = EmailMailbox(
+        id=uuid.uuid4(), address=address, display_name=payload.display_name.strip(),
+        daily_limit=payload.daily_limit, status="activa" if verified else "inactiva", status_reason=why)
+    db.add(box)
+    await db.commit()
+    return (await _mailbox_out(db, [box]))[0]
+
+
+@router.patch("/admin/mail/mailboxes/{mailbox_id}", response_model=MailboxOut)
+async def update_mailbox(mailbox_id: uuid.UUID, payload: MailboxUpdate, _: User = Depends(_admin),
+                         db: AsyncSession = Depends(get_db)):
+    box = (await db.execute(select(EmailMailbox).where(EmailMailbox.id == mailbox_id))).scalar_one_or_none()
+    if box is None:
+        raise HTTPException(status_code=404, detail="Casilla no encontrada")
+    if payload.daily_limit is not None:
+        box.daily_limit = payload.daily_limit
+    if payload.display_name is not None:
+        box.display_name = payload.display_name.strip()
+    if payload.status == "pausada":
+        box.status, box.status_reason = "pausada", "Pausada a mano."
+    elif payload.status == "activa" and box.status != "activa":
+        verified, why = await mailboxes.domain_status(box.address.split("@", 1)[1])
+        if not verified:
+            raise HTTPException(status_code=409, detail=why or "El dominio no está verificado en Resend.")
+        # Al reactivar se empieza de cero: lo que rebotó antes ya no cuenta.
+        box.status, box.status_reason, box.health_since = "activa", None, datetime.now(timezone.utc)
+    await db.commit()
+    return (await _mailbox_out(db, [box]))[0]

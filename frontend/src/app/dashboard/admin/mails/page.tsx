@@ -33,6 +33,12 @@ interface Salud {
   domains_error: string | null;
 }
 
+interface Casilla {
+  id: string; address: string; display_name: string; daily_limit: number;
+  status: "activa" | "pausada" | "inactiva"; status_reason: string | null;
+  sent_today: number; sent_14d: number; bounced_14d: number; complained_14d: number;
+}
+
 const CATEGORIAS: Record<string, string> = {
   cuenta: "Cuenta", postulaciones: "Postulaciones", busquedas: "Búsquedas", alertas: "Alertas",
   recordatorios: "Recordatorios", novedades: "Novedades", admin: "Equipo", prospeccion: "Prospección",
@@ -370,9 +376,133 @@ function SaludMails() {
   );
 }
 
+// ── Casillas de prospección ──────────────────────────────────────────────────────────────
+
+const ESTADO_CASILLA: Record<Casilla["status"], { texto: string; clase: string }> = {
+  activa: { texto: "Activa", clase: "bg-emerald-50 text-emerald-800" },
+  pausada: { texto: "Pausada", clase: "bg-yellow-100 text-yellow-900" },
+  inactiva: { texto: "Inactiva", clase: "bg-slate-100 text-slate-700" },
+};
+
+function Casillas() {
+  const datos = useModulo<Casilla[]>("/admin/mail/mailboxes");
+  const [nueva, setNueva] = useState({ address: "", display_name: "", daily_limit: 40 });
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setGuardando("nueva");
+    try {
+      await api.post("/admin/mail/mailboxes", nueva);
+      setNueva({ address: "", display_name: "", daily_limit: 40 });
+      await datos.recargar();
+    } catch (err) {
+      setError(detalleError(err));
+    } finally {
+      setGuardando(null);
+    }
+  }
+
+  async function cambiar(c: Casilla, cambios: Partial<Pick<Casilla, "status" | "daily_limit">>) {
+    setError(null);
+    setGuardando(c.id);
+    try {
+      await api.patch(`/admin/mail/mailboxes/${c.id}`, cambios);
+      await datos.recargar();
+    } catch (err) {
+      setError(detalleError(err));
+    } finally {
+      setGuardando(null);
+    }
+  }
+
+  if (datos.estado === "cargando") return <Cargando />;
+  if (datos.estado === "error") return <div className="p-8 text-center text-red-800">{datos.mensaje}</div>;
+  if (datos.estado === "en_desarrollo") return null;
+  const casillas = datos.datos;
+  const cupo = casillas.filter(c => c.status === "activa").reduce((t, c) => t + c.daily_limit, 0);
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-[#64748B]">
+        Desde estas direcciones sale la prospección a empresas. Se turnan para repartir el envío; cada una tiene su
+        tope por día y se pausa sola si junta rebotes o una queja de spam. Los avisos a postulantes y empresas no
+        usan casillas. {cupo > 0 && <>Cupo de hoy entre todas: <strong>{cupo}</strong> mails.</>}
+      </p>
+      {error && <div className="rounded-xl px-4 py-2.5 text-sm font-medium bg-red-50 text-red-800">{error}</div>}
+
+      {casillas.length === 0 ? (
+        <Vacio>Todavía no hay casillas. Sin casillas, la prospección sale del remitente fijo de la configuración.</Vacio>
+      ) : (
+        <ul className="space-y-3">
+          {casillas.map(c => (
+            <li key={c.id} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-[#1C2230] break-all">{c.display_name ? `${c.display_name} · ` : ""}{c.address}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ESTADO_CASILLA[c.status].clase}`}>{ESTADO_CASILLA[c.status].texto}</span>
+              </div>
+              {c.status_reason && <p className="text-xs text-[#64748B] mt-1">{c.status_reason}</p>}
+              <p className="text-sm text-[#1C2230] mt-2">
+                Hoy {c.sent_today} de {c.daily_limit} · últimos 14 días: {c.sent_14d} enviados, {c.bounced_14d} rebotes, {c.complained_14d} quejas
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                {c.status === "activa" ? (
+                  <button type="button" disabled={guardando === c.id} onClick={() => cambiar(c, { status: "pausada" })}
+                    className="text-[#187B8E] font-semibold hover:underline disabled:opacity-50">Pausar</button>
+                ) : (
+                  <button type="button" disabled={guardando === c.id} onClick={() => cambiar(c, { status: "activa" })}
+                    className="text-[#187B8E] font-semibold hover:underline disabled:opacity-50">Activar</button>
+                )}
+                <label className="flex items-center gap-2 text-[#64748B]">
+                  Tope por día
+                  <select className={SELECT} value={c.daily_limit} disabled={guardando === c.id}
+                    onChange={e => cambiar(c, { daily_limit: Number(e.target.value) })}>
+                    {[10, 20, 40, 60, 80, 100].concat([c.daily_limit]).filter((v, i, a) => a.indexOf(v) === i)
+                      .sort((a, b) => a - b).map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form onSubmit={crear} className="bg-white border border-[#DDE3EC] rounded-2xl p-4 shadow-sm grid gap-3 sm:grid-cols-[2fr_1.5fr_auto_auto] sm:items-end">
+        <div>
+          <label className="block text-xs text-[#64748B] mb-1" htmlFor="c-dir">Dirección</label>
+          <input id="c-dir" required className={`${SELECT} w-full`} placeholder="eugenia@contacto.bbjobs.com.ar"
+            value={nueva.address} onChange={e => setNueva({ ...nueva, address: e.target.value })} />
+        </div>
+        <div>
+          <label className="block text-xs text-[#64748B] mb-1" htmlFor="c-nom">Nombre que ve la empresa</label>
+          <input id="c-nom" className={`${SELECT} w-full`} placeholder="Eugenia · BBJobs"
+            value={nueva.display_name} onChange={e => setNueva({ ...nueva, display_name: e.target.value })} />
+        </div>
+        <div>
+          <label className="block text-xs text-[#64748B] mb-1" htmlFor="c-tope">Tope por día</label>
+          <select id="c-tope" className={SELECT} value={nueva.daily_limit}
+            onChange={e => setNueva({ ...nueva, daily_limit: Number(e.target.value) })}>
+            {[10, 20, 40, 60].map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+        <button type="submit" disabled={guardando === "nueva"}
+          className="rounded-lg bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-semibold px-4 py-2 disabled:opacity-50">
+          Agregar casilla
+        </button>
+        <p className="sm:col-span-4 text-xs text-[#64748B]">
+          Tiene que ser de un subdominio verificado en Resend (nunca de bbjobs.com.ar a secas). Si el dominio todavía no está
+          verificado, la casilla queda inactiva hasta que lo esté.
+        </p>
+      </form>
+    </div>
+  );
+}
+
 // ── Página ───────────────────────────────────────────────────────────────────────────────
 
-type Pestana = "respuestas" | "enviados" | "salud";
+type Pestana = "respuestas" | "enviados" | "casillas" | "salud";
 
 export default function MailsAdminPage() {
   const [pestana, setPestana] = useState<Pestana>("respuestas");
@@ -390,6 +520,7 @@ export default function MailsAdminPage() {
   const pestanas: { clave: Pestana; texto: string }[] = [
     { clave: "respuestas", texto: nuevas ? `Respuestas (${nuevas})` : "Respuestas" },
     { clave: "enviados", texto: "Enviados" },
+    { clave: "casillas", texto: "Casillas" },
     { clave: "salud", texto: "Salud de la cuenta" },
   ];
 
@@ -411,6 +542,7 @@ export default function MailsAdminPage() {
 
       {pestana === "respuestas" && <Respuestas />}
       {pestana === "enviados" && <Enviados />}
+      {pestana === "casillas" && <Casillas />}
       {pestana === "salud" && <SaludMails />}
     </div>
   );

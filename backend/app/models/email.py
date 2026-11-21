@@ -93,6 +93,8 @@ class EmailOutbox(UUIDMixin, Base):
     # Rebote duro (dirección inexistente) o transitorio (casilla llena). Sólo el duro suprime la
     # dirección y cuenta para el freno por salud. NULL = Resend no dijo el tipo: se trata como duro.
     bounce_permanent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Casilla desde la que salió (prospección): para repartir el cupo y frenar la que rebota.
+    from_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     complained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -249,3 +251,22 @@ class EmailReply(UUIDMixin, Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (Index("ix_email_replies_status_received", "status", "received_at"),)
+
+
+class EmailMailbox(UUIDMixin, Base):
+    """Casilla desde la que sale la prospección (`eugenia@contacto.…`). Cada una tiene su tope
+    diario y su historial de rebotes: si una se quema, se pausa sola y las demás siguen. Los avisos
+    a postulantes y empresas no usan casillas: salen siempre del mismo remitente."""
+    __tablename__ = "email_mailboxes"
+
+    address: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)   # siempre en minúsculas
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    daily_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=40)
+    # activa · pausada (a mano o por el freno) · inactiva (el dominio no está verificado en Resend)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="activa")
+    status_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Los rebotes y quejas se miden desde acá: al reactivar una casilla se empieza de cero.
+    health_since: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

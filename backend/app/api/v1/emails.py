@@ -251,6 +251,11 @@ async def _handle_resend_event(request: Request, db: AsyncSession, secret: str |
                 setattr(row, field, now)
             if event_type == "email.bounced":
                 row.bounce_permanent = permanent
+            if row.from_email and event_type in ("email.bounced", "email.complained"):
+                from app.services.email import mailboxes
+
+                await db.flush()                      # el rebote cuenta en la revisión
+                await mailboxes.evaluate(db, row.from_email)
             if event_type == "email.failed":
                 row.status = EmailStatus.failed.value
                 row.last_error = str(data.get("failed") or data.get("reason") or "email.failed")[:1000]
