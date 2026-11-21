@@ -63,6 +63,15 @@ SWITCHES = ("ia_recomendaciones_activas", "asistente_ia_activo", "emails_automat
 async def maker(monkeypatch):
     engine = create_async_engine(TEST_DB)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    # Empieza de cero: lo que dejaba otro archivo (búsquedas y recomendados) cambiaba cuántos
+    # resúmenes tocaba generar y el test dependía del orden de los archivos.
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "TRUNCATE ai_usage_log, ai_activity_log, ai_recompute_queue, job_recommendations, candidate_chunks, "
+            "candidate_ai_index, candidate_cv_texts, job_ai_profiles, job_requirement_vectors, "
+            "recommendation_refreshes, applications, job_posting_skills, job_postings, candidate_skills, "
+            "experiences, candidate_profiles, company_profiles, site_settings, users RESTART IDENTITY CASCADE"
+        ))
     async with session_maker() as db:
         for key in SWITCHES:
             await set_setting(db, SettingKey(key), True)
@@ -302,16 +311,22 @@ async def test_nightly_summaries_are_ready_and_cached(maker):
     async with maker() as db:
         stats = await automations.nightly_summaries(db, ai)
     assert stats["generados"] >= 1 and stats["tope"] == 0
-    assert ai.summaries == stats["generados"]
-    assert await _summaries(maker, world["job"].id) == stats["generados"]
+    # Cada llamada a la IA queda contabilizada: o salió un resumen válido, o (si el validador tiró
+    # todas las líneas de ese perfil) quedó el de plantilla como "sin IA". Antes se asumía que
+    # todas las llamadas generaban resumen, y sólo se cumplía por datos sobrantes de otros tests.
+    # (el perfil con una inyección de prompt se saltea sin llamar a la IA, pero también es "sin IA")
+    assert stats["generados"] <= ai.summaries <= stats["generados"] + stats["sin_ia"]
+    assert await _summaries(maker, world["job"].id) >= stats["generados"]
     # Lo que llega al modelo está anonimizado (lo garantiza summary.py; se verifica igual).
     for prompt in ai.prompts:
         assert "Bueno" not in prompt and "Logística Sur" not in prompt
 
+    calls_first_night = ai.summaries
     async with maker() as db:   # segunda noche sin cambios: todo de la caché, nada pagado
         again = await automations.nightly_summaries(db, ai)
     assert again["generados"] == 0 and again["reusados"] == stats["generados"]
-    assert ai.summaries == stats["generados"]
+    # Lo ya generado no se vuelve a pagar; sólo se reintentan los de plantilla.
+    assert ai.summaries - calls_first_night <= again["sin_ia"]
     assert await _outbox(maker) == outbox
 
 
