@@ -218,6 +218,7 @@ async def list_public_jobs(
     salary_min: Optional[float] = Query(None),
     salary_max: Optional[float] = Query(None),
     q: Optional[str] = Query(None, description="Palabras a buscar: puesto, empresa, sector, zona, habilidades (ver services/job_search.py)"),
+    with_salary: bool = Query(False, description="Sólo las búsquedas que muestran el sueldo"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
@@ -238,6 +239,10 @@ async def list_public_jobs(
         query = query.where(JobPosting.contract_type_id == contract_type_id)
     if company_id:
         query = query.where(JobPosting.company_id == company_id)
+    if with_salary:
+        # Lo que el postulante ve: el sueldo tiene que estar cargado Y visible en el aviso.
+        query = query.where(JobPosting.salary_visible.is_(True),
+                            or_(JobPosting.salary_min.is_not(None), JobPosting.salary_max.is_not(None)))
     search = await job_search.apply_search(db, query, q) if q else None
     if search is not None:
         query, search_order = search

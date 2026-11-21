@@ -15,6 +15,7 @@ import { applyToJob, getApplyErrorMessage, loginUrlWithReturn } from "@/lib/jobA
 import { track } from "@/lib/analytics";
 import VerifiedBadge from "@/components/jobs/VerifiedBadge";
 import { companyUrl, jobUrl, parseJobParam } from "@/lib/seo/urls";
+import { SITE_URL } from "@/lib/seo/sitio";
 
 interface Job {
   id: string;
@@ -322,6 +323,25 @@ export default function JobDetailClient({ initialJob, canonicalPath, etiquetas, 
                 <div className="text-sm text-[#1C2230] leading-relaxed whitespace-pre-line">{job.benefits}</div>
               </section>
             )}
+
+            {/* Compartir y confianza: en una ciudad chica el aviso circula por WhatsApp, y la
+                verificación manual permite prometer que nadie cobra por postularse. */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-[#FAFBFD] border border-[#DDE3EC] px-4 py-3">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(
+                  `${job.title} en ${job.company_legal_name_snapshot} · BBJobs\n${SITE_URL}${publicPath}`)}`}
+                target="_blank" rel="noopener noreferrer"
+                onClick={() => track("compartir_whatsapp", { job_id: job.id })}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#9ED4DF] bg-white px-4 py-2 text-sm font-semibold text-[#187B8E] hover:bg-[#E6F4F7] transition-colors"
+              >
+                Compartir por WhatsApp
+              </a>
+              <p className="text-xs text-[#64748B] leading-relaxed">
+                Todas las empresas de BBJobs las verifica Talency a mano. <strong className="text-[#1C2230]">Postularte es gratis:</strong>{" "}
+                nadie te puede cobrar por una entrevista ni por un puesto. Si te lo piden,{" "}
+                <Link href="/contacto" className="text-[#187B8E] underline">avisanos</Link>.
+              </p>
+            </div>
 
             {/* CTA bottom */}
             {!applied && (

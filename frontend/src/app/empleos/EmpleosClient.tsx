@@ -128,6 +128,7 @@ export default function EmpleosClient({
   const [contractTypeId, setContractTypeId] = useState("");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
+  const [withSalary, setWithSalary] = useState(false);
   const [interpretacion, setInterpretacion] = useState<Interpretacion | null>(null);
 
   // En paralelo con la búsqueda normal: si la frase parece lenguaje natural, se le pregunta al
@@ -168,6 +169,7 @@ export default function EmpleosClient({
     if (contractTypeId) params.set("contract_type_id", contractTypeId);
     if (salaryMin) params.set("salary_min", salaryMin);
     if (salaryMax) params.set("salary_max", salaryMax);
+    if (withSalary) params.set("with_salary", "true");
     params.set("page", String(targetPage));
     params.set("page_size", String(PAGE_SIZE));
     return params;
@@ -239,9 +241,10 @@ export default function EmpleosClient({
     setContractTypeId("");
     setSalaryMin("");
     setSalaryMax("");
+    setWithSalary(false);
   }
 
-  const hasFilters = q || industryId || zoneId || modality || contractTypeId || salaryMin || salaryMax;
+  const hasFilters = q || industryId || zoneId || modality || contractTypeId || salaryMin || salaryMax || withSalary;
   const zoneName = (id: string) => zones.find(z => z.id === id)?.name || "";
 
   return (
@@ -395,6 +398,15 @@ export default function EmpleosClient({
                       className="w-full border border-[#DDE3EC] rounded-lg px-3 py-2 text-sm text-[#1C2230] bg-white focus:outline-none focus:border-[#1E8EA3]"
                     />
                   </div>
+                  <label className="mt-2.5 flex items-center gap-2 text-sm text-[#1C2230] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={withSalary}
+                      onChange={e => setWithSalary(e.target.checked)}
+                      className="h-4 w-4 rounded border-[#DDE3EC] accent-[#1E8EA3]"
+                    />
+                    Sólo con sueldo publicado
+                  </label>
                 </div>
               </div>
             </div>

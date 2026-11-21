@@ -296,3 +296,21 @@ async def test_interpret_unavailable_cases(maker, client, ai_on, monkeypatch):
         await db.commit()
     assert (await client.get(url, params={"q": "algo de administración part time"})).json() == {"available": False}
     assert fake.calls == 0
+
+
+async def test_with_salary_only_shows_jobs_that_publish_it(maker, client):
+    """Filtro "Sólo con sueldo publicado": el sueldo tiene que estar cargado Y visible."""
+    from sqlalchemy import update
+
+    ids, tag, _ = await _world(maker)
+    async with maker() as db:
+        await db.execute(update(JobPosting).where(JobPosting.id == uuid.UUID(ids["tecnico"]))
+                         .values(salary_min=900000, salary_visible=True))
+        await db.execute(update(JobPosting).where(JobPosting.id == uuid.UUID(ids["dev"]))
+                         .values(salary_min=1500000, salary_max=2000000, salary_visible=False))   # cargado pero oculto
+        await db.commit()
+    found = await _search(client, tag, with_salary="true")
+    assert ids["tecnico"] in found
+    assert ids["dev"] not in found and ids["vendedor_punta"] not in found
+    everything = await _search(client, tag)
+    assert ids["dev"] in everything and ids["vendedor_punta"] in everything      # sin el filtro, nada cambia
