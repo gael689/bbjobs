@@ -168,6 +168,8 @@ async def _checks_with(db: AsyncSession, job: JobPosting, vec: np.ndarray, all_r
     rows = [r for r in all_rows if r[1] != job.id]
     out = Checks(available=True)
     if not rows:
+        # Sin otros avisos con vector tampoco hay con qué opinar: se dice, en vez de quedar mudo.
+        out.note = "Pocos avisos aprobados en este sector para opinar sobre el sector."
         return out
     matrix = np.stack([np.asarray(r[0], dtype=np.float32) for r in rows])
     sims = matrix @ vec

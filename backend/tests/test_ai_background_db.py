@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(not TEST_DB, reason="TEST_DATABASE_URL no defini
 
 if TEST_DB:
     import httpx
-    from sqlalchemy import func, select
+    from sqlalchemy import func, select, text
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from app.api.deps import get_current_user, get_db, require_verified_company
@@ -97,6 +97,15 @@ class SummaryAI(FakeAI):
 async def maker(monkeypatch):
     engine = create_async_engine(TEST_DB)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    # Empieza de cero: antes dependía de lo que dejara el archivo anterior (la cola procesa las
+    # búsquedas de TODA la base y el gasto del día cuenta lo de otros tests).
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "TRUNCATE ai_usage_log, ai_activity_log, ai_recompute_queue, job_recommendations, candidate_chunks, "
+            "candidate_ai_index, candidate_cv_texts, job_ai_profiles, job_requirement_vectors, "
+            "recommendation_refreshes, applications, job_posting_skills, job_postings, candidate_skills, "
+            "experiences, candidate_profiles, company_profiles, site_settings, users RESTART IDENTITY CASCADE"
+        ))
     async with session_maker() as db:
         await set_setting(db, SettingKey.ia_recomendaciones_activas, True)
         await set_setting(db, SettingKey.ia_recomendaciones_visibles, True)
