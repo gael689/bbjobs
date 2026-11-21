@@ -383,7 +383,9 @@ async def compute_recommendations(
         detail={"motivo": reason or ("noche" if not rerank_enabled else "otro"), "candidatos": stats["universo"],
                 "guardados": stats["guardados"], "reranks": stats["rerank"], "reutilizados": stats["reutilizados"],
                 "fallidos": stats["fallidos"], "tope": stats["tope"], "revisiones": stats["revisiones"],
-                "degradados": stats["degradados"]},
+                "degradados": stats["degradados"], "items": stats["items"],
+                "items_revisados": stats["items_revisados"], "cambios_revisor": stats["cambios_revisor"],
+                "cuota_dia": stats["cuota_dia"]},
         cost_usd=activity.cost_since(db, mark), alert=bool(stats["fallidos"]),
     )
     return stats
@@ -445,7 +447,8 @@ async def _compute_recommendations(
         sorted((c for c in applicants if c in rows), key=lambda c: -rows[c]["score"]), kept_talent)
 
     stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0,
-             "revisiones": 0, "revisiones_fallidas": 0, "degradados": 0}
+             "revisiones": 0, "revisiones_fallidas": 0, "degradados": 0, "items": 0,
+             "items_revisados": 0, "cambios_revisor": 0, "cuota_dia": 0}
     can_rerank = rerank_enabled and provider is not None and bool(ctx.requirements)
     # El gasto del día se lee una vez y se le suma lo que gasta esta vuelta (antes era una suma
     # sobre ai_usage_log por candidato).
@@ -499,6 +502,7 @@ async def _compute_recommendations(
                     evidence, reasons, status = res.evidence, res.reasons, "done"
                     version, model_used, fresh = rerank.VERSIONES["evaluador"], settings.GEMINI_GENERATION_MODEL, True
                     stats["rerank"] += 1
+                    stats["items"] += len(res.evals)
                     stats["degradados"] += res.degraded
                 except (AIError, ValueError) as exc:
                     status = "failed"
@@ -519,6 +523,12 @@ async def _compute_recommendations(
                             rev = await rerank.rerank_one(provider, agente="revisor", **ask)
                             await log_usage(db, "revisor", rev.usage, company_id=job.company_id, job_id=job.id,
                                             flex=service_tier == "flex")
+                            # Cuánto discrepa el Revisor del Evaluador (alerta de la pestaña Agentes):
+                            # si cambia mucho, el Evaluador es flojo para esta franja.
+                            antes = {e["req_id"]: e["verdict"] for e in req_evals}
+                            stats["items_revisados"] += len(rev.evals)
+                            stats["cambios_revisor"] += sum(
+                                1 for e in rev.evals if antes.get(e.req_id) not in (None, e.verdict))
                             req_evals = [e.__dict__ for e in rev.evals]
                             evidence, reasons = rev.evidence, rev.reasons
                             version, model_used = rerank.VERSIONES["revisor"], settings.GEMINI_REVIEW_MODEL

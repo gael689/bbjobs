@@ -916,7 +916,20 @@ class FlowStep(BaseModel):
     value: str
 
 
+class CheckOut(BaseModel):
+    """Un control de observación de la IA (auditoría 20/11/2026). `state`: ok · alerta · sin_datos
+    (todavía no hay corridas suficientes para decir nada)."""
+    key: str
+    title: str
+    state: Literal["ok", "alerta", "sin_datos"]
+    value: Optional[float] = None    # lo medido (porcentaje o dólares)
+    threshold: float                 # a partir de acá se enciende la alerta
+    unit: Literal["%", "usd", "veces"]
+    detail: str
+
+
 class AgentsResponse(BaseModel):
+    checks: list[CheckOut]
     agents: list[AgentOut]
     flow: list[FlowStep]
     days: int
@@ -927,6 +940,61 @@ class AgentsResponse(BaseModel):
     per_search_2027_usd: float       # ídem con los precios desde el 1/1/2027 (sube el Revisor)
     searches_per_month: int
     prices_source: str
+
+
+# Umbrales de la etapa de observación (LANZAMIENTO-PLAN.md, "Observar primero").
+CHECK_DEGRADED_PCT = 15.0      # ítems del Evaluador sin cita válida
+CHECK_FAILED_PCT = 2.0         # llamadas que fallaron (JSON inválido, 5xx, cuota)
+CHECK_REVIEWER_PCT = 30.0      # el Revisor cambia el veredicto del Evaluador
+CHECK_COST_FACTOR = 2.0        # costo por búsqueda vs. lo estimado
+CHECK_MIN_ITEMS = 30           # con menos muestra no se enciende ninguna alerta
+
+
+def _pct(part: float, total: float) -> Optional[float]:
+    return round(100.0 * part / total, 1) if total else None
+
+
+async def _ai_checks(db: AsyncSession, since: datetime) -> list[CheckOut]:
+    from app.services.ai import agentes
+
+    def total(key: str):
+        return func.coalesce(func.sum(cast(AiActivityLog.detail[key].astext, Numeric)), 0)
+
+    row = (await db.execute(
+        select(total("items"), total("degradados"), total("reranks"), total("fallidos"),
+               total("items_revisados"), total("cambios_revisor"), total("cuota_dia"),
+               func.coalesce(func.sum(AiActivityLog.cost_usd), 0),
+               func.count().filter(cast(AiActivityLog.detail["reranks"].astext, Numeric) > 0))
+        .where(AiActivityLog.kind == activity.KIND_RECOMPUTE, AiActivityLog.created_at >= since)
+    )).one()
+    items, degraded, reranks, failed, rev_items, rev_changes, quota_days, cost, runs = (float(x) for x in row)
+
+    def pct_check(key, title, part, whole, threshold, detail, min_whole=CHECK_MIN_ITEMS):
+        value = _pct(part, whole)
+        state = "sin_datos" if whole < min_whole else ("alerta" if value > threshold else "ok")
+        return CheckOut(key=key, title=title, state=state, value=value, threshold=threshold, unit="%",
+                        detail=detail if whole >= min_whole else f"Todavía hay poca muestra ({int(whole)}).")
+
+    est = agentes.costo_por_busqueda()
+    per_run = round(cost / runs, 4) if runs else None
+    cost_state = "sin_datos" if runs < 5 else ("alerta" if per_run > est * CHECK_COST_FACTOR else "ok")
+    return [
+        pct_check("degradados", "Respuestas sin cita válida", degraded, items, CHECK_DEGRADED_PCT,
+                  "Ítems que el Evaluador contestó sin poder señalar el fragmento del CV. Si sube, "
+                  "revisar el prompt o el modelo."),
+        pct_check("fallidas", "Llamadas que fallaron", failed, reranks + failed, CHECK_FAILED_PCT,
+                  "JSON inválido, errores de Google o cuota. Un par por día es normal.", min_whole=20),
+        pct_check("revisor", "El Revisor corrige al Evaluador", rev_changes, rev_items, CHECK_REVIEWER_PCT,
+                  "Si el Revisor cambia más de un tercio de los veredictos de la franja dudosa, el "
+                  "Evaluador es flojo ahí.", min_whole=20),
+        CheckOut(key="costo", title="Costo por búsqueda vs. lo estimado", state=cost_state, value=per_run,
+                 threshold=round(est * CHECK_COST_FACTOR, 4), unit="usd",
+                 detail=(f"Promedio de {runs:.0f} recálculos; estimado USD {est:.4f}. "
+                         f"Alerta al pasar el doble." if runs >= 5 else f"Todavía hay pocos recálculos ({runs:.0f}).")),
+        CheckOut(key="cuota", title="Cuota diaria de Google agotada", state="alerta" if quota_days else "ok",
+                 value=quota_days, threshold=1, unit="veces",
+                 detail="Veces que Google cortó el día. Si pasa seguido, subir el tope en Google."),
+    ]
 
 
 @router.get("/admin/ai/agents", response_model=AgentsResponse)
@@ -956,6 +1024,7 @@ async def admin_ai_agents(_: User = Depends(admin_only), db: AsyncSession = Depe
     spent = await pipeline.spent_today(db)
     over_budget = spent >= settings.AI_DAILY_BUDGET_USD
     switches = {k.value: bool(await get_setting(db, k)) for k in SettingKey}
+    checks = await _ai_checks(db, since)
 
     out = []
     for a in agentes.AGENTES:
@@ -988,7 +1057,7 @@ async def admin_ai_agents(_: User = Depends(admin_only), db: AsyncSession = Depe
             degraded=int(degraded) if a.clave == "evaluador" else None,
         ))
     return AgentsResponse(
-        agents=out, flow=[FlowStep(kind=k, value=v) for k, v in agentes.RECORRIDO], days=AGENTS_DAYS,
+        checks=checks, agents=out, flow=[FlowStep(kind=k, value=v) for k, v in agentes.RECORRIDO], days=AGENTS_DAYS,
         daily_budget_usd=settings.AI_DAILY_BUDGET_USD, today_usd=round(spent, 6),
         review_band=(pipeline.REVIEW_MIN, pipeline.REVIEW_MAX),
         per_search_usd=agentes.costo_por_busqueda(),

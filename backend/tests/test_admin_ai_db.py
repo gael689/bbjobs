@@ -673,3 +673,32 @@ async def test_agents_tab_shows_each_agent_with_its_work_and_instructions(maker,
 
     client.as_user(people["bueno"][0])
     assert (await client.get("/api/v1/admin/ai/agents")).status_code == 403
+
+
+async def test_agents_tab_checks_light_up_only_with_enough_data(maker, sin_restos, client, ai):
+    """Controles de observación (auditoría 20/11/2026): sin muestra suficiente no hay alerta; con
+    ítems degradados, un Revisor que corrige de más, cuota agotada y costo alto, se encienden."""
+    from app.services.ai import activity
+
+    companies, job, people = await _ready_world(maker, ai)
+    async with maker() as db:
+        await db.execute(AiActivityLog.__table__.delete())
+        await db.commit()
+    checks = {c["key"]: c for c in (await client.get("/api/v1/admin/ai/agents")).json()["checks"]}
+    assert set(checks) == {"degradados", "fallidas", "revisor", "costo", "cuota"}
+    assert all(c["state"] in ("sin_datos", "ok") for c in checks.values())
+    assert checks["degradados"]["state"] == "sin_datos" and checks["cuota"]["state"] == "ok"
+
+    async with maker() as db:
+        for _ in range(6):
+            await activity.log_activity(
+                db, activity.KIND_RECOMPUTE, job_id=job.id, company_id=job.company_id, cost_usd=0.5,
+                detail={"reranks": 10, "fallidos": 1, "items": 50, "degradados": 20,
+                        "items_revisados": 10, "cambios_revisor": 6, "cuota_dia": 1})
+        await db.commit()
+    checks = {c["key"]: c for c in (await client.get("/api/v1/admin/ai/agents")).json()["checks"]}
+    assert checks["degradados"]["state"] == "alerta" and checks["degradados"]["value"] == 40.0
+    assert checks["revisor"]["state"] == "alerta" and checks["revisor"]["value"] == 60.0
+    assert checks["fallidas"]["state"] == "alerta"           # 6 de 66 llamadas ≈ 9 %
+    assert checks["costo"]["state"] == "alerta" and checks["costo"]["value"] == 0.5
+    assert checks["cuota"]["state"] == "alerta" and checks["cuota"]["value"] == 6

@@ -119,12 +119,13 @@ async def maker(monkeypatch):
 async def _world(maker):
     """Una empresa con una búsqueda presencial, dos postulantes (uno que encaja y otro no),
     un candidato de la Base de Talento y otra empresa ajena."""
-    tag = uuid.uuid4().hex[:6]
+    tag = f"{uuid.uuid4().int % 10**6:06d}"   # sólo dígitos: unas letras al azar ("dead") entraban al texto y movían los vectores del FakeAI
+    uniq = str(uuid.uuid4().int)   # largo y sólo dígitos: los nombres únicos de catálogo no chocan entre corridas
     async with maker() as db:
-        ind = Industry(id=uuid.uuid4(), name=f"Ind {tag}", slug=f"ind-{tag}")
-        zone = Zone(id=uuid.uuid4(), name=f"Centro {tag}", slug=f"centro-{tag}")
-        ct = ContractType(id=uuid.uuid4(), name=f"Efectivo {tag}")
-        excel = Skill(id=uuid.uuid4(), name=f"Excel {tag}", slug=f"excel-{tag}", category="technical")
+        ind = Industry(id=uuid.uuid4(), name=f"Ind {uniq}", slug=f"ind-{uniq}")
+        zone = Zone(id=uuid.uuid4(), name=f"Centro {uniq}", slug=f"centro-{uniq}")
+        ct = ContractType(id=uuid.uuid4(), name=f"Efectivo {uniq}")
+        excel = Skill(id=uuid.uuid4(), name=f"Excel {uniq}", slug=f"excel-{uniq}", category="technical")
         db.add_all([ind, zone, ct, excel])
         companies = []
         for i in range(2):
