@@ -220,7 +220,20 @@ async def _handle_resend_event(request: Request, db: AsyncSession, secret: str |
     recipients = [r for r in (data.get("to") or []) if isinstance(r, str)]
     now = datetime.now(timezone.utc)
 
-    if event_type in _SUPPRESS and recipients:
+    if event_type == "email.received":
+        # Una persona contestó un mail nuestro. En este evento `to` es NUESTRA casilla, no el
+        # destinatario de un envío: no pasa por las supresiones de abajo.
+        from app.services.email import inbox
+
+        result = await inbox.handle_received(db, data)
+        await db.commit()
+        return {"status": "ok", "inbox": result}
+
+    # Rebote duro (dirección inexistente) vs. transitorio (casilla llena): sólo el duro suprime.
+    # Si Resend no dice el tipo, se trata como duro (lo más prudente para la reputación).
+    permanent = str((data.get("bounce") or {}).get("type") or "").lower() != "transient"
+
+    if event_type in _SUPPRESS and recipients and (event_type != "email.bounced" or permanent):
         await _suppress(db, recipients, _SUPPRESS[event_type])
     elif event_type == "suppression.added":
         address = data.get("email") or (recipients[0] if recipients else None)
@@ -236,10 +249,12 @@ async def _handle_resend_event(request: Request, db: AsyncSession, secret: str |
             field = _TIMESTAMP_FIELD.get(event_type)
             if field and getattr(row, field) is None:
                 setattr(row, field, now)
+            if event_type == "email.bounced":
+                row.bounce_permanent = permanent
             if event_type == "email.failed":
                 row.status = EmailStatus.failed.value
                 row.last_error = str(data.get("failed") or data.get("reason") or "email.failed")[:1000]
-            if row.prospect_id and event_type in _SUPPRESS:
+            if row.prospect_id and event_type in _SUPPRESS and (event_type != "email.bounced" or permanent):
                 from app.models.prospect import Prospect, ProspectEvent
 
                 prospect = (await db.execute(select(Prospect).where(Prospect.id == row.prospect_id))).scalar_one_or_none()

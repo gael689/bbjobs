@@ -182,3 +182,35 @@ async def send_batch(
             f"Resend devolvió {len(data)} ids para {len(messages)} mails", transient=True
         )
     return [str(item["id"]) for item in data]
+
+
+async def get_received_email(email_id: str, *, api_key: str | None = None) -> dict:
+    """Pide a Resend el contenido de un mail recibido (el webhook `email.received` trae sólo los
+    metadatos). Devuelve el JSON tal cual; el que llama lee `text`, `html` y `headers` con
+    tolerancia. Los adjuntos no se piden nunca."""
+    if not (api_key or is_configured()):
+        raise EmailSendError("RESEND_API_KEY no configurada", transient=False)
+    try:
+        async with _make_client() as client:
+            response = await client.get(f"/emails/receiving/{email_id}", headers=_headers(None, api_key))
+    except httpx.HTTPError as exc:
+        raise EmailSendError(f"Error de red hablando con Resend: {exc}", transient=True) from exc
+    if response.status_code >= 400:
+        raise _classify(response)
+    return response.json()
+
+
+async def list_domains(*, api_key: str | None = None) -> list[dict]:
+    """Dominios de la cuenta y si están verificados (`status == "verified"`). Necesita una clave
+    de acceso completo: una de sólo envío da 401."""
+    if not (api_key or is_configured()):
+        raise EmailSendError("RESEND_API_KEY no configurada", transient=False)
+    try:
+        async with _make_client() as client:
+            response = await client.get("/domains", headers=_headers(None, api_key))
+    except httpx.HTTPError as exc:
+        raise EmailSendError(f"Error de red hablando con Resend: {exc}", transient=True) from exc
+    if response.status_code >= 400:
+        raise _classify(response)
+    body = response.json()
+    return list(body.get("data", body) if isinstance(body, dict) else body)

@@ -90,6 +90,9 @@ class EmailOutbox(UUIDMixin, Base):
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     clicked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     bounced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Rebote duro (dirección inexistente) o transitorio (casilla llena). Sólo el duro suprime la
+    # dirección y cuenta para el freno por salud. NULL = Resend no dijo el tipo: se trata como duro.
+    bounce_permanent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     complained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -212,3 +215,37 @@ class EmailDigestState(UUIDMixin, Base):
     last_sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (UniqueConstraint("user_id", "kind", name="uq_email_digest_user_kind"),)
+
+
+class EmailReply(UUIDMixin, Base):
+    """Una respuesta de una persona a un mail nuestro (webhook `email.received` de Resend).
+
+    Guarda sólo texto: **nunca adjuntos** (los postulantes contestan con su CV adjunto y ese PDF
+    no tiene por qué quedar acá). Se vacía a los 90 días (`retention.py`) y se borra con la
+    cuenta (`account_deletion.py`). Las respuestas automáticas (fuera de oficina, rebotes) no se
+    guardan."""
+    __tablename__ = "email_replies"
+
+    provider_email_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    from_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    to_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # A qué mail nuestro contesta, si se pudo saber (token en el Reply-To o, si no, por la dirección).
+    outbox_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("email_outbox.id", ondelete="SET NULL"), nullable=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    prospect_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("prospects.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="nueva")  # nueva | atendida
+    attended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attended_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (Index("ix_email_replies_status_received", "status", "received_at"),)

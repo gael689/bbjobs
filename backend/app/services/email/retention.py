@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.email import EmailOutbox
+from app.models.email import EmailOutbox, EmailReply
 
 KEEP_CONTENT = timedelta(days=90)
 
@@ -22,4 +22,9 @@ async def purge_old_content(db: AsyncSession, now: datetime | None = None) -> in
         .where(EmailOutbox.created_at < now - KEEP_CONTENT, EmailOutbox.html != "")
         .values(html="", text=None, subject="(contenido vencido)")
     )
-    return result.rowcount or 0
+    replies = await db.execute(
+        update(EmailReply)
+        .where(EmailReply.received_at < now - KEEP_CONTENT, EmailReply.body != "")
+        .values(body="", subject="(contenido vencido)")
+    )
+    return (result.rowcount or 0) + (replies.rowcount or 0)

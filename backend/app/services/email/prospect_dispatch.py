@@ -134,6 +134,14 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
         return stats   # fuera de franja o sin canal: la cola espera, no se descarta
 
     async with session_maker() as db:
+        # Freno por salud (R12): con rebotes o quejas sobre el límite de Resend la prospección es
+        # lo primero que se corta. La cola espera, no se descarta.
+        from app.services.email.digests import email_health
+
+        health = await email_health(db, now)
+        if health["unhealthy"]:
+            logger.error("prospect_freno_por_salud", **{k: v for k, v in health.items() if k != "unhealthy"})
+            return stats
         sent_today = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
             EmailOutbox.category == _CAT, EmailOutbox.status == EmailStatus.sent.value,
             EmailOutbox.sent_at >= local_day_start(now)))).scalar_one()

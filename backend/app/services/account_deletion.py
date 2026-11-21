@@ -46,7 +46,7 @@ from app.models.core import User, UserRole
 from app.models.history import ApplicationNote, CandidateActivityLog
 from app.models.job import Application, JobPosting
 from app.models.ai import AiActivityLog
-from app.models.email import EmailOutbox, EmailStatus
+from app.models.email import EmailOutbox, EmailReply, EmailStatus
 from app.models.legal import LegalAcceptance
 from app.models.payment import (
     CvReviewOrder, CvReviewStatus, Payment, TalentCreditPack,
@@ -346,6 +346,8 @@ async def delete_account(
         await db.execute(
             EmailOutbox.__table__.update().where(EmailOutbox.user_id == user.id).values(
                 to_email="eliminado@bbjobs.invalid", html="", text=None))
+        # Lo que contestó por mail (texto y dirección) se borra en los dos modos.
+        await db.execute(EmailReply.__table__.delete().where(EmailReply.user_id == user.id))
         # Qué versión de los términos aceptó queda como prueba; la IP y el navegador, no. En el
         # borrado completo las filas caen por CASCADE.
         await db.execute(

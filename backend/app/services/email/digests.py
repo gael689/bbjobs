@@ -396,8 +396,12 @@ MIN_SAMPLE = 100
 
 async def email_health(db: AsyncSession, now: datetime) -> dict:
     since = now - timedelta(days=7)
+    # Los rebotes transitorios (casilla llena) no cuentan: Resend mide los duros.
     sent, bounced, complained = (await db.execute(
-        select(func.count(), func.count(EmailOutbox.bounced_at), func.count(EmailOutbox.complained_at))
+        select(func.count(),
+               func.count().filter(EmailOutbox.bounced_at.is_not(None),
+                                   EmailOutbox.bounce_permanent.is_distinct_from(False)),
+               func.count(EmailOutbox.complained_at))
         .where(EmailOutbox.sent_at >= since, EmailOutbox.status == EmailStatus.sent.value)
     )).one()
     bounce = 100 * bounced / sent if sent else 0.0
