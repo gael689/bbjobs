@@ -74,3 +74,6 @@ Thumbs.db
 ADMIN-CREDENTIALS.md
 REUNION-EUGENIA-FASE1.md
 .vercel
+
+# Token de Railway y otros secretos locales (direnv)
+.envrc
