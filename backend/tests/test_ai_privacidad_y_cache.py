@@ -23,6 +23,30 @@ def test_scrub_tacha_contacto_y_deja_lo_que_importa():
     assert "Edad: 25 a 35 años" in out  # el Redactor tiene que verlo para poder avisar
 
 
+@pytest.mark.parametrize("texto", [
+    "Requisito: ASP.NET y C#",                        # no es un dominio
+    "perfil.Arquitectura de software",                # ".ar" pegado a una palabra
+    "Ref. 1234-5678, presupuesto 2000-3000, 2018-2022",
+    "Sueldo $ 15000000 neto",
+    "Horario 8-12 y 14-18, sueldo 1.500.000",
+])
+def test_scrub_no_daña_avisos_legitimos(texto):
+    assert scrub_contacto(texto) == texto
+
+
+@pytest.mark.parametrize("texto,sobra", [
+    ("Llamar al 2914-123456", "2914"),
+    ("Tel: 455-1234", "455-1234"),
+    ("Tel: 291 4567890 / +54 9 291 456-7890 / (0291) 455-1234 / 15-4567-8901", "4567890"),
+    ("Insta @bahiajobs", "bahiajobs"),
+    ("escribir a juan arroba gmail punto com", "juan"),
+    ("CUIT 30-12345678-9", "12345678"),                 # aunque el dígito verificador no cierre
+    ("web www.empresa.com.ar y linkedin.com/in/ana", "empresa"),
+])
+def test_scrub_tacha_los_contactos_habituales(texto, sobra):
+    assert sobra not in scrub_contacto(texto)
+
+
 def test_scrub_edad_solo_en_frases_de_visitantes():
     frase = "tengo 52 años busco algo en Punta Alta"
     assert "52" in scrub_contacto(frase)

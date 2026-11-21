@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import structlog
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations import cloudinary_client
@@ -347,7 +347,8 @@ async def delete_account(
             EmailOutbox.__table__.update().where(EmailOutbox.user_id == user.id).values(
                 to_email="eliminado@bbjobs.invalid", html="", text=None))
         # Lo que contestó por mail (texto y dirección) se borra en los dos modos.
-        await db.execute(EmailReply.__table__.delete().where(EmailReply.user_id == user.id))
+        await db.execute(EmailReply.__table__.delete().where(or_(
+            EmailReply.user_id == user.id, func.lower(EmailReply.from_email) == (user.email or "").lower())))
         # Qué versión de los términos aceptó queda como prueba; la IP y el navegador, no. En el
         # borrado completo las filas caen por CASCADE.
         await db.execute(

@@ -697,7 +697,8 @@ async def test_agents_tab_checks_light_up_only_with_enough_data(maker, sin_resto
                         "items_revisados": 10, "cambios_revisor": 6, "cuota_dia": 1})
         await db.commit()
     checks = {c["key"]: c for c in (await client.get("/api/v1/admin/ai/agents")).json()["checks"]}
-    assert checks["degradados"]["state"] == "alerta" and checks["degradados"]["value"] == 40.0
+    # 120 degradados sobre 300 ítems del Evaluador + 60 del Revisor (el denominador suma los dos).
+    assert checks["degradados"]["state"] == "alerta" and checks["degradados"]["value"] == 33.3
     assert checks["revisor"]["state"] == "alerta" and checks["revisor"]["value"] == 60.0
     assert checks["fallidas"]["state"] == "alerta"           # 6 de 66 llamadas ≈ 9 %
     assert checks["costo"]["state"] == "alerta" and checks["costo"]["value"] == 0.5

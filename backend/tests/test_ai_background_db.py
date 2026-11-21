@@ -160,7 +160,11 @@ async def _para_vos_world(maker):
         await db.flush()
         jobs = {}
         # La de caja es la más nueva: sin vectores saldría primera (mismo puntaje, orden de publicación).
-        for key, title, word, hours in (("weld", f"Soldador {tag}", weld, 30), ("cash", f"Cajera {tag}", cash, 2)):
+        # Los vectores del doble se arman con palabras FIJAS: con el sufijo al azar, de vez en cuando
+        # dos palabras caían en la misma posición del hash y la cajera "se parecía" al soldador
+        # (1 de cada ~60 corridas). El sufijo queda sólo en los nombres, que tienen que ser únicos.
+        for key, title, word, base, hours in (("weld", f"Soldador {tag}", weld, "soldadura", 30),
+                                              ("cash", f"Cajera {tag}", cash, "cajera", 2)):
             job = JobPosting(id=uuid.uuid4(), company_id=company.id, company_legal_name_snapshot=company.legal_name,
                              title=title, description=word, industry_id=ind.id, zone_id=zone.id,
                              contract_type_id=ct.id, modality="presencial", status="active",
@@ -168,10 +172,10 @@ async def _para_vos_world(maker):
             db.add(job)
             await db.flush()
             db.add(JobRequirementVector(id=uuid.uuid4(), job_id=job.id, req_id="r1", text=word,
-                                        embedding=_vec(f"experiencia {word}"), model="gemini-embedding-001"))
+                                        embedding=_vec(f"experiencia {base}"), model="gemini-embedding-001"))
             jobs[key] = job
         db.add(CandidateChunk(id=uuid.uuid4(), candidate_id=cand.id, kind="experiencia", ordinal=0,
-                              text=f"Puesto: soldador. Tareas: {weld}", embedding=_vec(f"Puesto soldador {weld}"),
+                              text=f"Puesto: soldador. Tareas: {weld}", embedding=_vec("Puesto soldador soldadura"),
                               model="gemini-embedding-001"))
         await db.commit()
     return ku, jobs

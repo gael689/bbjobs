@@ -30,15 +30,20 @@ logger = structlog.get_logger("app.services.email.inbox")
 MAX_BODY = 6000
 UNSUB_LOOKS_AT = 600       # el pedido de baja está al principio; no se busca en el texto citado
 
-_ADDR = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# Largos acotados: una dirección de más de 255 caracteres no entra en la columna y haría fallar el
+# webhook (y Resend lo reintentaría para siempre).
+_ADDR = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,4}")
 _TOKEN = re.compile(r"^[^+@]+\+([0-9a-f]{32})@", re.IGNORECASE)
 _AUTO_SUBJECT = re.compile(
     r"^\s*(re:\s*)?(respuesta autom[aá]tica|automatic reply|auto[- ]?reply|out of office|fuera de (la )?oficina|"
     r"undeliverable|delivery status notification|mail delivery (failed|subsystem)|no se pudo entregar)",
     re.IGNORECASE)
+# Sólo frases completas: una palabra suelta ("baja", "stop") aparece en respuestas que no piden la
+# baja ("la propuesta es baja") y la baja del prospecto no se puede deshacer desde la plataforma.
 _UNSUB = re.compile(
-    r"\b(baja|d[ae]r(me|nos)? de baja|no me (escriban|env[ií]en|manden|contacten)|"
-    r"no (quiero|queremos|deseo|deseamos) recibir|desuscrib\w+|unsubscribe|remove me|stop)\b", re.IGNORECASE)
+    r"\b(d[ae]r(me|nos)?\s+de\s+baja|(pido|solicito|solicitamos|quiero|queremos|necesito|necesitamos)\s+(la\s+)?baja|"
+    r"no\s+me\s+(escriban|env[ií]en|manden|contacten)|no\s+nos\s+(escriban|env[ií]en|manden|contacten)|"
+    r"no\s+(quiero|queremos|deseo|deseamos)\s+recibir|desuscrib\w+|unsubscribe|remove\s+me)\b", re.IGNORECASE)
 _TAGS = re.compile(r"<[^>]+>")
 
 Fetch = Callable[[str], Awaitable[dict]]
@@ -46,7 +51,7 @@ Fetch = Callable[[str], Awaitable[dict]]
 
 def extract_address(raw: str | None) -> str:
     m = _ADDR.search(raw or "")
-    return m.group(0).lower() if m else ""
+    return m.group(0).lower()[:255] if m else ""
 
 
 def is_auto_reply(subject: str, headers: dict) -> bool:

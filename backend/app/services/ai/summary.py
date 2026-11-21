@@ -188,9 +188,17 @@ async def summarize(db: AsyncSession, provider: AIProvider | None, rec: JobRecom
     cached = (await db.execute(select(CandidateSummary).where(
         CandidateSummary.job_id == rec.job_id, CandidateSummary.candidate_id == rec.candidate_id,
     ))).scalar_one_or_none()
-    if cached is not None and cached.input_hash == h and cached.lines:
-        return SummaryResult(lines=[SummaryLine(text=l["text"], evidence=l.get("evidence")) for l in cached.lines],
-                             generated_with_ai=cached.generated_with_ai, cached=True)
+    if cached is not None and cached.input_hash == h:
+        if cached.lines:
+            return SummaryResult(lines=[SummaryLine(text=l["text"], evidence=l.get("evidence")) for l in cached.lines],
+                                 generated_with_ai=cached.generated_with_ai, cached=True)
+        if cached.prompt_version == PROMPT_VERSION:
+            # La IA ya probó con esta misma entrada y el validador tiró todas las líneas: se queda
+            # con la plantilla hasta que cambie la ficha, la evaluación o el prompt. Antes se
+            # volvía a pagar la llamada todas las noches (auditoría 20/11/2026).
+            again = fallback(rec)
+            again.cached = True
+            return again
 
     if provider is None or not fragments:
         return fallback(rec)
@@ -221,12 +229,17 @@ async def summarize(db: AsyncSession, provider: AIProvider | None, rec: JobRecom
         cost_usd=activity.cost_since(db, mark),
     )
     if result is None or not result.lines:
+        await _store(db, rec, h, lines=[], with_ai=False)
         return fallback(rec)
 
-    values = dict(input_hash=h, lines=[{"text": l.text, "evidence": l.evidence} for l in result.lines],
-                  generated_with_ai=True, model=settings.GEMINI_GENERATION_MODEL, prompt_version=PROMPT_VERSION,
-                  created_at=datetime.now(timezone.utc))
+    await _store(db, rec, h, lines=[{"text": l.text, "evidence": l.evidence} for l in result.lines], with_ai=True)
+    return result
+
+
+async def _store(db: AsyncSession, rec: JobRecommendation, h: str, *, lines: list, with_ai: bool) -> None:
+    """Guarda el resultado en la caché. Con `lines=[]` es un intento fallido: no se repite."""
+    values = dict(input_hash=h, lines=lines, generated_with_ai=with_ai, model=settings.GEMINI_GENERATION_MODEL,
+                  prompt_version=PROMPT_VERSION, created_at=datetime.now(timezone.utc))
     await db.execute(pg_insert(CandidateSummary).values(id=uuid.uuid4(), job_id=rec.job_id,
                                                         candidate_id=rec.candidate_id, **values)
                      .on_conflict_do_update(constraint="uq_candidate_summaries_job_candidate", set_=values))
-    return result

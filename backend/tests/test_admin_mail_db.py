@@ -147,6 +147,9 @@ def test_unsubscribe_phrases():
     assert inbox.wants_unsubscribe("Les pido la baja de este mail")
     assert inbox.wants_unsubscribe("no queremos recibir más mails")
     assert not inbox.wants_unsubscribe("Gracias, me interesa la búsqueda de cajero")
+    assert not inbox.wants_unsubscribe("Me interesa pero la propuesta de precio es baja, ¿pueden mejorarla?")
+    assert not inbox.wants_unsubscribe("Stop por favor no, sigan mandando info")                # "stop" suelto no es una baja
+    assert inbox.wants_unsubscribe("Solicito la baja de la lista")
     assert not inbox.wants_unsubscribe("Hola. " + "x" * 700 + " baja")        # sólo se mira el principio
 
 
@@ -306,3 +309,9 @@ async def test_mail_endpoints_are_admin_only_and_hidden_with_the_gate_closed(cli
     monkeypatch.setattr(settings, "MODULOS_NUEVOS_ACTIVOS", False)
     for path in ("sent", "replies", "health"):
         assert (await client.get(f"/api/v1/admin/mail/{path}")).status_code == 404
+
+
+def test_a_huge_address_does_not_break_the_webhook():
+    huge = "x" * 400 + "@" + "y" * 300 + ".com"
+    assert len(inbox.extract_address(huge)) <= 255          # nunca más largo que la columna
+    assert inbox.extract_address("Ana <ANA@Mail.com>") == "ana@mail.com"

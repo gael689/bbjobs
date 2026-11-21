@@ -325,31 +325,52 @@ def leaks(text: str, *, known_names: list[str], known_phones: list[str], known_e
     return found
 
 
+# Texto libre (avisos, frases del buscador): reglas propias, más estrictas que las de los CVs, porque
+# acá lo que sobra tachar daña el aviso ("ASP.NET" no es un dominio, "2000-3000" no es un teléfono).
+_URL_CONTACTO = re.compile(
+    r"https?://\S+|www\.\S+|"
+    r"\b[\w-]+(?:\.[\w-]+)*\.(?:com\.ar|org\.ar|net\.ar|edu\.ar|gob\.ar|com|org|ar)(?![\w])(?:/\S*)?",
+    re.IGNORECASE)
+_CUIT_FORMA = re.compile(r"\b(?:20|23|24|27|30|33|34)[-\s.]?\d{8}[-\s.]?\d\b")
+_TEL_AREA = re.compile(r"\b\d{3,4}[\s-]\d{6,7}\b")   # "2914-123456", "291 4567890"
+_HANDLE = re.compile(r"(?<![\w@.])@[A-Za-z0-9_.]{3,}")
+_ARROBA = re.compile(r"\b[\w.+-]+\s+(?:arroba|\(at\)|\[at\])\s+[\w-]+(?:\s+punto\s+\w+)*", re.IGNORECASE)
+_PISTA_TELEFONO = re.compile(
+    r"(?:tel|tel[eé]fono|cel|celular|whats\s?app|wsp|llam\w*|contact\w*|comunic\w*)\W{0,3}[^\n]{0,15}$",
+    re.IGNORECASE)
+
+
 def scrub_contacto(text: str | None, *, edad: bool = False) -> str:
-    """Tacha mails, links, teléfonos y CUIL/CUIT de un texto libre que NO es un CV (un aviso, la
-    frase del buscador) antes de mandarlo a la IA (auditoría 20/11/2026).
+    """Tacha mails, links, teléfonos, CUIL/CUIT y usuarios de redes de un texto libre que NO es un
+    CV (un aviso, la frase del buscador) antes de mandarlo a la IA (auditoría 20/11/2026).
 
     A diferencia de `redact`, no borra líneas ni toca "edad" o "género": el aviso tiene que
     llegarle entero al Redactor para que pueda avisar de un requisito discriminatorio. Tampoco
-    toca el DNI suelto: en un aviso "1.500.000" es un sueldo. Con `edad=True` (frases de
+    toca el DNI suelto ni los números de menos de 10 dígitos sin una pista ("Tel:", "llamar"):
+    en un aviso "1.500.000" es un sueldo y "2000-3000" un rango. Con `edad=True` (frases de
     visitantes anónimos: "tengo 52 años") también tacha la edad."""
     if not text:
         return ""
+    original = text
     text = _EMAIL.sub(TOKEN, text)
-    text = _URL.sub(TOKEN, text)
-
-    def _cuil(m: re.Match) -> str:
-        return TOKEN if cuit_is_valid(re.sub(r"\D", "", m.group(0))) else m.group(0)
-
-    text = _CUIL.sub(_cuil, text)
+    text = _ARROBA.sub(TOKEN, text)
+    text = _URL_CONTACTO.sub(TOKEN, text)
+    text = _HANDLE.sub(TOKEN, text)
+    text = _CUIT_FORMA.sub(TOKEN, text)
 
     def _phone(m: re.Match) -> str:
         if _YEAR_RANGE.fullmatch(m.group(0).strip()):
             return m.group(0)
-        return TOKEN if len(re.sub(r"\D", "", m.group(0))) >= 8 else m.group(0)
+        digits = len(re.sub(r"\D", "", m.group(0)))
+        if digits >= 10:
+            return TOKEN                       # característica + número, o +54 9…
+        if digits >= 7 and _PISTA_TELEFONO.search(text[max(0, m.start() - 30):m.start()]):
+            return TOKEN
+        return m.group(0)
 
+    text = _TEL_AREA.sub(TOKEN, text)
     text = _PHONE.sub(_phone, text)
     if edad:
         text = _AGE.sub(TOKEN, text)
         text = _sub_checked(_AGE_LOOSE, text, _is_age, Redaction(text=""), "edad")
-    return re.sub(rf"({re.escape(TOKEN)}[\s,;.-]*){{2,}}", TOKEN + " ", text)
+    return re.sub(rf"({re.escape(TOKEN)}[\s,;.-]*){{2,}}", TOKEN + " ", text) if text != original else text

@@ -312,3 +312,28 @@ async def test_modo_sombra_no_avisa_ni_marca_como_avisado(maker):
         # Nada quedó marcado: al terminar la observación, el primer aviso sale completo.
         assert (await db.execute(select(func.count()).select_from(JobRecommendation).where(
             JobRecommendation.notified_at.is_not(None)))).scalar() == 0
+
+
+@pytest.mark.parametrize("visibles", [False, True])
+async def test_modo_sombra_el_resumen_diario_cuenta_los_que_encajan_solo_si_es_visible(maker, visibles):
+    """Fuga hallada por la auditoría del 20/11: el mail diario a la empresa agregaba "N con buen
+    encaje" aunque `ia_recomendaciones_visibles` estuviera apagado."""
+    from app.models.job import Application
+    from app.models.email import EmailOutbox
+    from app.services.email import digests
+    from app.services.settings import set_setting
+
+    companies, job, people = await _ready(maker)
+    now = datetime.now(timezone.utc)
+    async with maker() as db:
+        await set_setting(db, SettingKey.emails_automaticos_activos, True)
+        await set_setting(db, SettingKey.ia_recomendaciones_visibles, visibles)
+        await db.execute(update(Application).values(created_at=now - timedelta(hours=2)))
+        await db.execute(update(JobRecommendation).values(final_score=91, rerank_status="done"))
+        await db.commit()
+    async with maker() as db:
+        assert await digests.send_company_daily(db, now) >= 1
+        await db.commit()
+        html = " ".join(r.html for r in (await db.execute(select(EmailOutbox))).scalars().all())
+    assert "postulaci" in html                                  # el resumen salió en los dos casos
+    assert ("con buen encaje" in html) is visibles

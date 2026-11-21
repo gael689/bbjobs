@@ -324,9 +324,10 @@ async def test_nightly_summaries_are_ready_and_cached(maker):
     calls_first_night = ai.summaries
     async with maker() as db:   # segunda noche sin cambios: todo de la caché, nada pagado
         again = await automations.nightly_summaries(db, ai)
-    assert again["generados"] == 0 and again["reusados"] == stats["generados"]
-    # Lo ya generado no se vuelve a pagar; sólo se reintentan los de plantilla.
-    assert ai.summaries - calls_first_night <= again["sin_ia"]
+    assert again["generados"] == 0 and again["reusados"] >= stats["generados"]
+    # Ni lo generado ni lo que la IA intentó y el validador tiró se vuelve a pagar: la segunda
+    # noche no hay una sola llamada más (auditoría 20/11/2026: antes se repetía cada noche).
+    assert ai.summaries == calls_first_night
     assert await _outbox(maker) == outbox
 
 

@@ -960,11 +960,15 @@ async def _ai_checks(db: AsyncSession, since: datetime) -> list[CheckOut]:
     def total(key: str):
         return func.coalesce(func.sum(cast(AiActivityLog.detail[key].astext, Numeric)), 0)
 
+    with_calls = cast(AiActivityLog.detail["reranks"].astext, Numeric) > 0
+
     row = (await db.execute(
         select(total("items"), total("degradados"), total("reranks"), total("fallidos"),
                total("items_revisados"), total("cambios_revisor"), total("cuota_dia"),
-               func.coalesce(func.sum(AiActivityLog.cost_usd), 0),
-               func.count().filter(cast(AiActivityLog.detail["reranks"].astext, Numeric) > 0))
+               # El costo promedio se mide sobre los recálculos que llamaron a la IA (los de la noche
+               # sin IA cuestan 0 y bajarían el promedio).
+               func.coalesce(func.sum(AiActivityLog.cost_usd).filter(with_calls), 0),
+               func.count().filter(with_calls))
         .where(AiActivityLog.kind == activity.KIND_RECOMPUTE, AiActivityLog.created_at >= since)
     )).one()
     items, degraded, reranks, failed, rev_items, rev_changes, quota_days, cost, runs = (float(x) for x in row)
@@ -979,7 +983,8 @@ async def _ai_checks(db: AsyncSession, since: datetime) -> list[CheckOut]:
     per_run = round(cost / runs, 4) if runs else None
     cost_state = "sin_datos" if runs < 5 else ("alerta" if per_run > est * CHECK_COST_FACTOR else "ok")
     return [
-        pct_check("degradados", "Respuestas sin cita válida", degraded, items, CHECK_DEGRADED_PCT,
+        # `degradados` suma Evaluador y Revisor: el denominador también.
+        pct_check("degradados", "Respuestas sin cita válida", degraded, items + rev_items, CHECK_DEGRADED_PCT,
                   "Ítems que el Evaluador contestó sin poder señalar el fragmento del CV. Si sube, "
                   "revisar el prompt o el modelo."),
         pct_check("fallidas", "Llamadas que fallaron", failed, reranks + failed, CHECK_FAILED_PCT,

@@ -277,7 +277,11 @@ async def send_para_vos(db: AsyncSession, now: datetime) -> int:
 async def send_company_daily(db: AsyncSession, now: datetime) -> int:
     from app.models.ai import JobRecommendation
     from app.services.ai.scoring import RECOMMENDED_THRESHOLD
+    from app.services.settings import recs_visibles_para_empresas
 
+    # Modo sombra: con la IA activa pero sin mostrarse a las empresas, el resumen no cuenta
+    # cuántos "encajan" (sería filtrar lo que la etapa de observación todavía oculta).
+    show_fits = await recs_visibles_para_empresas(db)
     companies = (await db.execute(
         select(CompanyProfile, User).join(User, User.id == CompanyProfile.user_id)
         .where(CompanyProfile.verification_status == VerificationStatus.verified.value, User.deleted_at.is_(None))
@@ -296,7 +300,7 @@ async def send_company_daily(db: AsyncSession, now: datetime) -> int:
         )).all()
         items = []
         for job, n in rows:
-            top = (await db.execute(
+            top = 0 if not show_fits else (await db.execute(
                 select(func.count()).select_from(JobRecommendation).where(
                     JobRecommendation.job_id == job.id, JobRecommendation.source == "applicant",
                     # Sólo lo que evaluó la IA (plan final §2.4), con el umbral de un solo lugar.

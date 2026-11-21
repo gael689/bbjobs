@@ -24,7 +24,9 @@ async def purge_old_content(db: AsyncSession, now: datetime | None = None) -> in
     )
     replies = await db.execute(
         update(EmailReply)
-        .where(EmailReply.received_at < now - KEEP_CONTENT, EmailReply.body != "")
-        .values(body="", subject="(contenido vencido)")
+        .where(EmailReply.received_at < now - KEEP_CONTENT, EmailReply.from_email != "vencido@bbjobs.invalid")
+        # Las direcciones también: pasados los 90 días la respuesta queda sólo como estadística.
+        .values(body="", subject="(contenido vencido)", from_email="vencido@bbjobs.invalid",
+                to_email="vencido@bbjobs.invalid")
     )
     return (result.rowcount or 0) + (replies.rowcount or 0)

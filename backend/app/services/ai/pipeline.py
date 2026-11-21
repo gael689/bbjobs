@@ -243,6 +243,9 @@ async def job_context(db: AsyncSession, provider: AIProvider | None, job: JobPos
         select(Skill.id, Skill.name, JobPostingSkill.is_required)
         .join(JobPostingSkill, JobPostingSkill.skill_id == Skill.id)
         .where(JobPostingSkill.job_posting_id == job.id, Skill.category == "technical")
+        # Orden fijo: los ids r1..rk de los requisitos salen de acá y tienen que ser los mismos
+        # en cada corrida (sin ORDER BY, Postgres puede devolverlos en otro orden).
+        .order_by(Skill.name, Skill.id)
     )).all()
     technical = [(name, bool(req)) for _, name, req in skill_rows]
     h = reqs.job_hash(job.title, job.description or "", technical)
