@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     # dominio nuevo arranca en ~150/día. Se sube a mano semana a semana; 0 = sin tope. Los de la
     # categoría `cuenta` (pagos, verificación) salen aunque se haya llegado al tope.
     EMAIL_DAILY_CAP: int = 150
+    # Modo prueba: lista de mails separados por coma. Si tiene algo, SÓLO salen mails a esas
+    # direcciones (avisos, novedades y prospección); el resto se marca `skipped` con el motivo
+    # "modo prueba". Sirve para probar con mails reales sin que les llegue nada a los usuarios.
+    # Vacía = funcionamiento normal.
+    EMAIL_TEST_RECIPIENTS: str | None = None
 
     # Prospección (mails a empresas que no están en BBJobs): canal SEPARADO de los avisos, con su
     # propia API key (idealmente otra cuenta de Resend: la política de uso de Resend prohíbe el
@@ -182,6 +187,12 @@ class Settings(BaseSettings):
         if self.RAILWAY_PUBLIC_DOMAIN:
             return f"https://{self.RAILWAY_PUBLIC_DOMAIN}/api/v1"
         return "http://localhost:8000/api/v1"
+
+    @property
+    def email_test_recipients(self) -> frozenset[str]:
+        return frozenset(
+            m.strip().lower() for m in (self.EMAIL_TEST_RECIPIENTS or "").split(",") if m.strip()
+        )
 
     @property
     def email_provider_configured(self) -> bool:

@@ -182,6 +182,30 @@ async def test_dispatch_picks_the_sender_by_category(maker, monkeypatch):
     }
 
 
+async def test_test_mode_only_sends_to_the_listed_addresses(maker, monkeypatch):
+    # EMAIL_TEST_RECIPIENTS: probar con mails reales sin que les llegue nada a los usuarios.
+    monkeypatch.setattr(settings, "EMAIL_TEST_RECIPIENTS", " Gael@Mail.com , otro@mail.com")
+    gael = await _user(maker, email="gael@mail.com")
+    ana = await _user(maker)
+    rg = await _row(maker, gael, to="gael@mail.com")
+    ra = await _row(maker, ana)
+    provider = SimulatedProvider()
+    stats = await dispatcher.dispatch_due(session_maker=maker, provider=provider, now=NOON)
+    assert [m.to for m in provider.sent] == ["gael@mail.com"]
+    assert stats.sent == 1 and stats.skipped == 1
+    assert (await _get(maker, rg)).status == "sent"
+    skipped = await _get(maker, ra)
+    assert skipped.status == "skipped" and skipped.last_error.startswith("modo prueba")
+
+
+async def test_empty_test_list_is_normal_operation(maker, monkeypatch):
+    monkeypatch.setattr(settings, "EMAIL_TEST_RECIPIENTS", " , ")
+    uid = await _user(maker)
+    await _row(maker, uid)
+    stats = await dispatcher.dispatch_due(session_maker=maker, provider=SimulatedProvider(), now=NOON)
+    assert stats.sent == 1
+
+
 async def test_account_emails_have_no_unsubscribe_header(maker):
     uid = await _user(maker)
     await _row(maker, uid, category="cuenta", key="company_verified")

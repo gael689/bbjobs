@@ -263,6 +263,7 @@ async def dispatch_due(
             return stats
 
         enabled = await get_setting(db, SettingKey.emails_automaticos_activos)
+        test_only = settings.email_test_recipients
         # R12: con rebotes o quejas por encima del límite, novedades y recordatorios se frenan
         # solos 24 h (los avisos de cuenta y de postulaciones siguen). Lo muestra el resumen del
         # equipo; se destraba solo cuando los números vuelven a la normalidad.
@@ -294,6 +295,12 @@ async def dispatch_due(
                 row.scheduled_at = now + timedelta(hours=24)
                 stats.deferred += 1
                 stats.note("freno por salud de los mails")
+                continue
+
+            if test_only and (row.to_email or "").lower() not in test_only:
+                row.status = EmailStatus.skipped.value
+                row.last_error = "modo prueba: la dirección no está en EMAIL_TEST_RECIPIENTS"
+                stats.skipped += 1
                 continue
 
             user, recipient = await _recipient_state(db, row)

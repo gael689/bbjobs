@@ -24,7 +24,7 @@ interface Respuesta {
 interface PaginaRespuestas { total: number; new: number; page: number; per_page: number; items: Respuesta[] }
 
 interface Salud {
-  mode: string; resend_configured: boolean; sent_today: number; daily_cap: number; replies_new: number;
+  mode: string; test_recipients?: string[]; resend_configured: boolean; sent_today: number; daily_cap: number; replies_new: number;
   sent_7d: number; bounce_pct: number; complaint_pct: number; bounce_limit_pct: number;
   complaint_limit_pct: number; min_sample: number; unhealthy: boolean;
   by_category: { category: string; sent: number; delivered: number; opened: number; bounced: number; complained: number }[];
@@ -294,6 +294,12 @@ function SaludMails() {
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
           <strong>Modo {s.mode === "off" ? "apagado" : "simulado"}:</strong> no está saliendo ningún mail real.
           {!s.resend_configured && " Falta cargar la clave de Resend."}
+        </div>
+      )}
+      {!simulado && !!s.test_recipients?.length && (
+        <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+          <strong>Modo prueba:</strong> sólo salen mails a {s.test_recipients.join(", ")}. Al resto no les llega nada
+          (quedan como «salteados»). Se apaga vaciando <code>EMAIL_TEST_RECIPIENTS</code> en Railway.
         </div>
       )}
 

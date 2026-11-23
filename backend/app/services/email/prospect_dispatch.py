@@ -171,6 +171,11 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
                 await _skip(row, EmailStatus.skipped.value, "la empresa ya no existe")
                 stats.skipped += 1
                 continue
+            test_only = settings.email_test_recipients
+            if test_only and (row.to_email or "").lower() not in test_only:
+                await _skip(row, EmailStatus.skipped.value, "modo prueba: la dirección no está en EMAIL_TEST_RECIPIENTS")
+                stats.skipped += 1
+                continue
             suppressed = (await db.execute(select(func.count()).select_from(EmailSuppression).where(
                 EmailSuppression.email == row.to_email.lower()))).scalar_one()
             if prospect.do_not_contact or suppressed or prospect.stage in _CLOSED_STAGES:

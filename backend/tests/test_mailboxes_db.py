@@ -141,6 +141,16 @@ async def test_without_mailboxes_the_old_fixed_sender_still_works(maker, monkeyp
     assert all(m.reply_to == "hola@r.contacto.bbjobs.com.ar" for m in sender.sent)
 
 
+async def test_test_mode_also_holds_back_prospecting(maker, monkeypatch):
+    monkeypatch.setattr(settings, "EMAIL_TEST_RECIPIENTS", "gael@mail.com")
+    await _box(maker, "eugenia@contacto.bbjobs.com.ar", limit=5)
+    await _queue(maker, 2)
+    sender = pd.SimulatedProspectSender()
+    stats = await pd.dispatch_prospects(session_maker=maker, sender=sender, now=TEN, use_configured_sender=False)
+    assert sender.sent == [] and stats.sent == 0 and stats.skipped == 2
+    assert all(r.status == "skipped" and r.last_error.startswith("modo prueba") for r in await _rows(maker))
+
+
 # ── Frenos ──────────────────────────────────────────────────────────────────────────────
 
 async def _sent_from(maker, address, n, **kw):

@@ -24,6 +24,7 @@ from app.models.email import EmailMailbox, EmailOutbox, EmailReply, EmailStatus
 from app.models.prospect import Prospect
 from app.services.email import digests, mailboxes
 from app.services.email.policy import local_day_start
+from app.services.email.provider import resolve_mode
 
 logger = structlog.get_logger("app.api.admin_mail")
 router = APIRouter(dependencies=[Depends(require_new_modules)])
@@ -200,7 +201,10 @@ class DomainOut(BaseModel):
 
 
 class HealthOut(BaseModel):
+    # El modo que rige de verdad (`auto` ya resuelto a resend u off).
     mode: str
+    # Modo prueba: sólo salen mails a estas direcciones (EMAIL_TEST_RECIPIENTS).
+    test_recipients: list[str] = []
     resend_configured: bool
     sent_today: int
     daily_cap: int
@@ -264,7 +268,7 @@ async def mail_health(_: User = Depends(_admin), db: AsyncSession = Depends(get_
             logger.warning("mail_health_dominios_fallo", error=error)
 
     return HealthOut(
-        mode=settings.EMAIL_MODE, resend_configured=bool(key), sent_today=sent_today,
+        mode=resolve_mode(), test_recipients=sorted(settings.email_test_recipients), resend_configured=bool(key), sent_today=sent_today,
         daily_cap=settings.EMAIL_DAILY_CAP, replies_new=replies_new, sent_7d=health["sent"],
         bounce_pct=round(health["bounce_pct"], 2), complaint_pct=round(health["complaint_pct"], 3),
         bounce_limit_pct=digests.BOUNCE_LIMIT_PCT, complaint_limit_pct=digests.COMPLAINT_LIMIT_PCT,
