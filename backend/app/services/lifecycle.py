@@ -185,12 +185,64 @@ async def jobs_without_applications(db: AsyncSession, now: datetime) -> int:
     return sent
 
 
+REACTIVATION_JOBS_SINCE = timedelta(days=30)
+REACTIVATION_MAX_JOBS = 3
+
+
+async def _matching_jobs_for(db: AsyncSession, profile: CandidateProfile, jobs: list, job_skills: dict,
+                             zone_slugs: dict) -> list[str]:
+    """Títulos de las búsquedas activas que le encajan, con el puntaje simple (sin IA, no
+    necesita la privacidad 3.0), sin las que ya se postuló. Las mejores primero."""
+    from app.models.candidate import CandidateSkill
+    from app.services.email.digests import score_for_candidate
+    from app.services.email.matches import SIMPLE_MATCH_MIN
+
+    skills = set((await db.execute(
+        select(CandidateSkill.skill_id).where(CandidateSkill.candidate_id == profile.id))).scalars().all())
+    applied = set((await db.execute(
+        select(Application.job_posting_id).where(Application.candidate_id == profile.id))).scalars().all())
+    modalities = {m for m, f in (("onsite", profile.accepts_onsite), ("hybrid", profile.accepts_hybrid),
+                                 ("remote", profile.accepts_remote)) if f}
+    scored = []
+    for job, _zone in jobs:
+        if job.id in applied:
+            continue
+        s = score_for_candidate(job, job_skills.get(job.id, set()), skills, profile.location_zone_id,
+                                modalities, zone_slugs)
+        if s >= SIMPLE_MATCH_MIN:
+            scored.append((s, job.title))
+    scored.sort(key=lambda x: -x[0])
+    return [t for _, t in scored]
+
+
+def _lista(titulos: list[str]) -> str:
+    t = titulos[:REACTIVATION_MAX_JOBS]
+    texto = t[0] if len(t) == 1 else ", ".join(t[:-1]) + " y " + t[-1]
+    return texto + (" (y más)" if len(titulos) > REACTIVATION_MAX_JOBS else "")
+
+
 async def reactivations(db: AsyncSession, now: datetime) -> int:
     """Postulantes que hace una semana no entran: "¿Seguís buscando trabajo?".
 
     "Entrar" = la última vez que usó su cuenta (`users.last_seen_at`); para las cuentas de antes
     de esa columna, la fecha de alta. Sin postulaciones en esa semana. Como mucho uno cada 30
-    días, y se corta después de 3 sin que vuelva a entrar."""
+    días, y se corta después de 3 sin que vuelva a entrar.
+
+    Desde el 23/11/2026 (Gael: "capaz se olvidó de BBJobs, hay varios portales") el aviso dice
+    cuántas búsquedas activas le encajan y cuáles, con el puntaje simple: no depende de la IA
+    ni de haber aceptado la privacidad 3.0."""
+    from app.models.job import JobPostingSkill
+    from app.services.email.digests import _active_jobs_since
+    from app.services.zonas import slugs_por_id
+
+    jobs = await _active_jobs_since(db, now - REACTIVATION_JOBS_SINCE)
+    job_skills: dict = {}
+    if jobs:
+        for job_id, skill_id in (await db.execute(
+            select(JobPostingSkill.job_posting_id, JobPostingSkill.skill_id)
+            .where(JobPostingSkill.job_posting_id.in_([j.id for j, _ in jobs])))).all():
+            job_skills.setdefault(job_id, set()).add(skill_id)
+    zone_slugs = await slugs_por_id(db) if jobs else {}
     last_seen = func.coalesce(User.last_seen_at, User.created_at)
     recent_app = exists().where(Application.candidate_id == CandidateProfile.id,
                                 Application.created_at >= now - REACTIVATION_INACTIVE)
@@ -210,10 +262,18 @@ async def reactivations(db: AsyncSession, now: datetime) -> int:
         ))).scalar_one()
         if unanswered >= REACTIVATION_MAX_UNANSWERED:
             continue
+        titulos = await _matching_jobs_for(db, profile, jobs, job_skills, zone_slugs) if jobs else []
+        if titulos:
+            n = len(titulos)
+            cantidad = "1 búsqueda activa que encaja" if n == 1 else f"{n} búsquedas activas que encajan"
+            body = f"Hay {cantidad} con tu perfil: {_lista(titulos)}."
+            email_vars = {"cantidad": cantidad, "puestos": _lista(titulos)}
+        else:
+            body = "Hay búsquedas nuevas en Bahía Blanca y la zona. Revisá las disponibles y postulate a las que te interesen."
+            email_vars = {}
         await create_notification(
             db, user_id=user.id, type="candidate_reactivation", title="¿Seguís buscando trabajo?",
-            body="Hay búsquedas nuevas en Bahía Blanca y la zona. Revisá las disponibles y postulate a las que te interesen.",
-            link="/empleos",
+            body=body, link="/empleos", email_vars=email_vars,
         )
         await _mark(db, user.id, "reactivacion", now)
         sent += 1

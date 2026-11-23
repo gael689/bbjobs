@@ -232,7 +232,8 @@ COPY: dict[str, MailCopy] = {
     "candidate_reactivation": MailCopy(
         "¿Seguís buscando trabajo? Explorá oportunidades en BBJobs",
         "Tu próxima oportunidad puede estar en BBJobs",
-        ("Si seguís buscando trabajo, te invitamos a revisar las búsquedas disponibles en Bahía "
+        ("**En BBJobs hay {cantidad} con tu perfil:** {puestos}.",
+         "Si seguís buscando trabajo, te invitamos a revisar las búsquedas disponibles en Bahía "
          "Blanca y la zona. Podés consultar los requisitos y postularte a las que se ajusten a tu "
          "experiencia e intereses.",
          "¡Nos gustaría acompañarte en tu próximo paso laboral!"),

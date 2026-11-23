@@ -176,6 +176,27 @@ async def test_reactivation_after_a_week_without_entering(maker):
     assert await _reactivations(maker, now + timedelta(days=10)) == 0   # como mucho cada 30 días
 
 
+async def test_reactivation_lists_the_jobs_that_match(maker, monkeypatch):
+    """Gael, 23/11/2026: el recordatorio dice cuántas búsquedas le encajan y cuáles (puntaje
+    simple, sin IA ni privacidad 3.0); sin ninguna, queda el texto de siempre."""
+    from app.services.email import digests
+
+    w = await _world(maker)
+    now = datetime.now(timezone.utc)
+    uid = w["cand_user"].id
+    async with maker() as db:
+        await db.execute(text("UPDATE applications SET created_at=:t"), {"t": now - timedelta(days=30)})
+        await db.execute(text("DELETE FROM applications"))
+        await db.commit()
+    await _set_seen(maker, uid, now - timedelta(days=40))
+    monkeypatch.setattr(digests, "score_for_candidate", lambda *a, **k: 10.0)
+    assert await _reactivations(maker, now) == 1
+    async with maker() as db:
+        n = (await db.execute(select(Notification).where(
+            Notification.user_id == uid, Notification.type == "candidate_reactivation"))).scalar_one()
+    assert n.body.startswith("Hay ") and "con tu perfil: Operario/a de depósito" in n.body
+
+
 async def test_reactivation_stops_after_three_unanswered(maker):
     w = await _world(maker)
     now = datetime.now(timezone.utc)

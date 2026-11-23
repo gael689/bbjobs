@@ -16,9 +16,10 @@ Dos pasos:
    esas 24 h espera y sale junto en el próximo. Los topes generales (2 por día, franja 08–21) y
    la baja en un clic los aplica la política al despachar, como en cualquier otro mail.
 
-A quién: puntaje ≥ 70 evaluado por la IA (`rerank_status == "done"`), que no se postuló a esa
-búsqueda, que aceptó la privacidad 3.0 y no se opuso a la IA, y que entró a BBJobs en los últimos
-30 días. "Búsquedas para vos" (lunes) no repite lo que ya salió acá (`sent_job_ids`).
+A quién: puntaje ≥ 70 evaluado por la IA (`rerank_status == "done"`) para quien aceptó la
+privacidad 3.0 y no se opuso a la IA; para el resto, el puntaje simple (sin IA). En los dos casos,
+que no se postuló a esa búsqueda y que entró a BBJobs en los últimos 30 días (a los que no entran
+hace más, les llega el recordatorio de `lifecycle.reactivations` con las búsquedas que encajan). "Búsquedas para vos" (lunes) no repite lo que ya salió acá (`sent_job_ids`).
 """
 from __future__ import annotations
 
@@ -62,11 +63,12 @@ def _is_live(job: JobPosting | None, now: datetime) -> bool:
 
 def _eligible(job_id, now: datetime, *, ai: bool = True) -> list:
     """Condiciones SQL comunes sobre CandidateProfile/User para recibir el aviso de `job_id`.
-    Con `ai=False` (puntaje simple, sin IA) no se excluye a quien se opuso a la IA."""
+    Con `ai=False` (puntaje simple, sin IA) no se excluye a quien se opuso a la IA ni a quien
+    todavía no aceptó la privacidad 3.0: su perfil no pasa por la IA, así que el aviso no
+    depende de esa aceptación (Gael, 23/11/2026)."""
     return [
         CandidateProfile.deleted_at.is_(None),
-        *([CandidateProfile.ai_opt_out_at.is_(None)] if ai else []),
-        accepted_ai_terms(CandidateProfile.user_id),
+        *([CandidateProfile.ai_opt_out_at.is_(None), accepted_ai_terms(CandidateProfile.user_id)] if ai else []),
         User.deleted_at.is_(None), User.is_active.is_(True), User.last_seen_at >= now - ACTIVE_WITHIN,
         ~exists().where(Application.candidate_id == CandidateProfile.id, Application.job_posting_id == job_id),
     ]
@@ -105,8 +107,9 @@ async def collect_simple_matches(db: AsyncSession, job: JobPosting, now: datetim
     """Sin IA: el puntaje simple del resumen de los lunes, con el mismo umbral para todos. No commitea.
 
     `only_outside_ai=True` (con la IA prendida): sólo quienes la IA no evalúa, es decir los que
-    no están en la Base de Talento o se opusieron a la IA. Así el aviso les llega igual, con el
-    puntaje simple y sin pasar su perfil por la IA (Gael, 09/11/2026, opción B)."""
+    no están en la Base de Talento, se opusieron a la IA o no aceptaron la privacidad 3.0. Así
+    el aviso les llega igual, con el puntaje simple y sin pasar su perfil por la IA (Gael,
+    09/11/2026, opción B; sin 3.0 desde el 23/11/2026)."""
     from app.services.email.digests import score_for_candidate
     from app.services.email.outbox import emails_enabled
     from app.services.zonas import slugs_por_id
@@ -121,7 +124,8 @@ async def collect_simple_matches(db: AsyncSession, job: JobPosting, now: datetim
         select(CandidateProfile).join(User, User.id == CandidateProfile.user_id).where(
             *_eligible(job.id, now, ai=False),
             *([or_(CandidateProfile.visible_in_talent_pool.is_(False),
-                   CandidateProfile.ai_opt_out_at.is_not(None))] if only_outside_ai else []),
+                   CandidateProfile.ai_opt_out_at.is_not(None),
+                   ~accepted_ai_terms(CandidateProfile.user_id))] if only_outside_ai else []),
         )
     )).scalars().all()
     if not profiles:

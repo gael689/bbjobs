@@ -230,6 +230,26 @@ async def test_simple_matches_reach_who_the_ai_does_not_evaluate(maker, monkeypa
     assert people["bueno"][1].id not in {c for c, _, _, _ in found}                 # ya se postuló
 
 
+async def test_simple_matches_reach_who_did_not_accept_privacy_3(maker, monkeypatch):
+    """Gael, 23/11/2026: el aviso de búsqueda nueva no depende de aceptar la privacidad 3.0. A
+    quien no la aceptó le llega con el puntaje simple (su perfil no pasa por la IA)."""
+    from app.models.legal import LegalAcceptance
+    from app.services.email import digests
+
+    companies, job, people = await _ready(maker)
+    monkeypatch.setattr(digests, "score_for_candidate", lambda *a, **k: 10.0)
+    talento_user = people["talento"][1].user_id
+    async with maker() as db:
+        await db.execute(LegalAcceptance.__table__.delete().where(LegalAcceptance.user_id == talento_user))
+        await db.commit()
+        j = await db.get(type(job), job.id)
+        await matches.collect_simple_matches(db, j, only_outside_ai=True)
+        await db.commit()
+        found = {(c, v) for c, v in (await db.execute(
+            select(CandidateJobMatch.candidate_id, CandidateJobMatch.via))).all()}
+    assert (people["talento"][1].id, "simple") in found
+
+
 async def test_recompute_queue_collects_matches_when_it_finishes(maker, monkeypatch):
     companies, job, people = await _ready(maker)
     seen = []

@@ -198,7 +198,9 @@ async def test_match_alert_simple_score_groups_and_waits_24h(maker):
     assert "Tornero" in mails[1].html and "Pintor" in mails[1].html and "Soldador" not in mails[1].html
 
 
-async def test_match_alert_skips_applied_inactive_and_unconsented(maker):
+async def test_match_alert_skips_applied_and_inactive_but_not_unconsented(maker):
+    """Sin aceptar la privacidad 3.0 el aviso con puntaje simple llega igual (Gael, 23/11/2026):
+    su perfil no pasa por la IA. Ana (ya se postuló) y Beto (31 días sin entrar), no."""
     ind, zone, company, cu, job, cands = await _world(maker)
     (ana_u, ana_p), (beto_u, beto_p) = cands
     async with maker() as db:
@@ -215,7 +217,9 @@ async def test_match_alert_skips_applied_inactive_and_unconsented(maker):
                          {"t": MONDAY_9 - timedelta(days=31), "id": beto_u.id})  # Beto no entra hace 31 días
         await db.commit()
     await _skill_match(maker, job, [ana_p, beto_p, caro])
-    assert await _collect_simple(maker, job, MONDAY_9) == 0
+    assert await _collect_simple(maker, job, MONDAY_9) == 1
+    async with maker() as db:
+        assert (await db.execute(select(CandidateJobMatch.candidate_id))).scalars().all() == [caro.id]
 
 
 async def test_match_alert_rechecks_at_send_time_and_para_vos_does_not_repeat(maker):
