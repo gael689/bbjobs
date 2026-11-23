@@ -9,6 +9,7 @@ import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon } from "
 import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NovedadesVersion, { MarcaVersion } from "@/components/dashboard/NovedadesVersion";
+import ReportarProblema from "@/components/ReportarProblema";
 import AvisoEmergente from "@/components/notifications/AvisoEmergente";
 import BombitaRecomendados, { type RecomendadosPendientes } from "@/components/notifications/BombitaRecomendados";
 import type { NotificationItemData } from "@/hooks/useNotifications";
@@ -193,6 +194,7 @@ export default function DashboardShell({
 
         <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
           <NotificationBell variant="prominent" align="left" openUpward />
+          <ReportarProblema variante="panel" />
           <Link
             href="/"
             className="flex items-center gap-2 px-3 py-2 text-[13px] font-bold text-[#A9C0C6] hover:text-white hover:bg-white/[0.04] rounded-xl transition-colors"
@@ -248,6 +250,7 @@ export default function DashboardShell({
                       onNavigate={() => setMobileOpen(false)} />
             <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
               <NotificationBell variant="prominent" align="left" openUpward />
+              <ReportarProblema variante="panel" />
               <Link
                 href="/"
                 onClick={() => setMobileOpen(false)}

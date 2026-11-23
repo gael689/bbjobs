@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import ConfigurarCookiesButton from "@/components/consent/ConfigurarCookiesButton";
+import ReportarProblema from "@/components/ReportarProblema";
 import { RUBROS_INDICE, SELECCION_INDICE, ZONAS_INDICE } from "@/lib/seo/indice";
 import { VERSION_ACTUAL } from "@/lib/novedades";
 
@@ -90,6 +91,7 @@ export default function Footer() {
             ].map(({ href, label }) => (
               <li key={href}><Link prefetch={false} href={href} className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium">{label}</Link></li>
             ))}
+            <li><ReportarProblema variante="pie" /></li>
             <li>
               <ConfigurarCookiesButton className="text-[#64748B] hover:text-[#1E8EA3] transition-colors font-medium text-left">
                 Configurar cookies

@@ -51,8 +51,9 @@ class ContactMessageCreate(BaseModel):
     @field_validator("topic")
     @classmethod
     def no_arrepentimiento(cls, v: ContactTopic) -> ContactTopic:
-        # Ese tema sólo entra por /contact/arrepentimiento, que es el que da el código de trámite.
-        if v == ContactTopic.arrepentimiento:
+        # Esos temas sólo entran por su propio endpoint (/contact/arrepentimiento, que da el
+        # código de trámite, y /contact/problema).
+        if v in (ContactTopic.arrepentimiento, ContactTopic.problema):
             raise ValueError("Para arrepentirte de una compra usá el botón de arrepentimiento")
         return v
 
@@ -76,6 +77,27 @@ class ArrepentimientoCreate(BaseModel):
     compra: Literal["destacado", "pack", "revision_cv", "otro"]
     detalle: str = Field(min_length=3, max_length=500)
     comentario: Optional[str] = Field(default=None, max_length=1000)
+
+
+class ProblemaCreate(BaseModel):
+    """Botón "Reportar un problema". Con sesión iniciada, quién es sale del token (no de acá);
+    sin sesión, `contacto` (mail o teléfono) es opcional: sirve sólo para responderle."""
+    descripcion: str = Field(min_length=5, max_length=2000)
+    pagina: Optional[str] = Field(default=None, max_length=500)
+    contacto: Optional[str] = Field(default=None, max_length=255)
+
+    @field_validator("descripcion", mode="before")
+    @classmethod
+    def strip_descripcion(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("pagina", "contacto", mode="before")
+    @classmethod
+    def empty_is_none(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
 
 
 class ArrepentimientoResponse(BaseModel):

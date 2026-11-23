@@ -1,16 +1,23 @@
 import secrets
 
+import structlog
 from fastapi import APIRouter, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import bearer_scheme, get_db
 from app.core.limiter import limiter
+from app.integrations.clerk_client import verify_session_token
 from app.models.contact import ContactMessage, ContactTopic
-from app.schemas.contact import ArrepentimientoCreate, ArrepentimientoResponse, ContactMessageCreate
+from app.models.core import User, UserRole
+from app.schemas.contact import (
+    ArrepentimientoCreate, ArrepentimientoResponse, ContactMessageCreate, ProblemaCreate,
+)
 from app.services.notifications import notify_all_admins
 
 router = APIRouter()
+logger = structlog.get_logger("app.contact")
 
 TEMAS = {
     ContactTopic.general: "general",
@@ -105,3 +112,68 @@ async def submit_arrepentimiento(
     await db.commit()
     await db.refresh(msg)
     return ArrepentimientoResponse(codigo=codigo, recibido=msg.created_at)
+
+
+ROLES = {UserRole.candidate: "Postulante", UserRole.company: "Empresa", UserRole.admin: "Admin"}
+
+
+async def usuario_opcional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """El que reporta puede estar o no logueado. Con un token válido se sabe quién es; con uno
+    vencido o inválido se toma como visitante (reportar no debe fallar por la sesión)."""
+    if credentials is None:
+        return None
+    try:
+        payload = await verify_session_token(credentials.credentials)
+    except Exception:  # token vencido o inválido, o Clerk sin responder: se reporta igual
+        return None
+    sub = payload.get("sub")
+    if not sub:
+        return None
+    return (await db.execute(select(User).where(User.clerk_user_id == sub))).scalar_one_or_none()
+
+
+def armar_reporte(payload: ProblemaCreate, user: User | None, navegador: str | None) -> str:
+    lineas = [f"Página: {payload.pagina or '(sin dato)'}"]
+    if user is not None:
+        lineas.append(f"Usuario: {ROLES.get(user.role, str(user.role))} · {user.email}")
+    else:
+        lineas.append("Usuario: visitante sin sesión")
+        if payload.contacto:
+            lineas.append(f"Contacto: {payload.contacto}")
+    if navegador:
+        lineas.append(f"Navegador: {navegador[:300]}")
+    return "\n".join(lineas) + "\n\n" + payload.descripcion
+
+
+@router.post("/contact/problema")
+@limiter.limit("5/minute")
+async def report_problem(
+    request: Request,
+    payload: ProblemaCreate,
+    user: User | None = Depends(usuario_opcional),
+    db: AsyncSession = Depends(get_db),
+):
+    """Botón "Reportar un problema" del sitio y de los paneles. Va a Admin → Mensajes con el tema
+    `problema` y avisa a los admins, igual que el formulario de contacto."""
+    contacto = payload.contacto if user is None else None
+    msg = ContactMessage(
+        name=(ROLES.get(user.role, "Usuario") if user else "Visitante")[:255],
+        email=user.email if user else (contacto if contacto and "@" in contacto else None),
+        phone=None if user or not contacto or "@" in contacto else contacto[:50],
+        topic=ContactTopic.problema,
+        message=armar_reporte(payload, user, request.headers.get("user-agent")),
+    )
+    db.add(msg)
+    await notify_all_admins(
+        db,
+        type="contact_message_received",
+        title="Reportaron un problema",
+        body=(payload.pagina or "") + " · " + payload.descripcion[:120],
+        link="/dashboard/admin/mensajes",
+    )
+    await db.commit()
+    logger.info("problema_reportado", con_sesion=user is not None, pagina=(payload.pagina or "")[:200])
+    return {"status": "ok"}

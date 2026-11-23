@@ -14,6 +14,8 @@ class ContactTopic(str, enum.Enum):
     seleccion = "seleccion"
     # Llega por el botón de arrepentimiento (/arrepentimiento), no por el formulario de contacto.
     arrepentimiento = "arrepentimiento"
+    # Llega por el botón "Reportar un problema" (sitio y paneles), no por el formulario de contacto.
+    problema = "problema"
 
 
 class ContactMessage(UUIDMixin, Base):

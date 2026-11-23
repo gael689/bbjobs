@@ -56,7 +56,7 @@ export default function AdminMensajesPage() {
         <h1 className="text-2xl font-display font-bold text-[#1C2230]">Mensajes de contacto</h1>
       </div>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto, /empresas y /seleccion-de-personal, y pedidos del botón de arrepentimiento.</p>
+        <p className="text-[#64748B] text-sm">Consultas enviadas desde /contacto, /empresas y /seleccion-de-personal, pedidos del botón de arrepentimiento y problemas reportados desde el sitio y los paneles.</p>
         <label className="flex items-center gap-2 text-sm text-[#64748B] cursor-pointer">
           <input type="checkbox" checked={showResolved} onChange={e => setShowResolved(e.target.checked)} className="w-4 h-4 accent-[#1E8EA3]" />
           Mostrar resueltos
@@ -92,7 +92,11 @@ export default function AdminMensajesPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-bold text-[#1C2230]">{m.name}</p>
-                        {m.topic === "arrepentimiento" ? (
+                        {m.topic === "problema" ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            Problema reportado
+                          </span>
+                        ) : m.topic === "arrepentimiento" ? (
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
                             Arrepentimiento · {m.tracking_code}
                           </span>
