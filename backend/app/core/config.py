@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # la empresa veía un precio y se le cobraba otro.
     # Dejar en None en operación normal.
     TALENT_PACK_PRICE: float | None = None
-    # Revisión de CV: precio provisorio de ARS 12.000 en el código hasta que lo defina Eugenia.
+    # Revisión de CV: ARS 15.000 en el código (Gael, 23/11/2026); esta variable lo pisa sin tocar código.
     CV_REVIEW_PRICE: float | None = None
     FEATURED_JOB_PRICE: float | None = None
 

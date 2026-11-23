@@ -38,7 +38,7 @@ def talent_pack_price() -> float:
 
 # Revisión de CV (v4 §6): pago único de un postulante. **Precio provisorio** hasta que lo
 # defina Eugenia (decisión D15); se pisa con CV_REVIEW_PRICE sin tocar código.
-_CV_REVIEW_PRICE_BASE: float = 12000.0
+_CV_REVIEW_PRICE_BASE: float = 15000.0
 CV_REVIEW_CURRENCY: str = "ARS"
 
 

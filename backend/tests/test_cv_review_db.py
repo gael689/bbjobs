@@ -106,7 +106,7 @@ async def test_checkout_creates_candidate_payment_and_freezes_cv(maker):
     assert saved.status == "pending_payment"
     assert saved.cv_file_url_snapshot == CV
     assert saved.contact_value == "2915551234"  # por defecto, el teléfono del perfil
-    assert float(saved.price) == 12000.0
+    assert float(saved.price) == 15000.0
 
 
 async def test_checkout_requires_cv_phone_consent_and_sales_on(maker):

@@ -268,7 +268,7 @@ export default function HomeClient({
         <div className="max-w-4xl mx-auto text-center relative z-10">
           {/* Pill IA */}
           <div className="inline-flex items-center gap-2 bg-[#E6F4F7]/80 backdrop-blur-sm text-[#1E8EA3] border border-[#9ED4DF] rounded-full px-4 py-2 text-sm font-bold mb-8 shadow-sm">
-            {/* La versión del portal (v2.3 desde el 23/11/2026, ver lib/novedades.ts). */}
+            {/* La versión del portal (v3.0 desde el 23/11/2026, ver lib/novedades.ts). */}
             <span className="rounded-full bg-[#1E8EA3] px-2 py-0.5 text-[11px] font-extrabold text-white">
               v{VERSION_ACTUAL}
             </span>

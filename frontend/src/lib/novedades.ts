@@ -1,11 +1,11 @@
 /** Novedades por versión del panel (candidato, empresa y admin).
  *
  *  v2.1 (23/10/2026): buscador de postulantes, estrella y filtros. v2.2 (23/11/2026): WhatsApp,
- *  filtro de sueldo y "postularte es gratis". v2.3 (23/11/2026): Revisión de CV, mails e IA. Para sacar una
+ *  filtro de sueldo y "postularte es gratis". v3.0 (23/11/2026): Revisión de CV, mails e IA (lanzamiento; va con los términos 3.0). Para sacar una
  *  versión nueva alcanza con cambiar `VERSION_ACTUAL` y los textos de `NOVEDADES`: la clave del
  *  "ya lo vio" lleva la versión, así que el cartel vuelve a salir una vez para todos. */
 
-export const VERSION_ACTUAL = "2.3";
+export const VERSION_ACTUAL = "3.0";
 
 export type RolNovedades = "candidate" | "company" | "admin";
 
@@ -15,7 +15,7 @@ export interface Novedad {
   texto: string;
 }
 
-// v2.3 (23/11/2026): se abren los módulos nuevos (Revisión de CV, mails, IA). Las versiones
+// v3.0 (23/11/2026): se abren los módulos nuevos (Revisión de CV, mails, IA). Las versiones
 // anteriores (2.1 buscador de postulantes; 2.2 WhatsApp, filtro de sueldo, "es gratis") están en
 // el historial de git de este archivo.
 export const NOVEDADES: Record<RolNovedades, { bajada: string; items: Novedad[]; boton: { texto: string; href: string } }> = {
