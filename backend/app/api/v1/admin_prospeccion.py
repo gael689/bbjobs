@@ -76,6 +76,7 @@ async def save_sequence(payload: PasosIn, _: User = Depends(_admin), db: AsyncSe
         secuencia.apply_steps(c, [p.model_dump() for p in pasos])
     except secuencia.SequenceError as err:
         raise HTTPException(status_code=400, detail=str(err))
+    await secuencia.rerender_pending(db, c)
     await db.commit()
     return await _out(db)
 

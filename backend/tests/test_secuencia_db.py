@@ -119,6 +119,19 @@ async def test_pausada_los_mails_de_la_secuencia_esperan(maker):
     assert stats.sent == 0 and (await _filas(maker))[0].status == "pending"
 
 
+async def test_guardar_rearma_los_mails_que_esperan_en_la_cola(maker):
+    await _activa(maker)
+    await _empresas(maker, 2)
+    assert await _encolar(maker) == 2
+    async with maker() as db:
+        c = await secuencia.get_or_create(db)
+        secuencia.apply_steps(c, [{"subject": "Nuevo asunto {{empresa}}", "body": "Texto nuevo de Eugenia."}])
+        assert await secuencia.rerender_pending(db, c) == 2
+        await db.commit()
+    filas = await _filas(maker)
+    assert all(f.subject.startswith("Nuevo asunto Empresa") and "Texto nuevo de Eugenia." in f.text for f in filas)
+
+
 def test_validacion_de_los_pasos():
     c = EmailCampaign(subject="", body="", follow_ups=[])
     with pytest.raises(secuencia.SequenceError):

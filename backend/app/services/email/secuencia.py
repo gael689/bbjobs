@@ -126,6 +126,31 @@ def apply_steps(c: EmailCampaign, steps: list[dict]) -> None:
     c.follow_ups = follow
 
 
+async def rerender_pending(db: AsyncSession, c: EmailCampaign) -> int:
+    """Al guardar textos nuevos, los mails que esperan en la cola se vuelven a armar con ellos:
+    el texto se congela al encolar, y "lo nuevo vale para lo que no salió" tiene que ser cierto."""
+    from app.services.email.prospect_dispatch import render_for_prospect
+
+    pasos = steps_of(c)
+    rows = (await db.execute(select(EmailOutbox, Prospect).join(Prospect, Prospect.id == EmailOutbox.prospect_id).where(
+        EmailOutbox.campaign_id == c.id, EmailOutbox.status == EmailStatus.pending.value))).all()
+    n = 0
+    for row, prospect in rows:
+        if row.touch > len(pasos):
+            continue
+        paso = pasos[row.touch - 1]
+        if not paso["body"].strip():
+            row.status = EmailStatus.canceled.value
+            row.last_error = "ese mail de la secuencia quedó vacío"
+            continue
+        subject = paso["subject"] or (f"Re: {pasos[0]['subject']}" if row.touch > 1 else row.subject)
+        row.subject, rendered = render_for_prospect(prospect, subject=subject, body=paso["body"],
+                                                    cta_label=c.cta_label, cta_url=c.cta_url)
+        row.html, row.text = rendered.html, rendered.text
+        n += 1
+    return n
+
+
 async def is_active(db: AsyncSession) -> bool:
     return new_modules_enabled() and await get_setting(db, SettingKey.prospeccion_automatica_activa)
 
