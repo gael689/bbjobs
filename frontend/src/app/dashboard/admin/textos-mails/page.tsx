@@ -81,7 +81,8 @@ function Panel() {
             {num(d.enviados_hoy)}{d.tope_diario > 0 && <span className="text-base text-[#64748B]"> de {num(d.tope_diario)}</span>}
           </p>
           <p className="text-xs text-[#64748B] mt-2">
-            Tope por día para cuidar la reputación del dominio. Los pagos y la verificación de cuenta salen igual.
+            {d.tope_diario > 0 ? "Tope por día para cuidar la reputación del dominio. Los pagos y la verificación de cuenta salen igual."
+              : "Sin tope diario: salen todos (máximo 2 avisos por persona por día)."}
           </p>
         </Tarjeta>
         <Tarjeta titulo="Costo del mes">
