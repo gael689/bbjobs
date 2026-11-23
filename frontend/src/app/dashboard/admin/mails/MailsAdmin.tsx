@@ -508,10 +508,15 @@ function Casillas() {
 
 // ── Página ───────────────────────────────────────────────────────────────────────────────
 
-type Pestana = "respuestas" | "enviados" | "casillas" | "salud";
+export type Pestana = "respuestas" | "enviados" | "casillas" | "salud";
 
-export default function MailsAdminPage() {
-  const [pestana, setPestana] = useState<Pestana>("respuestas");
+export default function MailsAdmin({ inicial = "respuestas" }: { inicial?: Pestana }) {
+  const [pestana, setPestanaEstado] = useState<Pestana>(inicial);
+  // Cada pestaña tiene su dirección (/mails, /mails/enviados…) para entrar directo desde el menú.
+  function setPestana(p: Pestana) {
+    setPestanaEstado(p);
+    window.history.pushState(null, "", p === "respuestas" ? "/dashboard/admin/mails" : `/dashboard/admin/mails/${p}`);
+  }
   const aviso = useModulo<Salud>("/admin/mail/health");
 
   if (aviso.estado === "en_desarrollo") {

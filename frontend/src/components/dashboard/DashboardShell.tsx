@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useClerk, useAuth } from "@clerk/nextjs";
-import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, XMarkIcon, ArrowLeftIcon, ArrowRightOnRectangleIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { api, isSessionExpired } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NovedadesVersion, { MarcaVersion } from "@/components/dashboard/NovedadesVersion";
@@ -33,6 +33,9 @@ export interface DashboardNavItem {
   badge?: string;
   /** Contador fijo al lado del nombre ("Recomendados (5)"): sale del pedido de la campanita. */
   contador?: "recomendados";
+  /** Grupo plegable (admin): los ítems con la misma clave se abren y cierran juntos desde su
+   *  encabezado (`section` del primero). El grupo de la pantalla abierta no se puede cerrar. */
+  group?: string;
 }
 
 /** Lo que el panel pregunta cada minuto, en un solo pedido (`/me/notifications/summary`). */
@@ -53,6 +56,29 @@ function isActive(pathname: string | null, href: string, exact?: boolean) {
   return pathname === href || pathname?.startsWith(`${href}/`);
 }
 
+const CLAVE_GRUPOS = "bbjobs:menu-grupos";
+
+/** Qué grupos del menú están abiertos. Sin nada guardado, todos abiertos; lo que la persona
+ *  cierra queda cerrado entre visitas (localStorage, con try: puede no estar disponible). */
+function useGruposAbiertos() {
+  const [cerrados, setCerrados] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(window.localStorage.getItem(CLAVE_GRUPOS) || "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- se lee una vez al montar
+      if (Array.isArray(v)) setCerrados(v.filter(x => typeof x === "string"));
+    } catch { /* sin almacenamiento: todos abiertos */ }
+  }, []);
+  function alternar(grupo: string) {
+    setCerrados(prev => {
+      const next = prev.includes(grupo) ? prev.filter(g => g !== grupo) : [...prev, grupo];
+      try { window.localStorage.setItem(CLAVE_GRUPOS, JSON.stringify(next)); } catch { /* idem */ }
+      return next;
+    });
+  }
+  return { cerrados, alternar };
+}
+
 function NavLinks({
   navItems,
   pathname,
@@ -66,18 +92,34 @@ function NavLinks({
   recomendados: number;
   onNavigate?: () => void;
 }) {
+  const { cerrados, alternar } = useGruposAbiertos();
+  const grupoActivo = navItems.find(i => i.group && isActive(pathname, i.href, i.exact))?.group;
+  const cantidad = (g: string) => navItems.filter(i => i.group === g).length;
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
-      {navItems.map(({ href, label: nombre, icon: Icon, exact, section, badge, contador }) => {
+      {navItems.map(({ href, label: nombre, icon: Icon, exact, section, badge, contador, group }) => {
         const isNotifications = href.endsWith("/notificaciones");
         const label = contador === "recomendados" && recomendados > 0 ? `${nombre} (${recomendados})` : nombre;
+        const abierto = !group || group === grupoActivo || !cerrados.includes(group);
         return (
           <div key={`g-${href}`}>
-          {section && (
+          {section && (group ? (
+            <button
+              type="button"
+              onClick={() => group !== grupoActivo && alternar(group)}
+              aria-expanded={abierto}
+              className="w-full flex items-center gap-2 px-3 pt-4 pb-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-[#5C767D] hover:text-[#A9C0C6] transition-colors"
+            >
+              <span className="flex-1 text-left">{section}</span>
+              {!abierto && <span className="normal-case tracking-normal font-bold text-[#5C767D]">{cantidad(group)}</span>}
+              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${abierto ? "" : "-rotate-90"}`} />
+            </button>
+          ) : (
             <p className="px-3 pt-4 pb-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-[#5C767D]">
               {section}
             </p>
-          )}
+          ))}
+          {abierto && (
           <Link
             key={href}
             href={href}
@@ -101,6 +143,7 @@ function NavLinks({
               </span>
             )}
           </Link>
+          )}
           </div>
         );
       })}

@@ -118,7 +118,7 @@ export default function AdminModulosPage() {
 
   return (
     <div className="px-4 sm:px-6 py-8">
-      <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Mails e IA</h1>
+      <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Interruptores</h1>
       <p className="text-[#64748B] text-sm mb-6">Interruptores de los módulos nuevos y gasto de IA de los últimos 30 días.</p>
 
       {error && <div className="mb-4 rounded-xl px-4 py-2.5 text-sm font-medium bg-red-50 text-red-800">{error}</div>}

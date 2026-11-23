@@ -203,7 +203,17 @@ function Tarjeta({ a, dias, franja }: { a: Agente; dias: number; franja: [number
   );
 }
 
-export default function Agentes() {
+// Filtros que usa el menú por área (lib/adminMenu.ts). Prospección = los dos agentes de campañas;
+// el Moderador, aunque es "para Talency", no tiene que ver con prospectar.
+const GRUPOS: Record<"recomendaciones" | "prospeccion" | "asistentes", { titulo: string; incluye: (a: Agente) => boolean }> = {
+  recomendaciones: { titulo: "Agentes de recomendación", incluye: a => a.team === "recomendaciones" },
+  prospeccion: { titulo: "Agentes de prospección y campañas", incluye: a => a.key === "redactor_campanas" || a.key === "audiencias" },
+  asistentes: { titulo: "Asistentes", incluye: a => a.team === "asistentes" },
+};
+
+export default function Agentes({ grupo = null, onVerTodos }: {
+  grupo?: keyof typeof GRUPOS | null; onVerTodos?: () => void;
+} = {}) {
   const [datos, setDatos] = useState<Respuesta | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -215,10 +225,23 @@ export default function Agentes() {
   if (!datos) return <div className="py-12 flex justify-center"><Spinner /></div>;
 
   const nombres = Object.fromEntries(datos.agents.map(a => [a.key, a.name]));
+  const filtro = grupo ? GRUPOS[grupo] : null;
+  // El recorrido y los controles son de las recomendaciones: no se muestran con otro filtro.
+  const conRecorrido = !grupo || grupo === "recomendaciones";
   return (
     <div className="flex flex-col gap-8">
-      {datos.checks?.length > 0 && <Controles controles={datos.checks} dias={datos.days} />}
-      <section className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm">
+      {filtro && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9ED4DF] bg-[#E6F4F7] px-4 py-3">
+          <p className="text-sm font-bold text-[#187B8E]">Mostrando: {filtro.titulo}</p>
+          {onVerTodos && (
+            <button type="button" onClick={onVerTodos} className="text-sm font-bold text-[#187B8E] underline">
+              Ver todos los agentes
+            </button>
+          )}
+        </div>
+      )}
+      {conRecorrido && datos.checks?.length > 0 && <Controles controles={datos.checks} dias={datos.days} />}
+      {conRecorrido && <section className="bg-white border border-[#DDE3EC] rounded-2xl p-5 shadow-sm">
         <h3 className="font-display font-bold text-[#1C2230]">Cómo se arma una recomendación</h3>
         <p className="text-sm text-[#1C2230] mt-1 mb-4">
           Cada agente hace una sola cosa y le pasa el resultado al siguiente. Entre uno y otro, el sistema controla lo que
@@ -236,10 +259,10 @@ export default function Agentes() {
           Gasto de hoy: <strong>{usd(datos.today_usd)}</strong> de un tope de {usd(datos.daily_budget_usd)}. Al llegar al tope, la IA
           se pausa sola hasta mañana y las recomendaciones siguen con el puntaje sin IA.
         </p>
-      </section>
+      </section>}
 
       {EQUIPOS.map(eq => {
-        const lista = datos.agents.filter(a => a.team === eq.clave);
+        const lista = datos.agents.filter(a => a.team === eq.clave && (!filtro || filtro.incluye(a)));
         if (!lista.length) return null;
         return (
           <section key={eq.clave}>

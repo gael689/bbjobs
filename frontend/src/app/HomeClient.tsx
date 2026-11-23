@@ -26,6 +26,7 @@ import { jobUrl } from "@/lib/seo/urls";
 import { VERSION_ACTUAL } from "@/lib/novedades";
 import { useEncajaConTuPerfil } from "@/hooks/useEncajaConTuPerfil";
 import EncajaChip from "@/components/jobs/EncajaChip";
+import LoNuevo, { CintaNovedades } from "@/components/home/LoNuevo";
 
 interface Job extends PreviewJob {
   is_featured?: boolean;
@@ -272,7 +273,7 @@ export default function HomeClient({
               v{VERSION_ACTUAL}
             </span>
             <span className="ai-dot w-2 h-2 rounded-full bg-[#1E8EA3] inline-block" />
-            Próximamente: oportunidades recomendadas según tu perfil
+            Nuevo: recomendaciones con IA, avisos por mail y Revisión de CV
           </div>
 
           <h1 className="font-display font-extrabold text-5xl md:text-[64px] text-[#1C2230] leading-[1.1] tracking-tight mb-6">
@@ -341,6 +342,9 @@ export default function HomeClient({
           </div>
         </div>
       </section>
+
+      {/* Lanzamiento de los módulos nuevos (23/11/2026): la franja que se desliza. */}
+      <CintaNovedades />
 
 
       {/* ══════════════════════════════════
@@ -486,15 +490,16 @@ export default function HomeClient({
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
                   <SparklesIcon className="w-5 h-5 text-[#1E8EA3]" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#1E8EA3]">Próximamente</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#1E8EA3]">Nuevo</span>
                 </div>
-                <h3 className="font-display font-bold text-[#1C2230] mb-2">Oportunidades para vos</h3>
+                <h3 className="font-display font-bold text-[#1C2230] mb-2">Búsquedas para vos</h3>
                 <p className="text-xs text-[#64748B] mb-4 leading-relaxed">
-                  BBJobs te recomendará búsquedas acordes con tu experiencia, formación e intereses laborales.
+                  Cargá tu CV y BBJobs te recomienda las búsquedas que mejor encajan con tu experiencia y formación.
                 </p>
-                <button disabled className="w-full bg-[#1E8EA3]/20 text-[#1E8EA3] text-sm font-bold rounded-xl py-2.5 cursor-not-allowed opacity-70">
-                  Quiero recibir novedades
-                </button>
+                <Link href="/register?type=candidate" prefetch={false}
+                  className="block w-full text-center bg-[#1E8EA3] hover:bg-[#187B8E] text-white text-sm font-bold rounded-xl py-2.5 transition-colors">
+                  Cargar mi CV gratis
+                </Link>
               </div>
             </div>
 
@@ -512,6 +517,9 @@ export default function HomeClient({
           </aside>
         </div>
       </section>
+
+      {/* Lo nuevo: tres tarjetas grandes con los módulos que se lanzaron el 23/11/2026. */}
+      <LoNuevo />
 
       {/* Empleos por sector y por zona (server-rendered, links a las páginas indexables). */}
       {bloqueBusquedas}
@@ -539,7 +547,7 @@ export default function HomeClient({
                 {[
                   "Publicación de búsquedas laborales en pocos minutos",
                   "Panel centralizado para gestionar todas las postulaciones",
-                  "Herramientas de IA para filtrar y ordenar candidatos según los requisitos del puesto — Próximamente",
+                  "Candidatos recomendados con IA para cada búsqueda, con el porqué de cada uno",
                   "Evaluaciones psicométricas opcionales y acceso a resultados — Próximamente",
                   "Verificación de la cuenta empresarial por Talency",
                 ].map(item => (
@@ -567,7 +575,7 @@ export default function HomeClient({
                 { icon: ShieldCheckIcon, title: "Empresas verificadas", desc: "Talency revisa cada cuenta empresarial antes de habilitar la publicación de búsquedas." },
                 { icon: CursorArrowRaysIcon, title: "Postulaciones simples y completas", desc: "Los candidatos se postulan utilizando la información de su perfil, sin volver a cargar sus datos en cada búsqueda." },
                 { icon: ChartBarIcon, title: "Observatorio laboral", desc: "Indicadores locales generados a partir de las búsquedas publicadas en BBJobs: puestos, rubros, requisitos y rangos salariales." },
-                { icon: SparklesIcon, title: "Filtrado inteligente — Próximamente", desc: "Herramientas de IA para filtrar y ordenar candidatos según los requisitos del puesto." },
+                { icon: SparklesIcon, title: "Recomendados con IA · Nuevo", desc: "Para cada búsqueda, los perfiles que mejor encajan con los requisitos del puesto, con el porqué. Siempre decidís vos." },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="bg-[#FAFBFD] border border-[#DDE3EC] rounded-2xl p-5 hover:border-[#1E8EA3]/30 hover:shadow-sm transition-all">
                   <div className="w-10 h-10 bg-[#E6F4F7] rounded-xl flex items-center justify-center mb-4 border border-[#9ED4DF]">

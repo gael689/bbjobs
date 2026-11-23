@@ -188,3 +188,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .aviso-entra, .aviso-sale, .aviso-brillo, .anillo-llena { animation: none; }
 }
+
+/* Cinta de novedades del inicio (components/home/LoNuevo.tsx): se corre la mitad de su ancho,
+   que es un tramo entero, y vuelve a empezar sin que se note el corte. */
+@keyframes cinta-novedades { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.cinta-novedades { animation: cinta-novedades 45s linear infinite; }
+.cinta-novedades:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .cinta-novedades { animation: none; } }
