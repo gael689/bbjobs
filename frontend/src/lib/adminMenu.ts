@@ -65,7 +65,7 @@ export const ADMIN_GROUPS: AdminGroup[] = [
     links: [
       { href: MAILS, label: "Respuestas", icon: InboxArrowDownIcon, desc: "Lo que la gente contesta a nuestros mails.", exact: true },
       { href: `${MAILS}/enviados`, label: "Mails enviados", icon: PaperAirplaneIcon, desc: "Cada mail que salió y si se entregó.", exact: true },
-      { href: "/dashboard/admin/textos-mails", label: "Textos de los mails", icon: PencilSquareIcon, desc: "Cambiar el asunto y el texto de cada mail automático, o apagarlo." },
+      { href: "/dashboard/admin/textos-mails", label: "Mails automáticos", icon: PencilSquareIcon, desc: "Todos los mails que salen solos: prenderlos, apagarlos, editarlos, cuota y costo." },
       { href: `${MAILS}/salud`, label: "Salud de los mails", icon: HeartIcon, desc: "Rebotes, quejas y dominios verificados.", exact: true },
       { href: IA, label: "Panorama de la IA", icon: BoltIcon, desc: "Estado, rendimiento y gasto de la IA.", exact: true },
       { href: `${IA}/actividad`, label: "Actividad y acciones", icon: ListBulletIcon, desc: "Qué hizo la IA y lanzarla a mano.", exact: true },

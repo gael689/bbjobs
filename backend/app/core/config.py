@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     # dominio nuevo arranca en ~150/día. Se sube a mano semana a semana; 0 = sin tope. Los de la
     # categoría `cuenta` (pagos, verificación) salen aunque se haya llegado al tope.
     EMAIL_DAILY_CAP: int = 150
+    # Plan de Resend, sólo para mostrarle a Eugenia el costo (Pro: USD 20 por mes, 50.000 mails).
+    RESEND_PLAN_NAME: str = "Pro"
+    RESEND_PLAN_USD: float = 20.0
     # Modo prueba: lista de mails separados por coma. Si tiene algo, SÓLO salen mails a esas
     # direcciones (avisos, novedades y prospección); el resto se marca `skipped` con el motivo
     # "modo prueba". Sirve para probar con mails reales sin que les llegue nada a los usuarios.

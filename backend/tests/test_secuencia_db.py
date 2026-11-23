@@ -185,3 +185,28 @@ async def test_texto_editado_llega_al_mail_y_se_puede_volver_al_original(client,
 
     r = await client.delete("/api/v1/admin/mail/templates/application_selected")
     assert r.json()["editado"] is False and r.json()["asunto"] == sel["asunto"]
+
+
+async def test_lista_todos_los_mails_automaticos_y_se_apagan_los_que_arma_el_sistema(client, maker):
+    await _como_admin(maker)
+    lista = {t["key"]: t for t in (await client.get("/api/v1/admin/mail/templates")).json()}
+    assert lista["digest_para_vos"]["editable"] is False and lista["digest_para_vos"]["activo"] is True
+    assert "aviso_busquedas" in lista and "digest_equipo" in lista
+    assert "application_new_status" not in lista      # sólo web, no manda mail
+    assert "job_pending_review" not in lista          # va adentro del resumen del equipo
+    r = await client.put("/api/v1/admin/mail/templates/digest_para_vos", json={"activo": False})
+    assert r.status_code == 200 and r.json()["activo"] is False
+    assert (await client.put("/api/v1/admin/mail/templates/digest_para_vos", json={"texto": "x"})).status_code == 400
+    lista = {t["key"]: t for t in (await client.get("/api/v1/admin/mail/templates")).json()}
+    assert lista["digest_para_vos"]["activo"] is False
+
+
+async def test_cuota_y_costo_sin_resend_cuenta_la_cola(client, maker, monkeypatch):
+    monkeypatch.setattr(settings, "RESEND_API_KEY", None)
+    await _como_admin(maker)
+    r = await client.get("/api/v1/admin/mail/overview")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["cuota"]["fuente"] == "bbjobs" and d["costo"]["plan_usd"] == 20.0
+    assert d["costo"]["total_mes_usd"] >= 20.0
+    assert (await client.get("/api/v1/admin/mail/sent", params={"template_key": "digest_para_vos"})).status_code == 200

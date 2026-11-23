@@ -214,3 +214,18 @@ async def list_domains(*, api_key: str | None = None) -> list[dict]:
         raise _classify(response)
     body = response.json()
     return list(body.get("data", body) if isinstance(body, dict) else body)
+
+
+async def get_usage(*, api_key: str | None = None) -> dict:
+    """Cuota de la cuenta (`GET /usage`): mails usados hoy y en el mes contra el límite del plan.
+    Necesita una clave de acceso completo."""
+    if not (api_key or is_configured()):
+        raise EmailSendError("RESEND_API_KEY no configurada", transient=False)
+    try:
+        async with _make_client() as client:
+            response = await client.get("/usage", headers=_headers(None, api_key))
+    except httpx.HTTPError as exc:
+        raise EmailSendError(f"Error de red hablando con Resend: {exc}", transient=True) from exc
+    if response.status_code >= 400:
+        raise _classify(response)
+    return response.json()

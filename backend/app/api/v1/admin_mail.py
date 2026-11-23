@@ -77,6 +77,7 @@ class SentPage(BaseModel):
 @router.get("/admin/mail/sent", response_model=SentPage)
 async def sent_mails(
     category: Optional[str] = None, delivery: Optional[Delivery] = None,
+    template_key: Optional[str] = Query(default=None, max_length=80),
     q: Optional[str] = Query(default=None, max_length=120),
     page: int = Query(default=1, ge=1), per_page: int = Query(default=30, ge=1, le=100),
     _: User = Depends(_admin), db: AsyncSession = Depends(get_db),
@@ -84,6 +85,8 @@ async def sent_mails(
     stmt = select(EmailOutbox)
     if category:
         stmt = stmt.where(EmailOutbox.category == category)
+    if template_key:
+        stmt = stmt.where(EmailOutbox.template_key == template_key)
     if q:
         like = f"%{q.strip().lower()}%"
         stmt = stmt.where(or_(func.lower(EmailOutbox.to_email).like(like), func.lower(EmailOutbox.subject).like(like)))
@@ -276,6 +279,75 @@ async def mail_health(_: User = Depends(_admin), db: AsyncSession = Depends(get_
         by_category=[CategoryStats(category=c, sent=s, delivered=d, opened=o, bounced=b, complained=q)
                      for c, s, d, o, b, q in cats],
         daily=daily, domains=domains, domains_error=error,
+    )
+
+
+# ── Cuota y costo (Gael, 23/11/2026: "que ella pueda ver su costo y su cuota de mails") ───
+
+class CuotaOut(BaseModel):
+    # De Resend (`GET /usage`) si responde; si no, lo que cuenta la cola (fuente "bbjobs").
+    fuente: Literal["resend", "bbjobs"]
+    mes_usados: int
+    mes_limite: Optional[int]
+    mes_reinicia: Optional[datetime]
+    hoy_usados: int
+    error: Optional[str] = None
+
+
+class CostoOut(BaseModel):
+    plan: str
+    plan_usd: float
+    mails_mes: int            # los que salieron este mes (calendario de Argentina)
+    costo_por_mail_usd: Optional[float]
+    ia_mes_usd: float         # lo gastado en Gemini este mes
+    total_mes_usd: float
+
+
+class OverviewOut(BaseModel):
+    mode: str
+    test_recipients: list[str]
+    tope_diario: int
+    enviados_hoy: int
+    cuota: CuotaOut
+    costo: CostoOut
+
+
+def _month_start(now: datetime) -> datetime:
+    day = local_day_start(now).astimezone(digests.AR_TZ)
+    return day.replace(day=1).astimezone(timezone.utc)
+
+
+@router.get("/admin/mail/overview", response_model=OverviewOut)
+async def mail_overview(_: User = Depends(_admin), db: AsyncSession = Depends(get_db)):
+    from app.models.ai import AiUsageLog
+
+    now = datetime.now(timezone.utc)
+    sent = EmailOutbox.status == EmailStatus.sent.value
+    hoy = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
+        sent, EmailOutbox.sent_at >= local_day_start(now)))).scalar_one()
+    mes = (await db.execute(select(func.count()).select_from(EmailOutbox).where(
+        sent, EmailOutbox.sent_at >= _month_start(now)))).scalar_one()
+    ia = float((await db.execute(select(func.coalesce(func.sum(AiUsageLog.cost_usd), 0)).where(
+        AiUsageLog.created_at >= _month_start(now)))).scalar_one())
+
+    cuota = CuotaOut(fuente="bbjobs", mes_usados=mes, mes_limite=None, mes_reinicia=None, hoy_usados=hoy)
+    if settings.RESEND_API_KEY:
+        try:
+            u = (await resend_client.get_usage(api_key=settings.RESEND_API_KEY)).get("emails") or {}
+            m, d = u.get("monthly") or {}, u.get("daily") or {}
+            cuota = CuotaOut(fuente="resend", mes_usados=int(m.get("used") or 0), mes_limite=m.get("limit"),
+                             mes_reinicia=m.get("resets_at"), hoy_usados=int(d.get("used") or 0))
+        except Exception as exc:   # sin red o clave sin permiso: queda lo que cuenta la cola
+            cuota.error = str(exc)[:200]
+            logger.warning("mail_overview_usage_fallo", error=cuota.error)
+
+    plan = float(settings.RESEND_PLAN_USD)
+    return OverviewOut(
+        mode=resolve_mode(), test_recipients=sorted(settings.email_test_recipients),
+        tope_diario=settings.EMAIL_DAILY_CAP, enviados_hoy=hoy, cuota=cuota,
+        costo=CostoOut(plan=settings.RESEND_PLAN_NAME, plan_usd=plan, mails_mes=mes,
+                       costo_por_mail_usd=round(plan / mes, 4) if mes else None,
+                       ia_mes_usd=round(ia, 2), total_mes_usd=round(plan + ia, 2)),
     )
 
 
