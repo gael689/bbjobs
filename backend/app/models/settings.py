@@ -40,6 +40,9 @@ class SettingKey(str, enum.Enum):
     # (services/other_processes.py). Interruptor de producto, no de módulo nuevo: apagado hasta
     # que la política de privacidad lo mencione y el candidato pueda oponerse.
     aviso_otros_procesos_activo = "aviso_otros_procesos_activo"
+    # Prospección automática (services/email/secuencia.py): las empresas nuevas entran solas a la
+    # secuencia de 3 mails. Apagada = pausa: no entra nadie nuevo ni sale nada de la secuencia.
+    prospeccion_automatica_activa = "prospeccion_automatica_activa"
 
 
 # Apagados por defecto: se publican recién cuando Talency lo decide.
@@ -53,6 +56,7 @@ SETTING_DEFAULTS: dict[SettingKey, bool] = {
     SettingKey.busqueda_ia_activa: False,
     SettingKey.asistente_ia_activo: False,
     SettingKey.aviso_otros_procesos_activo: False,
+    SettingKey.prospeccion_automatica_activa: False,
 }
 
 # Interruptores de módulos en desarrollo: con la compuerta MODULOS_NUEVOS_ACTIVOS cerrada no
@@ -64,6 +68,7 @@ NEW_MODULE_SETTINGS: frozenset[SettingKey] = frozenset({
     SettingKey.revision_cv_activa,
     SettingKey.busqueda_ia_activa,
     SettingKey.asistente_ia_activo,
+    SettingKey.prospeccion_automatica_activa,
 })
 
 

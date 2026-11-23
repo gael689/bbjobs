@@ -3,7 +3,7 @@ import {
   ChatBubbleLeftRightIcon, CreditCardIcon, BellIcon, SparklesIcon, MagnifyingGlassCircleIcon,
   MegaphoneIcon, DocumentMagnifyingGlassIcon, BuildingStorefrontIcon, PresentationChartLineIcon,
   BoltIcon, InboxArrowDownIcon, PaperAirplaneIcon, HeartIcon, AtSymbolIcon,
-  CpuChipIcon, UserGroupIcon, AdjustmentsHorizontalIcon, ListBulletIcon,
+  CpuChipIcon, UserGroupIcon, AdjustmentsHorizontalIcon, ListBulletIcon, PencilSquareIcon, RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
 
 /**
@@ -65,6 +65,7 @@ export const ADMIN_GROUPS: AdminGroup[] = [
     links: [
       { href: MAILS, label: "Respuestas", icon: InboxArrowDownIcon, desc: "Lo que la gente contesta a nuestros mails.", exact: true },
       { href: `${MAILS}/enviados`, label: "Mails enviados", icon: PaperAirplaneIcon, desc: "Cada mail que salió y si se entregó.", exact: true },
+      { href: "/dashboard/admin/textos-mails", label: "Textos de los mails", icon: PencilSquareIcon, desc: "Cambiar el asunto y el texto de cada mail automático, o apagarlo." },
       { href: `${MAILS}/salud`, label: "Salud de los mails", icon: HeartIcon, desc: "Rebotes, quejas y dominios verificados.", exact: true },
       { href: IA, label: "Panorama de la IA", icon: BoltIcon, desc: "Estado, rendimiento y gasto de la IA.", exact: true },
       { href: `${IA}/actividad`, label: "Actividad y acciones", icon: ListBulletIcon, desc: "Qué hizo la IA y lanzarla a mano.", exact: true },
@@ -74,12 +75,13 @@ export const ADMIN_GROUPS: AdminGroup[] = [
   },
   {
     key: "prospeccion",
-    title: "Prospección y campañas",
-    desc: "Conseguir empresas nuevas y mandar mails masivos, con sus casillas y sus agentes.",
+    title: "Prospección y mails masivos",
+    desc: "Conseguir empresas nuevas con mails que salen solos, y mails puntuales a los usuarios.",
     links: [
+      { href: "/dashboard/admin/prospeccion", label: "Prospección automática", icon: RocketLaunchIcon, desc: "Los 3 mails que reciben solas las empresas nuevas. Editarlos, prender o pausar." },
       { href: "/dashboard/admin/empresas-potenciales", label: "Empresas a contactar", icon: BuildingStorefrontIcon, desc: "Las empresas que llegan del centro, por etapa." },
-      { href: "/dashboard/admin/campanas", label: "Campañas", icon: MegaphoneIcon, desc: "Mails masivos a usuarios o a empresas a contactar." },
       { href: `${MAILS}/casillas`, label: "Casillas de envío", icon: AtSymbolIcon, desc: "Desde qué casillas sale la prospección y su cupo diario.", exact: true },
+      { href: "/dashboard/admin/campanas", label: "Campañas a usuarios", icon: MegaphoneIcon, desc: "Mails puntuales a postulantes o empresas registradas, con aprobación." },
       { href: `${IA}/agentes/prospeccion`, label: "Agentes de prospección", icon: CpuChipIcon, desc: "Redactor de campañas y Audiencias.", exact: true },
     ],
   },

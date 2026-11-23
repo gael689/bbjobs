@@ -115,7 +115,10 @@ async def audiences(zone_id: Optional[uuid.UUID] = None, industry_id: Optional[u
 
 @router.get("/admin/campaigns", response_model=list[CampaignOut])
 async def list_campaigns(_: User = Depends(_admin), db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(EmailCampaign).order_by(EmailCampaign.created_at.desc()).limit(200))).scalars().all()
+    # La prospección automática vive en su propia pantalla (services/email/secuencia.py).
+    from app.services.email.secuencia import AUTO_KEY
+    rows = (await db.execute(select(EmailCampaign).where(EmailCampaign.audience_key.is_distinct_from(AUTO_KEY))
+                             .order_by(EmailCampaign.created_at.desc()).limit(200))).scalars().all()
     return [_out(c) for c in rows]
 
 

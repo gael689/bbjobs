@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -154,9 +154,15 @@ async def dispatch_prospects(*, session_maker=async_session_maker, sender: Prosp
             remaining = min(remaining, sum(s.left for s in slot_list))
         if remaining <= 0:
             return stats
+        # Prospección automática en pausa: sus mails (también los seguimientos) esperan en la cola.
+        from app.services.email import secuencia
+        paused = [] if await secuencia.is_active(db) else list((await db.execute(
+            select(EmailCampaign.id).where(EmailCampaign.audience_key == secuencia.AUTO_KEY))).scalars().all())
         rows = list((await db.execute(
             select(EmailOutbox).where(EmailOutbox.category == _CAT, EmailOutbox.status == EmailStatus.pending.value,
-                                      EmailOutbox.scheduled_at <= now)
+                                      EmailOutbox.scheduled_at <= now,
+                                      or_(EmailOutbox.campaign_id.is_(None), EmailOutbox.campaign_id.notin_(paused))
+                                      if paused else true())
             .order_by(EmailOutbox.touch.desc(), EmailOutbox.scheduled_at).limit(remaining)
             .with_for_update(skip_locked=True)
         )).scalars().all())

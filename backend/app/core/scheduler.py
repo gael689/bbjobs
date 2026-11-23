@@ -210,8 +210,10 @@ async def campaigns_tick():
     from app.services.email.monthly import prepare_monthly_draft, prepare_weekly_draft
     from app.services.email.prospect_dispatch import dispatch_prospects
     try:
+        from app.services.email.secuencia import enqueue_new
         async with async_session_maker() as db:
             await materialize_due(db)
+            await enqueue_new(db)   # prospección automática: empresas nuevas a la secuencia
             await prepare_monthly_draft(db)
             await prepare_weekly_draft(db)   # lunes 09:00: siempre en borrador
             await db.commit()

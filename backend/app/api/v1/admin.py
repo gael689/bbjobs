@@ -1332,6 +1332,7 @@ class SiteSettingsResponse(BaseModel):
     volumen los haga significativos, sin tocar código."""
     stats_visibles_para_candidatos: bool
     stats_visibles_en_landing: bool
+    prospeccion_automatica_activa: Optional[bool] = None
     # Módulos en desarrollo: None (y fuera de la respuesta) con la compuerta cerrada.
     emails_automaticos_activos: Optional[bool] = None
     ia_recomendaciones_activas: Optional[bool] = None
@@ -1343,6 +1344,7 @@ class SiteSettingsResponse(BaseModel):
 
 
 class SiteSettingsUpdate(BaseModel):
+    prospeccion_automatica_activa: Optional[bool] = None
     stats_visibles_para_candidatos: Optional[bool] = None
     stats_visibles_en_landing: Optional[bool] = None
     emails_automaticos_activos: Optional[bool] = None

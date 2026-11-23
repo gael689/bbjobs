@@ -71,7 +71,7 @@ function Campanas() {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-display font-bold text-[#1C2230] mb-1">Campañas</h1>
-          <p className="text-[#64748B] text-sm">Nada sale sin tu aprobación. Antes de aprobar ves cuántas personas la reciben.</p>
+          <p className="text-[#64748B] text-sm">Mails puntuales a los usuarios de BBJobs (postulantes o empresas registradas). Nada sale sin tu aprobación y antes ves cuántas personas la reciben. Para empresas que todavía no están en BBJobs, usá la Prospección automática.</p>
         </div>
         {!editando && (
           <button onClick={() => { setDetalle(null); setEditando("nueva"); }}

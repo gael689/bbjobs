@@ -226,6 +226,10 @@ export default function EditorCampana({ campana, seleccionProspectos = null, onC
             <input className={input} value={nombre} onChange={e => setNombre(e.target.value)} maxLength={200} />
           </div>
 
+          {/* Las campañas son a usuarios de BBJobs. A empresas a contactar sólo se llega desde
+              «Empresas a contactar» (mail puntual a las elegidas); lo de todos los días es la
+              Prospección automática, que tiene su pantalla (pedido de Gael, 23/11/2026). */}
+          {(destino === "prospects" || seleccionProspectos) && (
           <div>
             <label className={label}>¿A quién?</label>
             <div className="flex gap-2">
@@ -237,6 +241,7 @@ export default function EditorCampana({ campana, seleccionProspectos = null, onC
               ))}
             </div>
           </div>
+          )}
 
           {destino === "users" ? (
             <>
