@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import {
-  AdjustmentsHorizontalIcon, BookmarkIcon, MagnifyingGlassIcon, SparklesIcon,
+  AdjustmentsHorizontalIcon, BanknotesIcon, BookmarkIcon, CheckBadgeIcon, MagnifyingGlassIcon, ShareIcon, SparklesIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon } from "@heroicons/react/24/solid";
 import {
@@ -19,6 +19,9 @@ const ICONOS: Record<Novedad["icono"], React.ReactNode> = {
   estrella: <StarIcon className="w-5 h-5 text-amber-400" />,
   filtros: <AdjustmentsHorizontalIcon className="w-5 h-5 text-[#1E8EA3]" />,
   guardado: <BookmarkIcon className="w-5 h-5 text-[#1E8EA3]" />,
+  compartir: <ShareIcon className="w-5 h-5 text-[#1E8EA3]" />,
+  sueldo: <BanknotesIcon className="w-5 h-5 text-[#1E8EA3]" />,
+  gratis: <CheckBadgeIcon className="w-5 h-5 text-[#1E8EA3]" />,
 };
 
 function subscribe(onChange: () => void) {

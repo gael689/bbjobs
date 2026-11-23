@@ -185,9 +185,8 @@ export default function DashboardShell({
             </span>
           </Link>
           <p className="text-xs font-bold text-[#5C767D] uppercase tracking-wider mt-3">{ROLE_LABEL[role]}</p>
-          {/* La versión en todos los paneles; las novedades, por ahora, sólo para empresas y
-              Talency (v2.1, 23/10/2026). */}
-          <MarcaVersion conNovedades={role !== "candidate"} />
+          {/* La versión y sus novedades en todos los paneles (candidatos desde la v2.2). */}
+          <MarcaVersion />
         </div>
 
         <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados} />
@@ -239,7 +238,7 @@ export default function DashboardShell({
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div>
                 <p className="text-xs font-bold text-[#5C767D] uppercase tracking-wider">{ROLE_LABEL[role]}</p>
-                <MarcaVersion conNovedades={role !== "candidate"} />
+                <MarcaVersion />
               </div>
               <button onClick={() => setMobileOpen(false)} className="p-1 text-[#A9C0C6]" aria-label="Cerrar menú">
                 <XMarkIcon className="w-5 h-5" />
@@ -277,7 +276,7 @@ export default function DashboardShell({
       {MODULOS_NUEVOS_VISIBLES && role === "company" && (
         <BombitaRecomendados pendientes={resumen?.recommended ?? null} usuario={userId} />
       )}
-      {role !== "candidate" && <NovedadesVersion rol={role} />}
+      <NovedadesVersion rol={role} />
     </div>
   );
 }
