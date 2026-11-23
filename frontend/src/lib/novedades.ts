@@ -1,85 +1,86 @@
 /** Novedades por versión del panel (candidato, empresa y admin).
  *
  *  v2.1 (23/10/2026): buscador de postulantes, estrella y filtros. v2.2 (23/11/2026): WhatsApp,
- *  filtro de sueldo y "postularte es gratis". Para sacar una
+ *  filtro de sueldo y "postularte es gratis". v2.3 (23/11/2026): Revisión de CV, mails e IA. Para sacar una
  *  versión nueva alcanza con cambiar `VERSION_ACTUAL` y los textos de `NOVEDADES`: la clave del
  *  "ya lo vio" lleva la versión, así que el cartel vuelve a salir una vez para todos. */
 
-export const VERSION_ACTUAL = "2.2";
+export const VERSION_ACTUAL = "2.3";
 
 export type RolNovedades = "candidate" | "company" | "admin";
 
 export interface Novedad {
-  icono: "buscar" | "estrella" | "filtros" | "guardado" | "compartir" | "sueldo" | "gratis";
+  icono: "buscar" | "estrella" | "filtros" | "guardado" | "compartir" | "sueldo" | "gratis" | "revision" | "ia" | "mail";
   titulo: string;
   texto: string;
 }
 
-// v2.2 (23/11/2026): lo que se ve con los módulos nuevos apagados. La v2.1 (buscador de
-// postulantes, estrella, filtros) está en el historial de git de este archivo.
+// v2.3 (23/11/2026): se abren los módulos nuevos (Revisión de CV, mails, IA). Las versiones
+// anteriores (2.1 buscador de postulantes; 2.2 WhatsApp, filtro de sueldo, "es gratis") están en
+// el historial de git de este archivo.
 export const NOVEDADES: Record<RolNovedades, { bajada: string; items: Novedad[]; boton: { texto: string; href: string } }> = {
   candidate: {
-    bajada: "Buscar trabajo en Bahía Blanca, un poco más fácil.",
+    bajada: "Más ayuda para conseguir trabajo en Bahía Blanca.",
     items: [
       {
-        icono: "sueldo",
-        titulo: "Filtro “Sólo con sueldo publicado”",
-        texto: "En Empleos, marcá la casilla y quedate sólo con los avisos que dicen cuánto pagan.",
+        icono: "revision",
+        titulo: "Nuevo: Revisión de CV",
+        texto: "Una persona de Talency revisa tu CV pensando en el puesto que buscás y te da su devolución para mejorarlo, por WhatsApp o mail. Lo pedís desde «Revisión de CV» en tu panel.",
       },
       {
-        icono: "compartir",
-        titulo: "Compartí avisos por WhatsApp",
-        texto: "¿Viste un aviso que le sirve a alguien? Tocá “Compartir por WhatsApp” y le llega con el puesto, la empresa y el link.",
+        icono: "ia",
+        titulo: "Búsquedas para vos",
+        texto: "En el inicio de tu panel te mostramos las búsquedas que mejor encajan con tu perfil. Cuanto más completo esté, mejores son.",
       },
       {
-        icono: "gratis",
-        titulo: "Postularte es gratis",
-        texto: "Todas las empresas de BBJobs las verifica Talency. Si alguien te pide plata por postularte, avisanos desde Contacto.",
+        icono: "mail",
+        titulo: "Avisos por mail",
+        texto: "Te avisamos cuando una empresa mira tu CV o cambia el estado de tu postulación. Elegís qué recibir desde Mi perfil.",
       },
     ],
-    boton: { texto: "Ver empleos", href: "/empleos" },
+    boton: { texto: "Pedir mi Revisión de CV", href: "/dashboard/candidate/revision-cv" },
   },
   company: {
-    bajada: "Tus avisos ahora llegan más lejos y se encuentran más fácil.",
+    bajada: "Encontrá antes a la persona indicada.",
     items: [
+      {
+        icono: "ia",
+        titulo: "Candidatos recomendados",
+        texto: "En «Recomendados» te mostramos los postulantes y perfiles que mejor encajan con cada búsqueda, con el porqué de cada uno. Siempre decidís vos.",
+      },
+      {
+        icono: "mail",
+        titulo: "Avisos por mail",
+        texto: "Te avisamos por mail de los postulantes nuevos y de cada novedad de tus búsquedas. Elegís qué recibir desde Perfil de empresa.",
+      },
       {
         icono: "compartir",
         titulo: "Tus avisos se comparten por WhatsApp",
-        texto: "Cada aviso tiene el botón “Compartir por WhatsApp”: arma el mensaje con el puesto, tu empresa y el link. Pasalo a tus grupos o pedile a tu equipo que lo reenvíe.",
-      },
-      {
-        icono: "sueldo",
-        titulo: "Filtro “Sólo con sueldo publicado”",
-        texto: "Los postulantes pueden ver sólo los avisos que muestran el sueldo. Si publicás el rango, tu búsqueda aparece también ahí.",
-      },
-      {
-        icono: "gratis",
-        titulo: "“Postularte es gratis”, a la vista",
-        texto: "Cada aviso recuerda que postularse no cuesta nada y que tu empresa está verificada por Talency. Más confianza, más postulantes.",
+        texto: "Cada aviso tiene el botón «Compartir por WhatsApp», con el puesto, tu empresa y el link. Pasalo a tus grupos.",
       },
     ],
-    boton: { texto: "Publicar una búsqueda", href: "/dashboard/company/publicar" },
+    boton: { texto: "Ver recomendados", href: "/dashboard/company/recomendados" },
   },
   admin: {
-    bajada: "Lo nuevo en los avisos públicos de BBJobs.",
+    bajada: "Se abren los módulos nuevos de BBJobs.",
     items: [
       {
-        icono: "compartir",
-        titulo: "Compartir por WhatsApp",
-        texto: "Cada aviso tiene un botón que arma el mensaje con el puesto, la empresa y el link, listo para grupos y estados.",
+        icono: "revision",
+        titulo: "Revisión de CV a la venta",
+        texto: "Los postulantes la compran con Mercado Pago. Te llega el aviso y la seguís desde «Revisiones de CV»: en curso y entregada.",
       },
       {
-        icono: "sueldo",
-        titulo: "Filtro “Sólo con sueldo publicado”",
-        texto: "En /empleos los postulantes pueden quedarse sólo con los avisos que muestran el sueldo.",
+        icono: "ia",
+        titulo: "Centro de IA",
+        texto: "Recomendados por búsqueda con su porqué, el gasto del día y el estado de cada agente.",
       },
       {
-        icono: "gratis",
-        titulo: "Aviso “Postularte es gratis”",
-        texto: "Cada aviso lo recuerda, con un link a Contacto para avisar si alguien intenta cobrar por una postulación.",
+        icono: "mail",
+        titulo: "Mails",
+        texto: "Lo enviado, las respuestas que llegan y la salud de la cuenta, en «Mails». Los avisos salen solos y respetan las preferencias de cada persona.",
       },
     ],
-    boton: { texto: "Ver los avisos", href: "/empleos" },
+    boton: { texto: "Ir a Revisiones de CV", href: "/dashboard/admin/revisiones-cv" },
   },
 };
 
