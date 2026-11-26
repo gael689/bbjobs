@@ -70,6 +70,8 @@ MAX_FRAGMENTS = 8
 
 def cost_usd(usage: AIUsage, *, flex: bool = False) -> Decimal:
     """Precios en `precios.py` (verificados el 15/11/2026, con el cambio del 1/1/2027)."""
+    if getattr(usage, "free", False):
+        return Decimal(0)    # clave del nivel gratis
     return precios.costo(usage.model, usage.input_tokens, usage.output_tokens + usage.thought_tokens, flex=flex)
 
 
@@ -79,7 +81,8 @@ async def log_usage(db: AsyncSession, feature: str, usage: AIUsage | None, *, co
         return
     cost = cost_usd(usage, flex=flex)
     db.add(AiUsageLog(
-        id=uuid.uuid4(), feature=feature, company_id=company_id, job_id=job_id, model=usage.model,
+        id=uuid.uuid4(), feature=feature, company_id=company_id, job_id=job_id,
+        model=f"{usage.model} (gratis)" if getattr(usage, "free", False) else usage.model,
         input_tokens=usage.input_tokens, output_tokens=usage.output_tokens, thought_tokens=usage.thought_tokens,
         cost_usd=cost,
     ))

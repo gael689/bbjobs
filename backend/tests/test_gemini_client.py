@@ -278,3 +278,56 @@ async def test_reviewer_model_uses_its_own_thinking_level(fake, monkeypatch):
         await provider.generate_json(system="s", prompt="p", model=Requisitos, feature="f", model_name=model_name)
     niveles = [c["generation_config"]["thinking_level"] for c in fake.interaction_calls]
     assert niveles == ["low", "minimal"]
+
+
+# --- clave del nivel gratis (26/11/2026) -------------------------------------------------
+
+@pytest.fixture
+def two_keys(monkeypatch):
+    paid, free = FakeClient(), FakeClient()
+    monkeypatch.setattr(gemini_client, "_make_client", lambda: paid)
+    monkeypatch.setattr(gemini_client, "_make_free_client", lambda: free)
+    monkeypatch.setattr(settings, "GEMINI_FREE_API_KEY", "free-test")
+    monkeypatch.setattr(settings, "GEMINI_FREE_FEATURES", "requisitos,busqueda")
+    monkeypatch.setattr(settings, "GEMINI_FREE_ONLY_FEATURES", "busqueda")
+    monkeypatch.setattr(gemini_client, "_free_paused_until", None)
+    return paid, free
+
+
+async def test_allowed_task_goes_free_and_costs_nothing(two_keys):
+    from app.services.ai.pipeline import cost_usd
+
+    paid, free = two_keys
+    free.interactions.append(_interaction('{"requisitos": ["a"]}'))
+    res = await GeminiProvider().generate_json(system="s", prompt="p", model=Requisitos, feature="requisitos")
+    assert res.usage.free and cost_usd(res.usage) == 0
+    assert len(free.interaction_calls) == 1 and paid.interaction_calls == []
+
+
+async def test_personal_data_tasks_never_use_the_free_key(two_keys):
+    paid, free = two_keys
+    paid.interactions.append(_interaction("ok"))
+    res = await GeminiProvider().generate_text(system="s", prompt="p", feature="evaluador")
+    assert not res.usage.free and free.interaction_calls == [] and len(paid.interaction_calls) == 1
+
+
+async def test_free_without_quota_falls_back_to_paid_and_pauses(two_keys):
+    paid, free = two_keys
+    free.interactions.append(_ApiError(429))
+    paid.interactions += [_interaction('{"requisitos": []}'), _interaction('{"requisitos": []}')]
+    p = GeminiProvider()
+    res = await p.generate_json(system="s", prompt="p", model=Requisitos, feature="requisitos")
+    assert not res.usage.free and len(paid.interaction_calls) == 1
+    # En pausa: la siguiente va directo a la paga, sin volver a probar la gratis.
+    await p.generate_json(system="s", prompt="p", model=Requisitos, feature="requisitos")
+    assert len(free.interaction_calls) == 1 and len(paid.interaction_calls) == 2
+
+
+async def test_free_only_task_never_pays(two_keys):
+    paid, free = two_keys
+    free.interactions.append(_ApiError(429))
+    with pytest.raises(AIError):
+        await GeminiProvider().generate_json(system="s", prompt="p", model=Requisitos, feature="busqueda")
+    with pytest.raises(AIError):   # en pausa: tampoco paga
+        await GeminiProvider().generate_json(system="s", prompt="p", model=Requisitos, feature="busqueda")
+    assert paid.interaction_calls == []

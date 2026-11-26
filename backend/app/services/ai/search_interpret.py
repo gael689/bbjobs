@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.integrations.gemini_client import AIError, AIProvider, AIUnavailable, get_provider
 from app.models.catalogs import ContractType, Industry, Zone
 from app.models.job import JobPostingModality
@@ -256,7 +257,10 @@ async def interpret(db: AsyncSession, q: str, *, provider: AIProvider | None = N
     hit = cache.get(key)
     if hit is not None:
         return hit
-    if not await budget_left(db):
+    # Con la clave gratis, el buscador no gasta: el tope del día no lo frena.
+    free_only = bool(settings.GEMINI_FREE_API_KEY) and \
+        FEATURE in {f.strip() for f in settings.GEMINI_FREE_ONLY_FEATURES.split(",")}
+    if not free_only and not await budget_left(db):
         logger.info("busqueda_ia_sin_presupuesto")
         return UNAVAILABLE
     try:

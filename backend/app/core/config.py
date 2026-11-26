@@ -145,6 +145,15 @@ class Settings(BaseSettings):
     GEMINI_REVIEW_MODEL: str = "gemini-3.8-flash"
     # `-001` y no `-2` por precio (auditoría P11). Se apaga el 14/05/2028; los vectores de uno y
     # otro no son comparables, así que cambiarlo obliga a reindexar todo.
+    # Clave del nivel GRATIS de Gemini (proyecto de Google sin facturación), aparte de la paga.
+    # Google puede usar lo que se manda por el nivel gratis para mejorar sus productos: por eso
+    # SÓLO van por ahí las tareas sin datos personales (`GEMINI_FREE_FEATURES`: avisos de empleo,
+    # frases de búsqueda ya sin contactos, borradores de campaña). Nada de CV ni de candidatos.
+    # Si la gratis se queda sin cuota, esas tareas pasan a la paga; las de
+    # `GEMINI_FREE_ONLY_FEATURES` nunca: sin la gratis, se hacen sin IA.
+    GEMINI_FREE_API_KEY: str = ""
+    GEMINI_FREE_FEATURES: str = "requisitos,redaccion,busqueda,campana_borrador,campana_audiencia"
+    GEMINI_FREE_ONLY_FEATURES: str = "busqueda"
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
     # Reproducibilidad del rerank (auditoría R17): misma semilla y pensamiento mínimo.
     GEMINI_THINKING_LEVEL: str = "minimal"

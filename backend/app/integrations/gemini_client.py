@@ -20,7 +20,8 @@ import json
 import math
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from typing import Any, Generic, Literal, Sequence, TypeVar
 
 import httpx
@@ -72,6 +73,8 @@ class AIUsage:
     input_tokens: int = 0
     output_tokens: int = 0
     thought_tokens: int = 0
+    # Hecha con la clave del nivel gratis: no se cobra (el registro la anota en USD 0).
+    free: bool = False
 
 
 @dataclass(frozen=True)
@@ -172,6 +175,34 @@ def _make_client() -> Any:
     return genai.Client(api_key=settings.GEMINI_API_KEY, http_options=types.HttpOptions(api_version=API_VERSION))
 
 
+def _make_free_client() -> Any:
+    """Cliente con la clave del nivel gratis (`GEMINI_FREE_API_KEY`). Los tests lo reemplazan."""
+    from google import genai
+    from google.genai import types
+
+    return genai.Client(api_key=settings.GEMINI_FREE_API_KEY,
+                        http_options=types.HttpOptions(api_version=API_VERSION))
+
+
+def _feature_set(raw: str) -> set[str]:
+    return {f.strip() for f in (raw or "").split(",") if f.strip()}
+
+
+# Hasta cuándo no se usa la clave gratis después de que se quedó sin cuota (por proceso).
+_free_paused_until: datetime | None = None
+FREE_PAUSE_MINUTE = timedelta(minutes=2)
+FREE_PAUSE_DAY = timedelta(hours=6)
+
+
+def _free_available(now: datetime) -> bool:
+    return _free_paused_until is None or now >= _free_paused_until
+
+
+def _pause_free(err: "AIError", now: datetime) -> None:
+    global _free_paused_until
+    _free_paused_until = now + (FREE_PAUSE_DAY if err.quota_day else FREE_PAUSE_MINUTE)
+
+
 def _usage_from(interaction: Any, model: str) -> AIUsage:
     usage = getattr(interaction, "usage", None)
 
@@ -191,6 +222,7 @@ class GeminiProvider(AIProvider):
         if not settings.GEMINI_API_KEY:
             raise AIUnavailable("GEMINI_API_KEY no configurada")
         self._client = _make_client()
+        self._free_client = _make_free_client() if settings.GEMINI_FREE_API_KEY else None
 
     async def _with_retries(self, call, *, attempts: int = _MAX_ATTEMPTS):
         """Reintenta sólo lo transitorio (429, 5xx, red), con espera creciente: 1 s, 2 s."""
@@ -287,13 +319,38 @@ class GeminiProvider(AIProvider):
         async def call():
             return await self._client.aio.interactions.create(**body)
 
-        interaction = await self._with_retries(call, attempts=attempts)
+        # Nivel gratis primero, sólo para tareas sin datos personales (ver GEMINI_FREE_FEATURES).
+        # Un intento: si no hay cuota, se pausa la gratis un rato y la tarea sigue por la paga
+        # (salvo las "sólo gratis", que se hacen sin IA).
+        free_only = feature in _feature_set(settings.GEMINI_FREE_ONLY_FEATURES)
+        interaction, used_free = None, False
+        now = datetime.now(timezone.utc)
+        if self._free_client is not None and feature in _feature_set(settings.GEMINI_FREE_FEATURES) \
+                and _free_available(now):
+            free_client = self._free_client
+
+            async def call_free():
+                return await free_client.aio.interactions.create(**body)
+
+            try:
+                interaction, used_free = await self._with_retries(call_free, attempts=1), True
+            except AIError as err:
+                _pause_free(err, now)
+                logger.info("gemini_gratis_sin_respuesta", feature=feature, error=str(err)[:160])
+                if free_only:
+                    raise
+        if interaction is None:
+            if free_only:
+                raise AIError(f"'{feature}' sólo usa el nivel gratis y no está disponible", transient=True)
+            interaction = await self._with_retries(call, attempts=attempts)
         usage = _usage_from(interaction, model)
+        if used_free:
+            usage = replace(usage, free=True)
         logger.info(
             "gemini_interaction",
             model=model,
             feature=feature,
-            tier=service_tier,
+            tier="gratis" if used_free else service_tier,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             thought_tokens=usage.thought_tokens,
@@ -339,7 +396,7 @@ class GeminiProvider(AIProvider):
         schema = model.model_json_schema()
         total = AIUsage(model=model_name or settings.GEMINI_GENERATION_MODEL)
         last_error: Exception | None = None
-        for _ in range(2):
+        for attempt in range(2):
             text, usage = await self._interact(
                 system=system, prompt=prompt, feature=feature, company_id=company_id,
                 max_output_tokens=max_output_tokens, service_tier=service_tier, schema=schema,
@@ -350,6 +407,8 @@ class GeminiProvider(AIProvider):
                 input_tokens=total.input_tokens + usage.input_tokens,
                 output_tokens=total.output_tokens + usage.output_tokens,
                 thought_tokens=total.thought_tokens + usage.thought_tokens,
+                # Gratis sólo si todos los intentos fueron por la clave gratis.
+                free=usage.free and (attempt == 0 or total.free),
             )
             try:
                 return AIResult(
