@@ -98,10 +98,34 @@ def test_validate_keeps_only_catalog_values():
     data = si.GeminiInterpretation(zone_slug="punta-alta", industry_slug="Administración", modality="Híbrido",
                                    contract_type="part TIME", keywords=["Recepcionista"])
     out = si.validate(data, CATALOG)
-    assert out.available and out.zone.id == ZONE and out.industry.id == IND and out.contract_type.id == CT
+    assert out.available and out.zone.id == ZONE and out.contract_type.id == CT
     assert out.modality == "híbrido" and out.keywords == "recepcionista"
+    # Con un puesto, el sector no se fuerza (dejaba la búsqueda en cero, 26/11/2026).
+    assert out.industry is None
     # El «Entendimos» lo arma el código con lo validado, no la IA (IA-AGENTES-PLAN.md §7).
-    assert out.understood.startswith("Buscás: recepcionista, en Administración, híbrido, part time, en ")
+    assert out.understood.startswith("Buscás: recepcionista, híbrido, part time, en ")
+
+
+def test_sector_is_a_filter_only_without_a_job_title():
+    out = si.validate(si.GeminiInterpretation(industry_slug="administracion"), CATALOG)
+    assert out.available and out.industry.id == IND and out.keywords is None
+
+
+def test_places_never_end_up_as_keywords():
+    data = si.GeminiInterpretation(zone_slug="punta-alta",
+                                   keywords=["mecanico camiones", "ingeniero white", "punta alta", "cerri"])
+    out = si.validate(data, CATALOG)
+    assert out.keywords == "mecanico camiones"
+    # "ingeniero" sólo, como puesto, sigue valiendo.
+    assert si.validate(si.GeminiInterpretation(keywords=["ingeniero"]), CATALOG).keywords == "ingeniero"
+
+
+def test_salary_is_understood_and_sane():
+    out = si.validate(si.GeminiInterpretation(salary_min=900000), CATALOG)
+    assert out.available and out.salary_min == 900000 and out.with_salary
+    assert out.understood == "Buscás: sueldo desde $ 900.000"
+    out = si.validate(si.GeminiInterpretation(keywords=["chofer"], salary_min=10**12), CATALOG)
+    assert out.salary_min is None and out.with_salary is None
 
 
 def test_the_model_is_not_asked_for_free_text():

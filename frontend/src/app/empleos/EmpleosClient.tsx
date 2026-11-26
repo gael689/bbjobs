@@ -31,13 +31,15 @@ interface Interpretacion {
   contract_type?: Catalog;
   modality?: string;
   keywords?: string;
+  salary_min?: number;
+  with_salary?: boolean;
 }
 
 // Misma regla que `looks_natural` en backend/app/services/ai/search_interpret.py: 4+ palabras,
 // o 2+ con una marca de lenguaje natural. Evita pedirle a la IA "vendedor".
 const MARCAS_NATURALES = new Set([
   "algo", "cerca", "busco", "quiero", "necesito", "part", "full", "medio", "media", "jornada",
-  "remoto", "hibrido", "presencial", "home", "zona",
+  "remoto", "hibrido", "presencial", "home", "zona", "sueldo", "mil", "pago", "paguen",
 ]);
 function pareceNatural(frase: string) {
   const palabras = frase.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -150,6 +152,8 @@ export default function EmpleosClient({
     if (i.zone) setZoneId(i.zone.id);
     if (i.modality) setModality(i.modality);
     if (i.contract_type) setContractTypeId(i.contract_type.id);
+    if (i.salary_min) setSalaryMin(String(i.salary_min));
+    if (i.with_salary) setWithSalary(true);
     setQ(i.keywords ?? "");
     setInterpretacion(null);
   }

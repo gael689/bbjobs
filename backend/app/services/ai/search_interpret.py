@@ -49,14 +49,18 @@ from app.services.ai import agentes
 logger = structlog.get_logger("app.services.ai.search_interpret")
 
 FEATURE = "busqueda"
-MAX_KEYWORDS = 5
+MAX_KEYWORDS = 3   # el buscador exige TODAS las palabras: más palabras, menos avisos (26/11/2026)
+# Lugares que no son zona del catálogo pero el modelo a veces deja en las palabras clave: un
+# lugar como palabra exige que el aviso lo nombre y deja la búsqueda en cero.
+PLACE_WORDS = frozenset({"white", "cerri", "grunbein", "harding", "bahia", "blanca"})
+SALARY_MAX_SANE = 50_000_000
 CACHE_SIZE = 500
 CACHE_TTL_SECONDS = 24 * 3600
 
 # Palabras que delatan una frase en lenguaje natural aunque sea corta ("part time", "algo cerca").
 NATURAL_MARKERS = frozenset({
     "algo", "cerca", "busco", "quiero", "necesito", "part", "full", "medio", "media", "jornada",
-    "remoto", "hibrido", "presencial", "home", "zona",
+    "remoto", "hibrido", "presencial", "home", "zona", "sueldo", "mil", "pago", "paguen",
 })
 
 # Nunca se busca por edad, género o aspecto (regla del portal), aunque la persona lo escriba.
@@ -88,6 +92,8 @@ class GeminiInterpretation(BaseModel):
     modality: Optional[str] = Field(default=None, max_length=40)
     contract_type: Optional[str] = Field(default=None, max_length=120)
     keywords: list[str] = Field(default_factory=list, max_length=10)
+    salary_min: Optional[float] = None
+    with_salary: Optional[bool] = None
 
 
 class CatalogRef(BaseModel):
@@ -103,6 +109,8 @@ class InterpretResponse(BaseModel):
     contract_type: Optional[CatalogRef] = None
     modality: Optional[str] = None
     keywords: Optional[str] = None
+    salary_min: Optional[int] = None
+    with_salary: Optional[bool] = None
 
 
 UNAVAILABLE = InterpretResponse(available=False)
@@ -181,19 +189,28 @@ def _pick_named(value: str | None, options: list[tuple[uuid.UUID, str]]) -> Cata
     return None
 
 
-def clean_keywords(raw: list[str]) -> str:
+def clean_keywords(raw: list[str], places: frozenset[str] = frozenset()) -> str:
     words: list[str] = []
     for item in raw:
-        for tok in tokenize(item):
+        toks = tokenize(item)
+        if any(t in PLACE_WORDS or t in places for t in toks):
+            continue   # "ingeniero white" es un lugar entero, no el puesto "ingeniero"
+        for tok in toks:
             # Los números sueltos afuera: en una frase de búsqueda casi siempre son una edad.
-            if tok in STOPWORDS or tok in BLOCKED_KEYWORDS or len(tok) < 2 or tok.isdigit() or tok in words:
+            if tok in STOPWORDS or tok in BLOCKED_KEYWORDS or len(tok) < 2 or tok.isdigit() or tok in words \
+                    or tok in PLACE_WORDS or tok in places:
                 continue
             words.append(tok)
     return " ".join(words[:MAX_KEYWORDS])
 
 
+def _pesos(n: int) -> str:
+    return "$ " + f"{n:,}".replace(",", ".")
+
+
 def understood_text(keywords: str, industry: CatalogRef | None, modality: str | None,
-                    contract: CatalogRef | None, zone: CatalogRef | None) -> str | None:
+                    contract: CatalogRef | None, zone: CatalogRef | None,
+                    salary_min: int | None = None, with_salary: bool = False) -> str | None:
     """El «Entendimos…» de la pantalla, armado con lo que ya se validó contra el catálogo.
 
     Antes lo escribía Gemini (IA-AGENTES-PLAN.md §7): era salida que se pagaba y texto libre en una
@@ -207,6 +224,10 @@ def understood_text(keywords: str, industry: CatalogRef | None, modality: str | 
         parts.append(contract.name.lower())
     if zone:
         parts.append(f"en {zone.name}")
+    if salary_min:
+        parts.append(f"sueldo desde {_pesos(salary_min)}")
+    elif with_salary:
+        parts.append("con sueldo publicado")
     return ("Buscás: " + ", ".join(parts))[:160] if parts else None
 
 
@@ -216,12 +237,21 @@ def validate(data: GeminiInterpretation, catalog: Catalog) -> InterpretResponse:
     industry = _pick_slugged(data.industry_slug, catalog.industries)
     contract = _pick_named(data.contract_type, catalog.contract_types)
     modality = _MODALITIES.get(normalize_text(data.modality or "").strip())
-    keywords = clean_keywords(data.keywords)
-    if not any((zone, industry, contract, modality, keywords)):
+    places = frozenset(t for _, _, name in catalog.zones for t in tokenize(name))
+    keywords = clean_keywords(data.keywords, places)
+    if keywords:
+        # Con un puesto, el sector no se fuerza como filtro: los avisos suelen estar cargados en
+        # otro sector ("soldador" daba 3 avisos sólo por palabra y 0 con el sector que elegía la
+        # IA, medido el 26/11/2026). La búsqueda por palabra ya mira el sector del aviso.
+        industry = None
+    salary_min = int(data.salary_min) if data.salary_min and 0 < data.salary_min <= SALARY_MAX_SANE else None
+    with_salary = bool(data.with_salary or salary_min)
+    if not any((zone, industry, contract, modality, keywords, salary_min, with_salary)):
         return UNAVAILABLE
-    understood = understood_text(keywords, industry, modality, contract, zone)
+    understood = understood_text(keywords, industry, modality, contract, zone, salary_min, with_salary)
     return InterpretResponse(available=True, understood=understood, zone=zone, industry=industry,
-                             contract_type=contract, modality=modality, keywords=keywords or None)
+                             contract_type=contract, modality=modality, keywords=keywords or None,
+                             salary_min=salary_min, with_salary=with_salary or None)
 
 
 # ── Prompt ──────────────────────────────────────────────────────────────────────────────
