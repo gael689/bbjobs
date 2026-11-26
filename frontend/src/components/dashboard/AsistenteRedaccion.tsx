@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { SparklesIcon, ExclamationTriangleIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 /**
  * "¿Te ayudamos a redactarla?" en Publicar búsqueda (módulo nuevo, Frente 6.3).
@@ -14,7 +15,7 @@ import { SparklesIcon, ExclamationTriangleIcon, CheckIcon } from "@heroicons/rea
  */
 
 export const ASISTENTE_MAX = 1500;
-const ACTIVO = process.env.NEXT_PUBLIC_MODULOS_NUEVOS === "true";
+const ACTIVO = MODULOS_NUEVOS_VISIBLES;
 
 interface DraftSkill { id: string; name: string; slug: string; category: string; is_required: boolean }
 interface Advertencia { texto: string; motivo: string; alternativa: string }

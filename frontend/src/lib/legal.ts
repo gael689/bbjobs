@@ -7,13 +7,15 @@ import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 export const LEGAL_VERSION_BASE = "2.0";
 export const LEGAL_VERSION_MODULOS = "3.0";
 export const LEGAL_VIGENTE_DESDE_BASE = "6 de octubre de 2026";
+// Igual a LEGAL_V3_VIGENTE_DESDE=2026-11-23 del backend (Railway): así no depende de Vercel.
+export const LEGAL_V3_VIGENTE_DESDE = "23 de noviembre de 2026";
 
 export const LEGAL_VERSION = MODULOS_NUEVOS_VISIBLES ? LEGAL_VERSION_MODULOS : LEGAL_VERSION_BASE;
 // Fecha de la 3.0: el día que se abre la compuerta (variable de Vercel, en texto: "20 de noviembre
 // de 2026"). Tiene que coincidir con LEGAL_V3_VIGENTE_DESDE del backend.
 // Sin la variable, las páginas muestran sólo la versión.
 export const LEGAL_VIGENTE_DESDE: string | null = MODULOS_NUEVOS_VISIBLES
-  ? (process.env.NEXT_PUBLIC_LEGAL_V3_VIGENTE_DESDE || null)
+  ? (process.env.NEXT_PUBLIC_LEGAL_V3_VIGENTE_DESDE || LEGAL_V3_VIGENTE_DESDE)
   : LEGAL_VIGENTE_DESDE_BASE;
 
 /** "Versión 3.0 · Vigente desde el 20 de noviembre de 2026" (o sólo la versión, sin fecha cargada). */

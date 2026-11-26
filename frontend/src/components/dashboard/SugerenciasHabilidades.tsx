@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { SparklesIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 /**
  * "Sugerencias según tu CV" en el perfil del candidato (módulo nuevo, Frente 6.5).
@@ -12,7 +13,7 @@ import { SparklesIcon, PlusIcon } from "@heroicons/react/24/outline";
  * IA no guarda nada sola. Sin el módulo, sin IA, sin CV o con la ruta en 404: no aparece.
  */
 
-const ACTIVO = process.env.NEXT_PUBLIC_MODULOS_NUEVOS === "true";
+const ACTIVO = MODULOS_NUEVOS_VISIBLES;
 
 export interface SugerenciaHabilidad {
   skill_id: string;
