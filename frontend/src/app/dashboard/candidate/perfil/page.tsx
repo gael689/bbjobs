@@ -216,7 +216,10 @@ export default function CandidatePerfilPage() {
   async function handleCvUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type !== "application/pdf") { toast("Solo se permiten archivos PDF"); return; }
+    // Desde Android (Drive, WhatsApp, "Archivos") el tipo suele llegar vacío o genérico: se acepta
+    // también por extensión, y el backend confirma que sea PDF mirando el contenido.
+    const pareceOtraCosa = file.type !== "" && file.type !== "application/pdf" && file.type !== "application/octet-stream";
+    if (pareceOtraCosa && !file.name.toLowerCase().endsWith(".pdf")) { toast("Solo se permiten archivos PDF"); return; }
     setCvUploading(true);
     const fd = new FormData();
     fd.append("file", file);
@@ -765,7 +768,7 @@ export default function CandidatePerfilPage() {
                     {profile?.cv_file_url ? "Actualizar CV" : "Subir CV"}
                   </button>
                 )}
-                <input ref={cvRef} type="file" accept="application/pdf" className="hidden" onChange={handleCvUpload} />
+                <input ref={cvRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleCvUpload} />
               </div>
             </div>
           )}

@@ -11,6 +11,16 @@ logger = structlog.get_logger("app.integrations.cloudinary")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 ALLOWED_PDF_TYPES = {"application/pdf"}
 
+
+def es_pdf(file_bytes: bytes) -> bool:
+    """¿El archivo es un PDF de verdad? Se mira el contenido, no el tipo que manda el navegador.
+
+    Chrome en Android, al elegir el archivo desde Drive, WhatsApp o "Archivos", suele mandar
+    `application/octet-stream` o nada como tipo: confiar en eso rechazaba PDFs válidos. La firma
+    `%PDF-` tiene que aparecer en los primeros 1024 bytes (así lo tolera también Acrobat).
+    """
+    return b"%PDF-" in file_bytes[:1024]
+
 # Cuánto vive el link firmado a un documento privado (CV, documentación de verificación).
 # Corto a propósito: el link se genera recién cuando alguien con permiso aprieta "ver", así que
 # no necesita sobrevivir a la sesión — y si se reenvía por mail o WhatsApp, se muere solo.

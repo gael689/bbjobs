@@ -20,7 +20,7 @@ from app.schemas.candidate import (
 )
 from fastapi.concurrency import run_in_threadpool
 from app.schemas.documents import SignedDocumentLink
-from app.integrations.cloudinary_client import upload_pdf, upload_image, signed_document_url
+from app.integrations.cloudinary_client import es_pdf, upload_pdf, upload_image, signed_document_url
 from app.services.profile_completion import compute_profile_completion_for_candidate
 from app.services.history import log_candidate_activity
 from app.core.features import require_new_modules
@@ -201,12 +201,12 @@ async def upload_cv(
     current_user: User = Depends(require_role([UserRole.candidate])),
     db: AsyncSession = Depends(get_db)
 ):
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
-
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Archivo muy grande. Máximo 5MB")
+    # Por contenido, no por `file.content_type`: desde Android el tipo llega vacío o genérico.
+    if not es_pdf(content):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
 
     profile = await _get_candidate_profile(current_user.id, db)
 

@@ -8,7 +8,7 @@ from app.models.core import User, UserRole
 from app.models.company import CompanyProfile, VerificationStatus, CompanyVerificationDocument
 from app.schemas.company import CompanyProfileResponse, CompanyProfileUpdate, VerificationRequestModel
 from fastapi.concurrency import run_in_threadpool
-from app.integrations.cloudinary_client import upload_image, upload_pdf
+from app.integrations.cloudinary_client import es_pdf, upload_image, upload_pdf
 from app.services.notifications import notify_all_admins
 import uuid
 
@@ -195,7 +195,7 @@ async def upload_verification_document(
         raise HTTPException(status_code=404, detail="Profile not found")
 
     file_id = str(uuid.uuid4())
-    is_pdf = file.content_type == "application/pdf"
+    is_pdf = es_pdf(content)
 
     try:
         if is_pdf:
@@ -204,7 +204,7 @@ async def upload_verification_document(
                 content,
                 folder="bbjobs/verification_docs",
                 public_id=f"{profile.id}/{file_id}",
-                content_type=file.content_type,
+                content_type="application/pdf",
             )
         else:
             url = await run_in_threadpool(
@@ -221,7 +221,7 @@ async def upload_verification_document(
         company_id=profile.id,
         file_url=url,
         file_name=file.filename,
-        mime_type=file.content_type,
+        mime_type="application/pdf" if is_pdf else file.content_type,
     )
     db.add(doc)
     await db.commit()
