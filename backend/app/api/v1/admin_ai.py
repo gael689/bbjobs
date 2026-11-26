@@ -87,7 +87,7 @@ async def _require_ai(db: AsyncSession, *, need_recs_switch: bool = True) -> AIP
     if not await pipeline.budget_left(db):
         raise HTTPException(
             status_code=409,
-            detail=f"Hoy ya se llegó al tope de gasto de IA (USD {settings.AI_DAILY_BUDGET_USD:.2f}). Vuelve a estar disponible mañana.",
+            detail=f"Hoy ya se llegó al tope de gasto de IA (USD {await pipeline.daily_budget(db):.2f}). Vuelve a estar disponible mañana.",
         )
     return provider
 
@@ -394,7 +394,7 @@ async def actions_status(_: User = Depends(admin_only), db: AsyncSession = Depen
         recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
         ai_configured=_provider() is not None,
         budget_left=await pipeline.budget_left(db),
-        today_usd=await pipeline.spent_today(db), daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        today_usd=await pipeline.spent_today(db), daily_budget_usd=await pipeline.daily_budget(db),
         queue=(await count(select(AiRecomputeQueue.job_id))).scalar_one(),
         live_jobs=(await count(select(JobPosting.id).where(_live_job()))).scalar_one(),
         pending_moderation=(await count(select(JobPosting.id).where(
@@ -554,7 +554,7 @@ async def action_monthly_draft(_: User = Depends(admin_only), db: AsyncSession =
     if not await pipeline.budget_left(db):
         raise HTTPException(
             status_code=409,
-            detail=f"Hoy ya se llegó al tope de gasto de IA (USD {settings.AI_DAILY_BUDGET_USD:.2f}). Vuelve a estar disponible mañana.",
+            detail=f"Hoy ya se llegó al tope de gasto de IA (USD {await pipeline.daily_budget(db):.2f}). Vuelve a estar disponible mañana.",
         )
     campaign = await monthly.prepare_monthly_draft(db, force=True, origin="talency")
     if campaign is None:
@@ -726,7 +726,7 @@ async def admin_ai_activity_summary(_: User = Depends(admin_only), db: AsyncSess
     today = local_day_start(datetime.now(timezone.utc))
     return ActivitySummary(
         today=await _totals(db, today), week=await _totals(db, today - timedelta(days=6)),
-        daily_budget_usd=settings.AI_DAILY_BUDGET_USD, budget_left=await pipeline.budget_left(db),
+        daily_budget_usd=await pipeline.daily_budget(db), budget_left=await pipeline.budget_left(db),
         recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
         ai_configured=_provider() is not None,
     )
@@ -769,6 +769,8 @@ class OverviewResponse(BaseModel):
     budget_left: bool
     daily_budget_usd: float
     spent_today_usd: float
+    month_budget_usd: float = 0.0
+    month_spent_usd: float = 0.0
     days: list[OverviewDay]
     features: list[OverviewFeature]
     jobs_with_recs: int
@@ -860,13 +862,15 @@ async def admin_ai_overview(_: User = Depends(admin_only), db: AsyncSession = De
             source=rec.source, score=rec.final_score, computed_at=rec.computed_at,
         ))
 
+    budget_today = await pipeline.daily_budget(db)
     return OverviewResponse(
         ai_configured=_provider() is not None,
         recs_switch_on=bool(await get_setting(db, SettingKey.ia_recomendaciones_activas)),
         assistant_on=bool(await get_setting(db, SettingKey.asistente_ia_activo)),
         # El último día de la serie es hoy (mismo corte de Argentina que spent_today): no se suma dos veces.
-        budget_left=days[-1].spend_usd < settings.AI_DAILY_BUDGET_USD, daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        budget_left=days[-1].spend_usd < budget_today, daily_budget_usd=budget_today,
         spent_today_usd=days[-1].spend_usd,
+        month_budget_usd=settings.AI_MONTHLY_BUDGET_USD, month_spent_usd=await pipeline.spent_this_month(db),
         days=days, features=features,
         jobs_with_recs=jobs_with_recs, recommendations=recs_total, strong_fits=strong,
         applicants_strong=applicants_strong, applicants_strong_advanced=advanced, notices_week=notices,
@@ -1027,7 +1031,8 @@ async def admin_ai_agents(_: User = Depends(admin_only), db: AsyncSession = Depe
 
     configured = _provider() is not None
     spent = await pipeline.spent_today(db)
-    over_budget = spent >= settings.AI_DAILY_BUDGET_USD
+    budget_today = await pipeline.daily_budget(db)
+    over_budget = spent >= budget_today
     switches = {k.value: bool(await get_setting(db, k)) for k in SettingKey}
     checks = await _ai_checks(db, since)
 
@@ -1063,7 +1068,7 @@ async def admin_ai_agents(_: User = Depends(admin_only), db: AsyncSession = Depe
         ))
     return AgentsResponse(
         checks=checks, agents=out, flow=[FlowStep(kind=k, value=v) for k, v in agentes.RECORRIDO], days=AGENTS_DAYS,
-        daily_budget_usd=settings.AI_DAILY_BUDGET_USD, today_usd=round(spent, 6),
+        daily_budget_usd=budget_today, today_usd=round(spent, 6),
         review_band=(pipeline.REVIEW_MIN, pipeline.REVIEW_MAX),
         per_search_usd=agentes.costo_por_busqueda(),
         per_search_2027_usd=agentes.costo_por_busqueda(date(2027, 1, 2)),

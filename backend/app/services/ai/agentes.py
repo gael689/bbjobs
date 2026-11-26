@@ -77,7 +77,7 @@ AGENTES: tuple[Agente, ...] = (
     ),
     Agente(
         clave="evaluador", nombre="Evaluador", equipo="recomendaciones", tipo="ia", modelo="generacion",
-        que_hace="Para los 30 mejores candidatos de cada búsqueda, mira requisito por requisito si el "
+        que_hace="Para los 20 mejores postulantes de cada búsqueda y los de la Base que la empresa ve, mira requisito por requisito si el "
                  "perfil lo cumple y en qué parte del CV lo vio. De a un candidato por vez.",
         recibe="Los requisitos y unos pocos fragmentos anonimizados del perfil.",
         devuelve="Por requisito: cumple, cumple en parte, no cumple o no dice nada, y el fragmento. La cita "
@@ -88,7 +88,7 @@ AGENTES: tuple[Agente, ...] = (
     Agente(
         clave="revisor", nombre="Revisor", equipo="recomendaciones", tipo="ia", modelo="revision",
         que_hace="Segunda opinión, con un modelo mejor, solo para los candidatos que quedaron cerca del "
-                 "corte que decide si se les avisa de la búsqueda (puntaje entre 60 y 79).",
+                 "corte que decide si se les avisa de la búsqueda (puntaje entre 65 y 74).",
         recibe="Lo mismo que el Evaluador.",
         devuelve="Lo mismo que el Evaluador. Si su respuesta es válida, reemplaza a la del Evaluador.",
         nunca="Lo mismo que el Evaluador. Tampoco revisa a todos: solo a los de la franja dudosa.",
@@ -183,7 +183,7 @@ CODIGO: dict[str, str] = {
                  "que no quede ninguno antes de mandar nada. Un CV que no cambió no se vuelve a leer.",
     "requisitos": "Descarta los requisitos discriminatorios aunque la IA los devuelva. Una búsqueda que no "
                   "cambió no se vuelve a leer.",
-    "evaluador": "Antes: el puntaje de todos los candidatos, sin IA. La IA solo ve a los 30 mejores. Después: "
+    "evaluador": "Antes: el puntaje de todos los candidatos, sin IA. La IA solo ve a los 20 mejores postulantes y a los de la Base que la empresa ve (3, o 10 con pack). Después: "
                  "elige la frase del CV que respalda cada respuesta y escribe los motivos. Si no hay frase, "
                  "el «cumple» se descarta. Un perfil y una búsqueda que no cambiaron no se vuelven a evaluar.",
     "revisor": "Solo se llama si el puntaje quedó en la franja dudosa y queda presupuesto en el día. Su "
@@ -222,7 +222,7 @@ TOKENS_TIPICOS: dict[str, tuple[int, int]] = {
 
 # Una búsqueda típica (mediana medida el 04/10/2026: 62 postulantes, ~20 búsquedas por mes).
 POR_BUSQUEDA: dict[str, float] = {
-    "requisitos": 1, "evaluador": 30, "revisor": 6, "resumidor": 5,
+    "requisitos": 1, "evaluador": 23, "revisor": 6, "resumidor": 3,
 }
 BUSQUEDAS_POR_MES = 20
 

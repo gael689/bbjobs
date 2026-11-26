@@ -48,3 +48,15 @@ def pytest_sessionstart(session):
         asyncio.run(limpiar())
     except Exception as exc:   # base sin migrar o sin permisos: los tests con base avisarán solos
         print(f"[conftest] no se pudieron vaciar los catálogos: {str(exc)[:120]}")
+
+
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True)
+def _tope_ia_fijo(monkeypatch):
+    """Los tests que tocan el tope de IA lo manejan con `AI_DAILY_BUDGET_USD`: sin presupuesto
+    mensual, el tope del día es ese valor fijo (el reparto mensual tiene sus propios tests)."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "AI_MONTHLY_BUDGET_USD", 0.0)

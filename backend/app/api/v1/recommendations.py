@@ -478,7 +478,7 @@ async def ai_usage(days: int = Query(default=30, ge=1, le=365),
         .where(AiUsageLog.created_at >= since).group_by(CompanyProfile.legal_name)
     )).all()
     return UsageSummary(
-        today_usd=await pipeline.spent_today(db), daily_budget_usd=settings.AI_DAILY_BUDGET_USD,
+        today_usd=await pipeline.spent_today(db), daily_budget_usd=await pipeline.daily_budget(db),
         period_usd=float(sum(c for _, _, c in by_feature)),
         by_feature=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_feature],
         by_company=[UsageRow(key=k, calls=n, cost_usd=float(c)) for k, n, c in by_company],

@@ -42,13 +42,13 @@ from app.models.core import User
 from app.models.job import Application, ApplicationStatus, JobModerationStatus, JobPosting, JobPostingStatus
 from app.models.settings import SettingKey
 from app.services.ai import activity, scoring
-from app.services.ai.pipeline import budget_left, spent_today
+from app.services.ai.pipeline import budget_left, daily_budget, spent_today
 from app.services.notifications import create_notification
 from app.services.settings import get_setting
 
 logger = structlog.get_logger("app.services.ai.automations")
 
-SUMMARY_TOP = 5
+SUMMARY_TOP = settings.AI_SUMMARY_TOP   # era 5 (ahorro 25/11/2026)
 SUMMARY_FRESH_APPS = timedelta(hours=24)
 
 SKILL_NOTICE_TYPE = "skill_suggestions_ready"
@@ -282,7 +282,7 @@ async def team_ai_items(db: AsyncSession, now: datetime) -> list[tuple[str, str 
         ))
 
     # Gasto del día cerca del tope (≥ 80 %): a partir del 100 % la IA se apaga sola (R13).
-    budget = float(settings.AI_DAILY_BUDGET_USD or 0)
+    budget = await daily_budget(db, now)
     spent = await spent_today(db, now)
     if budget > 0 and spent >= BUDGET_WARN_RATIO * budget:
         out.append((

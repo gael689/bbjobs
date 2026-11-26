@@ -14,7 +14,7 @@ Flujo por búsqueda (auditoría §5-ter):
 5. Todo queda en `job_recommendations`. **Nadie se descarta**: la empresa ve a todos.
 
 Gasto: cada llamada se registra en `ai_usage_log` con su costo; si el día pasa
-`AI_DAILY_BUDGET_USD`, la IA se apaga sola hasta mañana (regla R13) y se sigue con el híbrido.
+el tope de hoy (`daily_budget`), la IA se apaga sola hasta mañana (regla R13) y se sigue con el híbrido.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ import hashlib
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 import numpy as np
@@ -47,20 +47,22 @@ from app.services.ai import requirements as reqs
 from app.services.ai import precios, rerank, scoring
 from app.services import zonas
 from app.services.ai.chunks import CandidateData, Education as EduData, Experience as ExpData, build_ficha
-from app.services.email.policy import local_day_start
+from app.services.email.policy import AR_TZ, local_day_start
 
 logger = structlog.get_logger("app.services.ai.pipeline")
 
 RERANK_TOP = 30
 # Lugares reservados dentro de los 30 (plan final §2.3): con 62 postulantes de mediana, la Base de
 # Talento no entraba nunca a la evaluación con IA. Si un grupo no llena los suyos, los usa el otro.
-RERANK_TOP_APPLICANTS = 20
+RERANK_TOP_APPLICANTS = settings.AI_RERANK_TOP_APPLICANTS
 RERANK_TOP_TALENT = 10
 TALENT_POOL_CONSIDERED = 30
 # Revisor (IA-AGENTES-PLAN.md §2): segunda opinión solo para quien quedó cerca del corte de 70
-# (`scoring.RECOMMENDED_THRESHOLD`, el que dispara el aviso al candidato).
-REVIEW_MIN = 60
-REVIEW_MAX = 79
+# (`scoring.RECOMMENDED_THRESHOLD`, el que dispara el aviso al candidato). Era 60–79 y revisaba
+# casi la mitad de los evaluados con el modelo caro (34 % del gasto, 23–25/11/2026): ahora sólo
+# los que quedaron a ±5 del corte.
+REVIEW_MIN = settings.AI_REVIEW_MIN
+REVIEW_MAX = settings.AI_REVIEW_MAX
 FRAGMENTS_PER_REQUIREMENT = 2
 MAX_FRAGMENTS = 8
 
@@ -98,8 +100,65 @@ def cost_mark_of(db: AsyncSession) -> Decimal:
     return Decimal(db.info.get("ai_cost_usd", Decimal(0)))
 
 
+MAX_DAY_OVER_NORMAL = 1.5
+
+
+def weekday_weights() -> list[float]:
+    """Pesos de lunes a domingo (`AI_WEEKDAY_WEIGHTS`). Si la variable está mal, todos iguales."""
+    try:
+        w = [max(0.0, float(x)) for x in settings.AI_WEEKDAY_WEIGHTS.split(",")]
+    except ValueError:
+        w = []
+    return w if len(w) == 7 and sum(w) > 0 else [1.0] * 7
+
+
+def budget_for_day(today: date, monthly: float, spent_before_today: float, ceiling: float,
+                   weights: list[float] | None = None) -> float:
+    """Tope de `today`: lo que queda del mes, repartido entre hoy y los días que faltan según el
+    peso de cada día de la semana (lunes más, fin de semana menos). Lo que no se gastó antes
+    queda en "lo que queda", así que se reparte solo entre los días siguientes. Nunca pasa de
+    `ceiling` (el techo de un día). Con `monthly` en 0, el tope es `ceiling` fijo."""
+    if monthly <= 0:
+        return ceiling
+    weights = weights or weekday_weights()
+    next_month = date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+    days_left = [today + timedelta(days=i) for i in range((next_month - today).days)]
+    total = sum(weights[d.weekday()] for d in days_left)
+    left = max(0.0, monthly - spent_before_today)
+    share = left * weights[today.weekday()] / total if total > 0 else 0.0
+    # Lo que sobró se reparte, pero sin picos: ningún día pasa de 1,5 veces su parte normal del
+    # mes (así un fin de mes con plata de sobra no se la gasta toda de golpe; lo que no se usa
+    # queda ahorrado).
+    month_days = [today.replace(day=1) + timedelta(days=i) for i in range((next_month - today.replace(day=1)).days)]
+    normal = monthly * weights[today.weekday()] / sum(weights[d.weekday()] for d in month_days)
+    return round(min(share, MAX_DAY_OVER_NORMAL * normal, ceiling), 4)
+
+
+async def daily_budget(db: AsyncSession, now: datetime | None = None) -> float:
+    """El tope de gasto de IA de hoy (ver `budget_for_day`)."""
+    now = now or datetime.now(timezone.utc)
+    day_start = local_day_start(now)
+    local_today = day_start.astimezone(AR_TZ).date()
+    month_start = datetime.combine(local_today.replace(day=1), time(0, 0), AR_TZ).astimezone(timezone.utc)
+    spent_before = (await db.execute(
+        select(func.coalesce(func.sum(AiUsageLog.cost_usd), 0))
+        .where(AiUsageLog.created_at >= month_start, AiUsageLog.created_at < day_start)
+    )).scalar_one()
+    return budget_for_day(local_today, settings.AI_MONTHLY_BUDGET_USD, float(spent_before),
+                          settings.AI_DAILY_BUDGET_USD)
+
+
+async def spent_this_month(db: AsyncSession, now: datetime | None = None) -> float:
+    now = now or datetime.now(timezone.utc)
+    local_today = local_day_start(now).astimezone(AR_TZ).date()
+    month_start = datetime.combine(local_today.replace(day=1), time(0, 0), AR_TZ).astimezone(timezone.utc)
+    return float((await db.execute(
+        select(func.coalesce(func.sum(AiUsageLog.cost_usd), 0)).where(AiUsageLog.created_at >= month_start)
+    )).scalar_one())
+
+
 async def budget_left(db: AsyncSession) -> bool:
-    return await spent_today(db) < settings.AI_DAILY_BUDGET_USD
+    return await spent_today(db) < await daily_budget(db)
 
 
 # ── Carga de fichas ─────────────────────────────────────────────────────────────────────
@@ -322,14 +381,23 @@ async def _chunks_for(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.UUID,
     return out
 
 
-def rerank_candidates(applicants_ranked: list, talent_ranked: list) -> set:
-    """Quiénes pasan por la IA: los mejores 20 postulantes y los mejores 10 de la Base (cada lista
-    ya viene ordenada por puntaje híbrido). Los lugares que un grupo no usa pasan al otro, así
-    el total sigue siendo `RERANK_TOP` como antes."""
-    spare_applicants = max(0, RERANK_TOP_APPLICANTS - len(applicants_ranked))
-    spare_talent = max(0, RERANK_TOP_TALENT - len(talent_ranked))
-    return (set(applicants_ranked[:RERANK_TOP_APPLICANTS + spare_talent])
-            | set(talent_ranked[:RERANK_TOP_TALENT + spare_applicants]))
+def rerank_candidates(applicants_ranked: list, talent_ranked: list, talent_top: int = RERANK_TOP_TALENT) -> set:
+    """Quiénes pasan por la IA: los mejores 20 postulantes y, de la Base, sólo los que la empresa
+    puede ver (`talent_top`: 3 sin pack, 10 con pack; cada lista ya viene ordenada por puntaje
+    híbrido). Ahorro (25/11/2026): antes se evaluaban 10 de la Base aunque la empresa viera 3, y
+    los lugares libres de un grupo pasaban al otro; eso era gasto que nadie veía."""
+    return set(applicants_ranked[:RERANK_TOP_APPLICANTS]) | set(talent_ranked[:max(0, talent_top)])
+
+
+async def talent_visible_count(db: AsyncSession, company_id) -> int:
+    """Cuántos perfiles de la Base ve la empresa por búsqueda (el mismo corte que la pantalla)."""
+    from app.models.payment import TalentCreditPack, TalentPackStatus
+
+    has_pack = (await db.execute(
+        select(func.count()).select_from(TalentCreditPack).where(
+            TalentCreditPack.company_id == company_id, TalentCreditPack.status == TalentPackStatus.active.value)
+    )).scalar_one()
+    return settings.RECS_TALENT_PACK_COUNT if has_pack else settings.RECS_TALENT_FREE_COUNT
 
 
 def _calls(stats: dict) -> int:
@@ -447,7 +515,8 @@ async def _compute_recommendations(
     kept_talent = talent_ranked[:TALENT_POOL_CONSIDERED]
     keep = {c for c in applicants if c in rows} | set(kept_talent)
     rerank_pool = rerank_candidates(
-        sorted((c for c in applicants if c in rows), key=lambda c: -rows[c]["score"]), kept_talent)
+        sorted((c for c in applicants if c in rows), key=lambda c: -rows[c]["score"]), kept_talent,
+        talent_top=await talent_visible_count(db, job.company_id))
 
     stats = {"universo": len(universe), "guardados": 0, "rerank": 0, "reutilizados": 0, "fallidos": 0, "tope": 0,
              "revisiones": 0, "revisiones_fallidas": 0, "degradados": 0, "items": 0,
@@ -456,6 +525,7 @@ async def _compute_recommendations(
     # El gasto del día se lee una vez y se le suma lo que gasta esta vuelta (antes era una suma
     # sobre ai_usage_log por candidato).
     spent_start = await spent_today(db) if can_rerank else 0.0
+    budget_today = await daily_budget(db) if can_rerank else 0.0
     cost_start = cost_mark_of(db)
     for cid in keep:
         row, prev, idx = rows[cid], existing.get(cid), index.get(cid)
@@ -477,7 +547,7 @@ async def _compute_recommendations(
             elif _calls(stats) >= max_reranks:
                 status = "skipped_limit"
                 stats["tope"] = 1
-            elif spent_start + float(cost_mark_of(db) - cost_start) >= settings.AI_DAILY_BUDGET_USD:
+            elif spent_start + float(cost_mark_of(db) - cost_start) >= budget_today:
                 status = "skipped_budget"
             elif not chunks.get(cid):
                 status = "no_index"
@@ -520,7 +590,7 @@ async def _compute_recommendations(
                 # Revisor: segunda opinión, con el modelo mejor, solo si quedó cerca del corte.
                 if fresh:
                     provisional = _score(row, _with_skills(req_evals, ctx, data[cid][1]))
-                    within_budget = spent_start + float(cost_mark_of(db) - cost_start) < settings.AI_DAILY_BUDGET_USD
+                    within_budget = spent_start + float(cost_mark_of(db) - cost_start) < budget_today
                     if REVIEW_MIN <= provisional <= REVIEW_MAX and within_budget and _calls(stats) < max_reranks:
                         try:
                             rev = await rerank.rerank_one(provider, agente="revisor", **ask)

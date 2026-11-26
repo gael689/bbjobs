@@ -11,7 +11,7 @@ Reglas (las mismas que el resto de la IA del portal):
   pydantic + contra el catálogo. El texto libre ("entendimos") se recorta y React lo escapa.
 - **Sin edad ni género**: el prompt lo prohíbe y las palabras clave se filtran igual.
 - **Gasto**: cada llamada se registra en `ai_usage_log` con feature `busqueda`, y si el día ya
-  pasó `AI_DAILY_BUDGET_USD` (tope compartido con recomendados y campañas) no se llama.
+  pasó el tope de hoy (`pipeline.daily_budget`, compartido con recomendados y campañas) no se llama.
 - **Caché en memoria** por frase normalizada (LRU de 500, 24 h): la misma frase no se paga dos
   veces por proceso. No se cachean los fallos.
 - Si algo falta (compuerta abierta pero interruptor apagado, sin `GEMINI_API_KEY`, tope, error de

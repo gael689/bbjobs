@@ -331,13 +331,15 @@ def test_rerank_reserves_slots_for_talent():
     assert pool == set(applicants[:RERANK_TOP_APPLICANTS]) | set(talent[:RERANK_TOP_TALENT])
 
 
-def test_rerank_spare_slots_go_to_the_other_group():
-    from app.services.ai.pipeline import RERANK_TOP, rerank_candidates
+def test_rerank_base_only_what_the_company_sees():
+    """De la Base se evalúan sólo los que la empresa ve (3 sin pack); los lugares libres no pasan
+    de un grupo al otro: sería gasto que nadie mira."""
+    from app.services.ai.pipeline import RERANK_TOP_APPLICANTS, rerank_candidates
 
-    pool = rerank_candidates(["a1", "a2"], [f"t{i}" for i in range(30)])
-    assert len(pool) == RERANK_TOP and {"a1", "a2"} <= pool
-    pool = rerank_candidates([f"a{i}" for i in range(50)], ["t1"])
-    assert len(pool) == RERANK_TOP and "t1" in pool and "a28" in pool and "a29" not in pool
+    talent = [f"t{i}" for i in range(30)]
+    assert rerank_candidates(["a1", "a2"], talent, talent_top=3) == {"a1", "a2", "t0", "t1", "t2"}
+    pool = rerank_candidates([f"a{i}" for i in range(50)], ["t1"], talent_top=3)
+    assert len(pool) == RERANK_TOP_APPLICANTS + 1 and "t1" in pool and "a20" not in pool
     assert rerank_candidates([], []) == set()
 
 

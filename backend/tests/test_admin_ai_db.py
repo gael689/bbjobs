@@ -667,7 +667,8 @@ async def test_agents_tab_shows_each_agent_with_its_work_and_instructions(maker,
     assert agents["lector_cv"]["instructions"] is None and agents["lector_cv"]["kind"] == "vectores"
     assert ev["degraded"] is not None and rev["reviews"] is not None
     assert [s["value"] for s in d["flow"] if s["kind"] == "agente"][:2] == ["lector_cv", "requisitos"]
-    assert d["review_band"] == [60, 79]
+    from app.services.ai import pipeline
+    assert d["review_band"] == [pipeline.REVIEW_MIN, pipeline.REVIEW_MAX]
     assert all(a["code"] and a["est_cost_usd"] > 0 for a in d["agents"])
     assert d["per_search_2027_usd"] > d["per_search_usd"] > 0          # el Revisor sube en 2027
 

@@ -23,6 +23,7 @@ interface Coincidencia {
 interface Panorama {
   ai_configured: boolean; recs_switch_on: boolean; assistant_on: boolean; budget_left: boolean;
   daily_budget_usd: number; spent_today_usd: number;
+  month_budget_usd?: number; month_spent_usd?: number;
   days: Dia[]; features: Funcion[];
   jobs_with_recs: number; recommendations: number; strong_fits: number;
   applicants_strong: number; applicants_strong_advanced: number; notices_week: number;
@@ -96,7 +97,7 @@ function GastoDiario({ dias, tope }: { dias: Dia[]; tope: number }) {
       <div className="relative h-36 flex items-end gap-[2px]" onMouseLeave={() => setFoco(null)}>
         {tope > 0 && (
           <div className="absolute left-0 right-0 border-t border-dashed border-[#D4B7A2]" style={{ bottom: `${(100 * tope) / max}%` }}>
-            <span className="absolute right-0 -top-5 text-[11px] font-bold text-[#5C3B22]">Tope diario {usd(tope)}</span>
+            <span className="absolute right-0 -top-5 text-[11px] font-bold text-[#5C3B22]">Tope de hoy {usd(tope)}</span>
           </div>
         )}
         {dias.map((d, i) => (
@@ -193,6 +194,12 @@ export default function Panorama({ onVerBusqueda }: { onVerBusqueda: (jobId: str
               <div className={`h-full rounded-full ${usoTope >= 90 ? "bg-[#D4B7A2]" : "bg-[#9ED4DF]"}`} style={{ width: `${usoTope}%` }} />
             </div>
             <p className="text-xs text-[#D6E9EE] mt-1.5">{p.budget_left ? "Al llegar al tope, se frena sola hasta mañana." : "Llegó al tope: vuelve mañana."}</p>
+            {!!p.month_budget_usd && (
+              <p className="text-xs text-[#D6E9EE] mt-1">
+                Este mes: {usd(p.month_spent_usd ?? 0)} de {usd(p.month_budget_usd)}. El tope de cada día sale de lo que
+                queda del mes: más los lunes, menos el fin de semana, y lo que no se gasta pasa a los días que siguen.
+              </p>
+            )}
           </div>
         </div>
       </section>

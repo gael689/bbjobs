@@ -168,7 +168,20 @@ class Settings(BaseSettings):
     RECS_REFRESH_PER_DAY: int = 10
     # Tope de gasto diario en IA (USD). Al pasarlo, la IA se apaga sola hasta mañana y los
     # recomendados siguen con el puntaje híbrido (regla R13). ~USD 30/mes = 1/día.
+    # Presupuesto de IA (Gael, 25/11/2026: USD 30 tienen que durar 3 meses). El tope de cada día
+    # sale de `pipeline.daily_budget`: lo que queda del mes repartido entre los días que faltan,
+    # con más peso los lunes y menos el fin de semana; lo que no se gasta pasa a los días que
+    # siguen. `AI_DAILY_BUDGET_USD` es el techo de un solo día. Con el mensual en 0, el tope es fijo.
+    AI_MONTHLY_BUDGET_USD: float = 10.0
     AI_DAILY_BUDGET_USD: float = 1.0
+    # Peso de cada día, de lunes a domingo.
+    AI_WEEKDAY_WEIGHTS: str = "1.5,1.2,1.0,1.0,1.0,0.5,0.4"
+    # Perillas de gasto de las recomendaciones: se ajustan desde Railway sin tocar código, según
+    # lo que se gaste y cómo salgan los resultados (Gael, 25/11/2026).
+    AI_RERANK_TOP_APPLICANTS: int = 20      # postulantes por búsqueda que evalúa la IA
+    AI_REVIEW_MIN: int = 65                 # franja del Revisor (modelo caro): alrededor del corte de 70
+    AI_REVIEW_MAX: int = 74
+    AI_SUMMARY_TOP: int = 3                 # resúmenes de 3 líneas por búsqueda, cada noche
     # WhatsApp de Talency para el renglón de ayuda de los mails de empresas (PDF de Eugenia,
     # 19/10/2026). El link lo arma el render desde acá, nunca desde texto de un usuario. El
     # mismo número está en el frontend (contacto y ConsultaSeleccion).
