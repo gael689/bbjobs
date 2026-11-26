@@ -183,7 +183,9 @@ export default function DashboardShell({
     let cancelled = false;
     const tick = () => {
       if (document.hidden || isSessionExpired()) return;
-      if (MODULOS_NUEVOS_VISIBLES) {
+      // Empresas: siempre el resumen, porque trae los recomendados sin mirar y de ahí sale si se
+      // muestran (lo decide el backend, no una variable de compilación).
+      if (MODULOS_NUEVOS_VISIBLES || role === "company") {
         api.get<ResumenPanel>("/me/notifications/summary")
           .then(res => {
             if (cancelled) return;
@@ -206,8 +208,12 @@ export default function DashboardShell({
       if (navUnreadPollRef.current) clearInterval(navUnreadPollRef.current);
       window.removeEventListener(EVENTO_RECOMENDADOS_VISTOS, tick);
     };
-  }, [isSignedIn]);
+  }, [isSignedIn, role]);
   const recomendados = resumen?.recommended?.total ?? 0;
+  // `recommended` llega (aunque sea en 0) sólo si el backend tiene los recomendados visibles
+  // para esta empresa; si no, el ítem "Recomendados" no aparece en el menú.
+  const recsVisibles = resumen?.recommended != null;
+  const items = navItems.filter(i => i.contador !== "recomendados" || recsVisibles);
 
   return (
     <div className="min-h-screen bg-[#FAFBFD] lg:flex">
@@ -233,7 +239,7 @@ export default function DashboardShell({
           <MarcaVersion />
         </div>
 
-        <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados} />
+        <NavLinks navItems={items} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados} />
 
         <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
           <NotificationBell variant="prominent" align="left" openUpward />
@@ -289,7 +295,7 @@ export default function DashboardShell({
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
-            <NavLinks navItems={navItems} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados}
+            <NavLinks navItems={items} pathname={pathname} unreadCount={navUnreadCount} recomendados={recomendados}
                       onNavigate={() => setMobileOpen(false)} />
             <div className="px-3 py-4 border-t border-white/[0.06] space-y-2.5">
               <NotificationBell variant="prominent" align="left" openUpward />
@@ -319,7 +325,7 @@ export default function DashboardShell({
       {/* Los avisos que salen en pantalla son de los módulos nuevos (IA): con la compuerta cerrada, ni se consultan. */}
       {MODULOS_NUEVOS_VISIBLES && <AvisoEmergente avisos={resumen?.highlights ?? []} />}
       {/* La bombita de la empresa: recomendados que todavía no miró (como mucho una vez por día). */}
-      {MODULOS_NUEVOS_VISIBLES && role === "company" && (
+      {role === "company" && recsVisibles && (
         <BombitaRecomendados pendientes={resumen?.recommended ?? null} usuario={userId} />
       )}
       <NovedadesVersion rol={role} />

@@ -5,7 +5,6 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import {
   HomeIcon, BuildingOffice2Icon, PlusCircleIcon, BriefcaseIcon, UsersIcon, ChartBarIcon, CreditCardIcon, BellIcon,
   MagnifyingGlassCircleIcon, SparklesIcon } from "@heroicons/react/24/outline";
-import { MODULOS_NUEVOS_VISIBLES } from "@/lib/modulos";
 
 const NAV_ITEMS = [
   { href: "/dashboard/company", label: "Inicio", icon: HomeIcon, exact: true },
@@ -17,11 +16,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/company/estadisticas", label: "Estadísticas", icon: ChartBarIcon },
   { href: "/dashboard/company/pagos", label: "Pagos", icon: CreditCardIcon },
   { href: "/dashboard/company/notificaciones", label: "Notificaciones", icon: BellIcon },
-  // Módulos nuevos: ocultos para las empresas hasta el lanzamiento (NEXT_PUBLIC_MODULOS_NUEVOS).
-  ...(MODULOS_NUEVOS_VISIBLES ? [
-    // "Recomendados (5)": los que todavía no miró (lo cuenta DashboardShell con la campanita).
-    { href: "/dashboard/company/recomendados", label: "Recomendados", icon: SparklesIcon, contador: "recomendados" as const },
-  ] : []),
+  // "Recomendados (5)": los que todavía no miró. No depende de una variable de Vercel:
+  // DashboardShell lo muestra sólo si el backend dice que los recomendados están visibles para
+  // las empresas (compuerta + `ia_recomendaciones_visibles`), y desde ahí cuenta los pendientes.
+  { href: "/dashboard/company/recomendados", label: "Recomendados", icon: SparklesIcon, contador: "recomendados" as const },
 ];
 
 export default function CompanyDashboardLayout({ children }: { children: React.ReactNode }) {
